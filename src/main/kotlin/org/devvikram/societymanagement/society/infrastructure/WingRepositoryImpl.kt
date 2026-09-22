@@ -14,4 +14,8 @@ class WingRepositoryImpl(
     override fun findById(id: UUID): Wing? = wingJpaRepository.findById(id).orElse(null)
 
     override fun findAll(): List<Wing> = wingJpaRepository.findAll()
+
+    override fun findBySocietyId(societyId: UUID): List<Wing> = wingJpaRepository.findBySocietyId(societyId)
+
+    override fun deleteById(id: UUID) = wingJpaRepository.deleteById(id)
 }

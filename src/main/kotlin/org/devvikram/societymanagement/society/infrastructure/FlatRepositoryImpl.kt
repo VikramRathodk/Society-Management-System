@@ -14,4 +14,8 @@ class FlatRepositoryImpl(
     override fun findById(id: UUID): Flat? = flatJpaRepository.findById(id).orElse(null)
 
     override fun findAll(): List<Flat> = flatJpaRepository.findAll()
+
+    override fun findByWingId(wingId: UUID): List<Flat> = flatJpaRepository.findByWingId(wingId)
+
+    override fun deleteById(id: UUID) = flatJpaRepository.deleteById(id)
 }

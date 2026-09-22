@@ -4,4 +4,6 @@ import org.devvikram.societymanagement.society.domain.Flat
 import org.springframework.data.jpa.repository.JpaRepository
 import java.util.UUID
 
-interface FlatJpaRepository : JpaRepository<Flat, UUID>
+interface FlatJpaRepository : JpaRepository<Flat, UUID> {
+    fun findByWingId(wingId: UUID): List<Flat>
+}
