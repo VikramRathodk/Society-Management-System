@@ -1,8 +1,6 @@
 package org.devvikram.societymanagement.security
 
-import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.user.domain.AppUser
-import org.devvikram.societymanagement.user.domain.Role
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.util.UUID
@@ -16,13 +14,10 @@ class JwtServiceTest {
 
     @Test
     fun `token round-trips the user's phone as subject`() {
-        val society = Society(name = "Green Valley").apply { id = UUID.randomUUID() }
         val user = AppUser(
             name = "Asha Rao",
             phone = "9999999999",
             passwordHash = "irrelevant-for-this-test",
-            role = Role.ADMIN,
-            society = society,
         ).apply { id = UUID.randomUUID() }
 
         val token = jwtService.generateToken(user)

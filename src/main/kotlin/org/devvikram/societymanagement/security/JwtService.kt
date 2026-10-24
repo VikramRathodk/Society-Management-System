@@ -16,19 +16,13 @@ class JwtService(
 ) {
     private val key: SecretKey = Keys.hmacShaKeyFor(secret.toByteArray())
 
-    // Token carries only userId/role/societyId/complexId — never resolved permissions, so a
-    // permission change takes effect immediately without waiting for the token to expire.
+    // Token carries identity only — roles and permissions are loaded per request, so assigning,
+    // revoking or redefining a role takes effect immediately without waiting for the token to expire.
     fun generateToken(user: AppUser): String {
-        val claims = buildMap<String, Any> {
-            put("userId", user.id.toString())
-            put("role", user.role.name)
-            user.society?.id?.let { put("societyId", it.toString()) }
-            user.complex?.id?.let { put("complexId", it.toString()) }
-        }
         val now = Date()
         return Jwts.builder()
             .subject(user.phone)
-            .claims(claims)
+            .claim("userId", user.id.toString())
             .issuedAt(now)
             .expiration(Date(now.time + expirationMs))
             .signWith(key)

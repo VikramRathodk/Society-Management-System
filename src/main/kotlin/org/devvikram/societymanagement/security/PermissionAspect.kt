@@ -2,25 +2,18 @@ package org.devvikram.societymanagement.security
 
 import org.aspectj.lang.annotation.Aspect
 import org.aspectj.lang.annotation.Before
-import org.devvikram.societymanagement.user.domain.Role
 import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 
+// Coarse gate: the user must hold the permission in at least one scope. Endpoints that act on a
+// specific society then check that society explicitly via Access.requireIn / canGrant / canManage.
 @Aspect
 @Component
-class PermissionAspect(private val permissionService: PermissionService) {
+class PermissionAspect(private val accessService: AccessService) {
 
     @Before(value = "@annotation(requiresPermission)", argNames = "requiresPermission")
     fun check(requiresPermission: RequiresPermission) {
-        val authentication = SecurityContextHolder.getContext().authentication
-            ?: throw AccessDeniedException("Not authenticated")
-        val roleName = authentication.authorities
-            .mapNotNull { it.authority }
-            .firstOrNull { it.startsWith("ROLE_") }
-            ?.removePrefix("ROLE_")
-            ?: throw AccessDeniedException("No role found for current user")
-        if (requiresPermission.code !in permissionService.getPermissionsForRole(Role.valueOf(roleName))) {
+        if (!accessService.current().canAnywhere(requiresPermission.code)) {
             throw AccessDeniedException("Missing permission: ${requiresPermission.code}")
         }
     }

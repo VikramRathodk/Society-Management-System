@@ -6,5 +6,6 @@ interface AppUserRepository {
     fun save(appUser: AppUser): AppUser
     fun findById(id: UUID): AppUser?
     fun findAll(): List<AppUser>
+    fun findAllById(ids: Collection<UUID>): List<AppUser>
     fun findByPhone(phone: String): AppUser?
 }

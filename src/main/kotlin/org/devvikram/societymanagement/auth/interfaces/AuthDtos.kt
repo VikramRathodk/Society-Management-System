@@ -1,7 +1,8 @@
 package org.devvikram.societymanagement.auth.interfaces
 
 import jakarta.validation.constraints.NotBlank
-import org.devvikram.societymanagement.user.domain.Role
+import org.devvikram.societymanagement.user.interfaces.AccessResponse
+import org.devvikram.societymanagement.user.interfaces.RoleAssignmentResponse
 import java.util.UUID
 
 data class LoginRequest(
@@ -13,6 +14,6 @@ data class LoginResponse(
     val token: String,
     val userId: UUID,
     val name: String,
-    val role: Role,
-    val permissions: Set<String>,
+    val roles: List<RoleAssignmentResponse>,
+    val access: AccessResponse,
 )

@@ -1,7 +1,7 @@
 # Society Management System — Development Plan (MVP)
 
 ## Overview
-A mobile-first Society Management System serving four roles — **Resident, Security Guard, Committee Member, Admin** — built as a single Flutter app (role-based UI) backed by a Spring Boot + PostgreSQL API.
+A mobile-first Society Management System serving four end-user roles — **Resident, Security Guard, Committee Member, Admin** — plus platform/society administration roles (Super Admin, Secretary; see [Dynamic Roles](#dynamic-roles-v3)) — built as a single Flutter app (role-based UI) backed by a Spring Boot + PostgreSQL API.
 
 **Project type:** Freelance/client project
 **Team:** Solo developer
@@ -17,9 +17,9 @@ A mobile-first Society Management System serving four roles — **Resident, Secu
 | Backend | Spring Boot 4 (Kotlin, Gradle Kotlin DSL), Spring Security + JWT |
 | Database | PostgreSQL |
 | Push Notifications | Firebase Cloud Messaging (FCM) |
-| Auth | JWT-based, role embedded in claims, no self-signup in MVP |
+| Auth | JWT-based, identity-only claims (roles + permissions resolved per request), no self-signup in MVP |
 | Migrations | Flyway (schema is version-controlled, not Hibernate auto-DDL) |
-| Cache | Caffeine (backs the role→permission lookup) |
+| Cache | Caffeine (backs the role→permission and role→subordinate-roles lookups) |
 
 Backend package root: `org.devvikram.societymanagement`
 
@@ -100,6 +100,8 @@ Backend package root: `org.devvikram.societymanagement`
 ---
 
 ## Database Schema (PostgreSQL)
+
+> **Superseded in part by `V3__dynamic_roles.sql`** — the schema below is V1. V3 drops `app_user.role`/`society_id`/`complex_id`/`flat_id`/`resident_type` (and `chk_user_scope`) in favour of the `user_role` table, and rebuilds `role_permission` against a new `role` table. The guard scope check further down predates this; scope now comes from the user's `user_role` rows. See [Dynamic Roles](#dynamic-roles-v3).
 
 ```sql
 -- Enable UUID generation
@@ -369,6 +371,8 @@ SYSTEM.PERMISSION.UPDATE       Edit role-permission mappings
 
 ### Role → Permission Matrix
 
+> This is the **V2** matrix. Since V3 the old ADMIN column is the **SECRETARY** role, permissions are stored on the lowest role that needs them and inherited upward, and GUARD also holds `USER.PROFILE.VIEW/UPDATE` (to register an FCM token). See [Dynamic Roles](#dynamic-roles-v3).
+
 | Permission Code | Resident | Guard | Committee | Admin |
 |---|---|---|---|---|
 | `USER.PROFILE.VIEW` | own | — | ✅ | ✅ |
@@ -513,6 +517,8 @@ SELECT 'ADMIN', id FROM permission WHERE code IN (
 
 ### Backend Enforcement Pattern
 
+> Original design sketch, kept for reference. The implemented version (per-society checks, role hierarchy, identity-only JWT) is described under [Dynamic Roles](#dynamic-roles-v3).
+
 Permissions are **not** embedded in the JWT (keep the token to `userId`, `role`, `societyId`/`complexId` only) — otherwise a permission change won't take effect until the token expires. Resolve per-request from a cached lookup:
 
 ```kotlin
@@ -565,6 +571,42 @@ On login, the API returns the resolved permission list (`Set<String>`) alongside
 
 ---
 
+## Dynamic Roles (V3)
+
+`V3__dynamic_roles.sql` replaces the hard-coded `RESIDENT/GUARD/COMMITTEE/ADMIN` list with roles stored as data, so a new role is an INSERT (or an API call), not a release.
+
+**Tables**
+- `role` — `code`, `name`, `scope_level` (`PLATFORM` | `SOCIETY`), `requires_flat` (assignment must name a flat, e.g. RESIDENT), `all_permissions` (grants every code, including ones added later), `is_system` (built-in: code fixed, cannot be deleted).
+- `role_inheritance` — a role includes every permission of the roles it inherits (transitively) and may assign/manage exactly those lower roles.
+- `role_permission` — rebuilt as `(role_id, permission_id)`; only **direct** grants, each permission on the lowest role that needs it.
+- `user_role` — one row per role a user holds per scope: `society_id` null only for PLATFORM roles; `flat_id`/`resident_type` only for `requires_flat` roles. A unique index folds NULLs to a sentinel, so the same role can't be held twice in the same scope (including platform scope). An ADMIN of three societies has three rows.
+- `app_user` is identity only (name, phone, email, password, FCM token, active).
+
+**Seeded hierarchy:** `SUPER_ADMIN > ADMIN > SECRETARY > {COMMITTEE > RESIDENT, GUARD}`
+| Role | Scope | Notes |
+|---|---|---|
+| `SUPER_ADMIN` | PLATFORM | `all_permissions`; creates societies, manages every user and role |
+| `ADMIN` | SOCIETY | no direct grants yet; inherits SECRETARY, can hold several societies and appoint SECRETARYs |
+| `SECRETARY` | SOCIETY | what the V2 society-level ADMIN could do (users, roles, structure, settings), minus `SYSTEM.*` |
+| `COMMITTEE` | SOCIETY | notices, complaint resolution, exports, user/role viewing; inherits RESIDENT |
+| `GUARD` | SOCIETY | visitor entry + own profile |
+| `RESIDENT` | SOCIETY, requires flat | visitor approval, complaints, notices, own profile |
+
+New permission codes: `SOCIETY.SETTINGS.CREATE`, `USER.ROLE.VIEW/ASSIGN/DELETE`, `SYSTEM.ROLE.VIEW/CREATE/UPDATE/DELETE`.
+
+**Data migration:** existing users got a `user_role` row per society; the old ADMIN became **SECRETARY**; complex-scoped users got their role in every society of that complex.
+
+**Enforcement (code)**
+- JWT carries only `sub` (phone) + `userId`. `UserDetailsServiceImpl` loads the user's `user_role` rows into an `AuthenticatedUser` principal each request, so assigning/revoking a role applies without re-login.
+- `AccessService.current()` builds an `Access`: effective permissions per society + platform-wide, and the roles the user outranks per scope (`PermissionService.getPermissionsForRole` / `getSubordinateRoles`, both cached; `evictAll()` clears both).
+- `@RequiresPermission` / `PermissionAspect` is now a **coarse gate** — the permission held in *any* scope. Handlers then check the specific society with `access.requireIn(code, societyId)` / `requireOnPlatform(code)`.
+- Rank: `canGrant(permission, role, society)` — creating a user or assigning a role needs the permission there **and** a role above the one being granted. `canManage(permission, targetGrants)` — updating/deactivating a user or removing a role needs to outrank every role the target holds, in each scope.
+- Viewing a user needs the permission in any society the target belongs to (no rank needed).
+
+**Endpoints added:** `GET /api/users/me` (user + effective access per scope, for the Flutter UI), `GET/POST /api/users/{id}/roles`, `DELETE /api/users/{id}/roles/{assignmentId}`, `GET /api/roles`, `GET /api/roles/assignable?societyId=`, `GET /api/roles/{code}`, `POST /api/roles`, `PATCH /api/roles/{code}`, `PUT /api/roles/{code}/permissions`, `PUT /api/roles/{code}/inherits`, `GET /api/permissions`. Role-definition endpoints are platform-only (`SYSTEM.ROLE.*`, `SYSTEM.PERMISSION.*`). `RoleService` rejects inheritance cycles, inheriting an all-permissions role, mixing scopes, editing an all-permissions role, and deleting a built-in or in-use role.
+
+---
+
 ## Module Relationships
 
 ```
@@ -572,12 +614,13 @@ Complex (optional) → Society → Wing → Flat → AppUser
                                           ↑        ↓
                                    VisitorEntry, Notice, Complaint
 
-RolePermission (role string) → Permission (independent of AppUser, resolved at request time)
+AppUser → UserRole (per scope: platform, or society [+ flat]) → Role → RolePermission → Permission
+                                                              ↳ RoleInheritance (lower roles)
 ```
 
 - `VisitorEntry` links to both `Flat` (who it's for) and `AppUser` (the Guard who logged it, and the Resident who responded).
 - `Notice` and `Complaint` reference the `AppUser` who created them.
-- `RolePermission` maps a **role string** to permissions — not tied to a specific user — resolved at request time via the logged-in user's role.
+- A user's permissions come from their `UserRole` rows, resolved at request time per scope — a user can hold different roles in different societies (see [Dynamic Roles](#dynamic-roles-v3)).
 - Everything downstream (Visitor, Notice, Complaint) depends on `Flat` and `AppUser` existing first, which is why the build order is `Complex → Society → Wing → Flat → AppUser` before any feature module.
 
 ---
@@ -589,10 +632,12 @@ Each feature package is internally layered Clean-Architecture style: `domain` (e
 ```
 org.devvikram.societymanagement
 ├── config/                # SecurityConfig, JwtConfig, CacheConfig
-├── security/               # JwtAuthFilter, UserDetailsServiceImpl, PermissionAspect
+├── security/               # JwtAuthFilter, UserDetailsServiceImpl, PermissionAspect, Access/AccessService
+│   ├── permission/          # Permission entity + PermissionJpaRepository
+│   └── role/                # Role entity, RoleRepository, RoleService, RoleController
 ├── common/                 # ApiResponse wrapper, GlobalExceptionHandler, enums
 ├── user/
-│   ├── domain/              # AppUser entity, Role/ResidentType enums, AppUserRepository (interface)
+│   ├── domain/              # AppUser, UserRole entities, ResidentType enum, AppUserRepository/UserRoleRepository (interfaces)
 │   ├── application/         # AppUserService (pending)
 │   ├── infrastructure/      # SpringDataAppUserRepository + AppUserRepositoryImpl
 │   └── interfaces/          # AppUserController, DTOs (pending)
@@ -674,7 +719,7 @@ Each shell shows a different bottom nav; underlying feature screens are shared w
 
 | Milestone | Deliverable |
 |---|---|
-| **M1 — Backend Foundation** | Postman-testable auth + permission system + user management API |
+| ✅ **M1 — Backend Foundation** (done 2026-10-24) | Postman-testable auth + permission system + user management API |
 | **M2 — Flutter Skeleton** | Installable APK; each role logs in, lands on distinct dashboard |
 | **M3 — Visitor Management** | End-to-end demo: guard logs visitor → resident gets push → approves → guard sees status update |
 | **M4 — Notices** | Notice post/view working, permission-gated |
@@ -705,7 +750,10 @@ M1+M2 and M6 are natural payment checkpoints; M3 is typically the most convincin
 - ✅ `common/GlobalExceptionHandler` — maps `NoSuchElementException`→404, `IllegalArgumentException`/`IllegalStateException`→400, validation errors→400, `BadCredentialsException`→401, `AccessDeniedException`→403.
 - ✅ Full suite: 45/45 passing, including the full `@SpringBootTest` context load (confirms `SecurityConfig`/`JwtAuthFilter`/`PermissionAspect` all wire up) and a `@DataJpaTest` for `RolePermissionJpaRepository` against the real seeded permission data.
 - ✅ Known gaps closed: (1) unauthenticated requests now get **401** with the standard `ErrorResponse` body — `SecurityConfig` sets an `AuthenticationEntryPoint`/`AccessDeniedHandler` that delegate to the `handlerExceptionResolver`, so `GlobalExceptionHandler` renders filter-chain errors too; `JwtAuthFilter` also ignores tokens of deactivated/deleted users. (2) `PATCH /api/users/{id}` is gated by `USER.PROFILE.UPDATE` plus an ownership check — editing someone else's profile also needs `USER.ACCOUNT.UPDATE`. (3) `PermissionService.evictAll()` (`@CacheEvict`) for future `role_permission` writers, plus a Caffeine TTL (`expireAfterWrite=10m`) bounding staleness after manual SQL edits. Also fixed: `hasPermission` self-invoked `getPermissionsForRole`, bypassing the proxy so `@Cacheable` never applied — removed, callers go through the bean. (4) `@RequiresPermission` on all society controllers: wing/flat writes → `FLAT.STRUCTURE.*`, reads → `FLAT.DIRECTORY.VIEW`; society → `SOCIETY.SETTINGS.VIEW/UPDATE` (create uses UPDATE, no CREATE code exists); complex → `COMPLEX.SETTINGS.*` (unmapped to any role, so 403 for everyone until a Complex Admin role exists). `SecurityIntegrationTest` (MockMvc + real JWTs) covers all of this. Full suite: 55/55 passing.
-- ⏳ **Next:** manual end-to-end smoke test (start the app, seed an ADMIN user via SQL since self-signup is out of scope, hit `POST /api/auth/login` then `POST /api/users` with the token via Postman) — not yet done. After that: Visitor Management API (`VISITOR.ENTRY.*`, `VISITOR.APPROVAL.*`, FCM push, atomic conditional update for multi-resident race handling), per Build Order step 3. Open follow-ups: row-level "own" scoping for `FLAT.DIRECTORY.VIEW` (residents currently see any wing/flat) and for society-scoped data generally (an Admin of society A can touch society B); GUARD/COMMITTEE lack `USER.PROFILE.UPDATE`, so they can't register their own `fcmToken` via `PATCH /api/users/{id}` — needs a decision before push notifications.
+- ✅ **M1 complete (2026-10-24)** — manual end-to-end smoke test passed against the real local DB: admin login → 200 with JWT + permissions; `GET /api/users` → 200; admin `POST /api/users` → 201; resident `POST /api/users` → 403 (`Missing permission: USER.ACCOUNT.CREATE`); no token → 401; wrong password → 401. Test data: "Avengers Tower" society / "Stark Wing" / flat "Penthouse", seeded via SQL (self-signup stays out of scope; passwords hashed with pgcrypto `crypt(..., gen_salt('bf', 10))`, which `BCryptPasswordEncoder` accepts). Admin login: `9000000616` / `Shield@616`; other roles: Steve Rogers (COMMITTEE, `9000000001`), Happy Hogan (GUARD, `9000000002`), Tony Stark / Peter Parker / Bruce Banner / Natasha Romanoff (RESIDENT OWNER/FAMILY/TENANT/TENANT, `9000000003`–`9000000006`).
+- ✅ **Dynamic roles (2026-10-24)** — `V3__dynamic_roles.sql` applied; roles, inheritance and per-scope assignments as described in [Dynamic Roles](#dynamic-roles-v3). Every society endpoint now checks the specific society (`Access.requireIn`), and user management is rank-checked. This closes two earlier follow-ups: cross-society access (an Admin of society A can no longer touch society B) and FCM token registration (GUARD gained `USER.PROFILE.UPDATE`; COMMITTEE inherits it from RESIDENT). Tests updated for the new model: `PermissionServiceTest` (replaces `RolePermissionJpaRepositoryTest`; resolves inheritance against the real seed data), `AppUserRepositoryTest` (user + `user_role` persistence, the NULL-folding unique index), `AppUserServiceTest` (assignment validation: scope, flat, cross-society flat, duplicates), `SecurityIntegrationTest` (per-society visibility, rank checks on create/deactivate). Full suite: 76/76 passing.
+- ✅ Test data after V3: Nick Fury (`9000000616`) is now **SECRETARY** of Avengers Tower (migrated from ADMIN); the other Avengers users keep their roles. New platform owner: **Stan Lee** — SUPER_ADMIN, `9000000999` / `Excelsior@999`, added via SQL (pgcrypto bcrypt) since there was no SUPER_ADMIN to create one through the API. Repository tests use `81000000xx` phones to stay clear of this data.
+- ⏳ **Next:** Visitor Management API (`VISITOR.ENTRY.*`, `VISITOR.APPROVAL.*`, FCM push, atomic conditional update for multi-resident race handling), per Build Order step 3 — scope checks should use `Access.requireIn` against the visitor's society, and a resident's "own flat" from their `user_role.flat_id`. Open follow-ups: row-level "own" scoping *within* a society for `FLAT.DIRECTORY.VIEW` (a resident still sees every wing/flat of their own society); COMPLEX endpoints are platform-only until it's decided what a complex shares.
 
 Note: Spring Boot 4 relocated test-slice classes into per-feature modules — `@DataJpaTest` is now `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest`, `TestEntityManager` is `org.springframework.boot.jpa.test.autoconfigure.TestEntityManager`, `@AutoConfigureTestDatabase` is `org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase` — not the old `org.springframework.boot.test.autoconfigure.*` paths from Boot 3. Also note: Spring Security 7's `PasswordEncoder.encode()` return type reads as nullable to the Kotlin compiler (JSpecify `@Contract` annotation, not a JSR-305 `@Nullable`) — a `!!` assertion on the call is needed and safe. And: with `-Xjsr305=strict`, `GrantedAuthority.getAuthority()` reads as `String?` to Kotlin — use `mapNotNull`/safe calls, not a bare `.map { it.authority }` chain, when working with `authentication.authorities`.
 

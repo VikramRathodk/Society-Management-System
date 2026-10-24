@@ -1,6 +1,7 @@
 package org.devvikram.societymanagement.common
 
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
@@ -20,6 +21,11 @@ class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException::class, IllegalStateException::class)
     fun handleBadRequest(ex: RuntimeException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.BAD_REQUEST, ex.message, request)
+
+    // Unique-index races the service-level checks can't catch (e.g. the same role assigned twice concurrently).
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleConflict(ex: DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
+        respond(HttpStatus.CONFLICT, "Request conflicts with existing data", request)
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleValidation(ex: MethodArgumentNotValidException, request: HttpServletRequest): ResponseEntity<ErrorResponse> {

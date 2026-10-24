@@ -1,11 +1,13 @@
 package org.devvikram.societymanagement.user.infrastructure
 
+import org.devvikram.societymanagement.security.role.Role
+import org.devvikram.societymanagement.security.role.RoleJpaRepository
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.society.domain.Wing
 import org.devvikram.societymanagement.user.domain.AppUser
 import org.devvikram.societymanagement.user.domain.ResidentType
-import org.devvikram.societymanagement.user.domain.Role
+import org.devvikram.societymanagement.user.domain.UserRole
 import org.hibernate.exception.ConstraintViolationException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -17,6 +19,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
 
+// Roles come from the V3__dynamic_roles.sql seed data, so they are looked up, not persisted.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class AppUserRepositoryTest {
@@ -27,63 +30,105 @@ class AppUserRepositoryTest {
     @Autowired
     private lateinit var appUserRepository: AppUserJpaRepository
 
-    @Test
-    fun `persists a resident scoped to a society and flat`() {
-        val society = entityManager.persistAndFlush(Society(name = "Sunrise Apartments"))
-        val wing = entityManager.persistAndFlush(Wing(society = society, name = "A"))
-        val flat = entityManager.persistAndFlush(Flat(wing = wing, flatNumber = "101"))
+    @Autowired
+    private lateinit var userRoleRepository: UserRoleJpaRepository
 
-        val resident = entityManager.persistFlushFind(
-            AppUser(
-                name = "Asha Patil",
-                phone = "9000000001",
-                passwordHash = "hashed",
-                role = Role.RESIDENT,
-                flat = flat,
-                residentType = ResidentType.OWNER,
-                society = society,
-            ),
-        )
+    @Autowired
+    private lateinit var roleRepository: RoleJpaRepository
 
-        assertNotNull(resident.id)
-        assertNotNull(resident.createdAt)
-        assertEquals(true, resident.isActive)
+    private fun role(code: String): Role = requireNotNull(roleRepository.findByCode(code)) { "Role $code not seeded" }
 
-        val found = appUserRepository.findByPhone("9000000001")
-        assertNotNull(found)
-        assertEquals(Role.RESIDENT, found?.role)
-    }
+    private fun user(phone: String, name: String = "User $phone") =
+        entityManager.persistAndFlush(AppUser(name = name, phone = phone, passwordHash = "hashed"))
 
     @Test
-    fun `persists a guard scoped to a complex with no flat`() {
-        val society = entityManager.persistAndFlush(Society(name = "Sunrise Apartments"))
-
-        val guard = entityManager.persistFlushFind(
-            AppUser(
-                name = "Security Guard",
-                phone = "9000000002",
-                passwordHash = "hashed",
-                role = Role.GUARD,
-                society = society,
-            ),
+    fun `persists a user with defaults`() {
+        val saved = entityManager.persistFlushFind(
+            AppUser(name = "Asha Patil", phone = "8100000001", passwordHash = "hashed"),
         )
 
-        assertNotNull(guard.id)
-        assertNull(guard.flat)
-        assertNull(guard.residentType)
+        assertNotNull(saved.id)
+        assertNotNull(saved.createdAt)
+        assertEquals(true, saved.isActive)
+        assertEquals("Asha Patil", appUserRepository.findByPhone("8100000001")?.name)
     }
 
     @Test
     fun `rejects a duplicate phone number`() {
-        val society = entityManager.persistAndFlush(Society(name = "Sunrise Apartments"))
-        entityManager.persistAndFlush(
-            AppUser(name = "First User", phone = "9000000003", passwordHash = "hashed", role = Role.ADMIN, society = society),
-        )
+        user("8100000003")
 
         assertThrows(ConstraintViolationException::class.java) {
-            entityManager.persistAndFlush(
-                AppUser(name = "Second User", phone = "9000000003", passwordHash = "hashed", role = Role.ADMIN, society = society),
-            )
+            user("8100000003")
         }
+    }
+
+    @Test
+    fun `persists a resident role assignment scoped to a society and flat`() {
+        val society = entityManager.persistAndFlush(Society(name = "Sunrise Apartments"))
+        val wing = entityManager.persistAndFlush(Wing(society = society, name = "A"))
+        val flat = entityManager.persistAndFlush(Flat(wing = wing, flatNumber = "101"))
+        val resident = user("8100000004")
+
+        entityManager.persistAndFlush(
+            UserRole(
+                user = resident,
+                role = role("RESIDENT"),
+                society = society,
+                flat = flat,
+                residentType = ResidentType.OWNER,
+            ),
+        )
+        entityManager.clear()
+
+        val found = userRoleRepository.findWithDetailsByUserIds(listOf(resident.id!!)).single()
+        assertEquals("RESIDENT", found.role.code)
+        assertEquals(society.id, found.society?.id)
+        assertEquals(flat.id, found.flat?.id)
+        assertEquals(ResidentType.OWNER, found.residentType)
+        assertEquals(setOf(resident.id), userRoleRepository.findUserIdsBySocietyIds(listOf(society.id!!)))
+    }
+
+    @Test
+    fun `persists a platform role assignment with no society or flat`() {
+        val superAdmin = user("8100000005")
+
+        val saved = entityManager.persistFlushFind(UserRole(user = superAdmin, role = role("SUPER_ADMIN")))
+
+        assertNotNull(saved.id)
+        assertNull(saved.society)
+        assertNull(saved.flat)
+    }
+
+    @Test
+    fun `rejects the same role twice in the same scope`() {
+        val society = entityManager.persistAndFlush(Society(name = "Sunrise Apartments"))
+        val guard = user("8100000006")
+        entityManager.persistAndFlush(UserRole(user = guard, role = role("GUARD"), society = society))
+
+        assertThrows(ConstraintViolationException::class.java) {
+            entityManager.persistAndFlush(UserRole(user = guard, role = role("GUARD"), society = society))
+        }
+    }
+
+    @Test
+    fun `rejects the same platform role twice even though society is null`() {
+        val superAdmin = user("8100000007")
+        entityManager.persistAndFlush(UserRole(user = superAdmin, role = role("SUPER_ADMIN")))
+
+        assertThrows(ConstraintViolationException::class.java) {
+            entityManager.persistAndFlush(UserRole(user = superAdmin, role = role("SUPER_ADMIN")))
+        }
+    }
+
+    @Test
+    fun `allows the same role in different societies`() {
+        val first = entityManager.persistAndFlush(Society(name = "Sunrise Apartments"))
+        val second = entityManager.persistAndFlush(Society(name = "Lakeview Towers"))
+        val admin = user("8100000008")
+
+        entityManager.persistAndFlush(UserRole(user = admin, role = role("ADMIN"), society = first))
+        entityManager.persistAndFlush(UserRole(user = admin, role = role("ADMIN"), society = second))
+
+        assertEquals(2, userRoleRepository.findWithDetailsByUserIds(listOf(admin.id!!)).size)
     }
 }

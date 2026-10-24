@@ -2,6 +2,8 @@ package org.devvikram.societymanagement.auth.interfaces
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.auth.application.AuthService
+import org.devvikram.societymanagement.user.interfaces.AccessResponse
+import org.devvikram.societymanagement.user.interfaces.RoleAssignmentResponse
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -18,8 +20,8 @@ class AuthController(private val authService: AuthService) {
             token = result.token,
             userId = result.user.id!!,
             name = result.user.name,
-            role = result.user.role,
-            permissions = result.permissions,
+            roles = result.roles.map(RoleAssignmentResponse::from),
+            access = AccessResponse.from(result.access),
         )
     }
 }

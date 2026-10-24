@@ -1,0 +1,129 @@
+-- Dynamic, hierarchical roles.
+--  * Roles become rows (role) instead of a hard-coded CHECK list, so new roles are an INSERT, not a release.
+--  * role_inheritance: a role includes every permission of the roles it inherits (transitively),
+--    and may assign/manage exactly those lower roles.
+--  * user_role: a user can hold several roles, each in its own scope — PLATFORM (no society)
+--    or SOCIETY (one row per society, so an ADMIN of 3 societies has 3 rows).
+
+CREATE TABLE role (
+                      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                      code VARCHAR(50) UNIQUE NOT NULL,
+                      name VARCHAR(100) NOT NULL,
+                      description VARCHAR(255),
+                      scope_level VARCHAR(20) NOT NULL CHECK (scope_level IN ('PLATFORM','SOCIETY')),
+                      requires_flat BOOLEAN NOT NULL DEFAULT false, -- assignment must name a flat (e.g. RESIDENT)
+                      all_permissions BOOLEAN NOT NULL DEFAULT false, -- grants every permission, incl. ones added later
+                      is_system BOOLEAN NOT NULL DEFAULT false, -- built-in: code fixed, cannot be deleted
+                      created_at TIMESTAMP DEFAULT now()
+);
+
+INSERT INTO role (code, name, description, scope_level, requires_flat, all_permissions, is_system) VALUES
+('SUPER_ADMIN', 'Super Admin', 'Platform owner — manages every society, admin and role', 'PLATFORM', false, true,  true),
+('ADMIN',       'Admin',       'Manages one or more assigned societies',               'SOCIETY',  false, false, true),
+('SECRETARY',   'Secretary',   'Runs a single society',                                'SOCIETY',  false, false, true),
+('COMMITTEE',   'Committee Member', 'Society committee: notices, complaints, oversight', 'SOCIETY', false, false, true),
+('GUARD',       'Security Guard', 'Gate security: logs visitors',                     'SOCIETY',  false, false, true),
+('RESIDENT',    'Resident',    'Lives in a flat of the society',                       'SOCIETY',  true,  false, true);
+
+CREATE TABLE role_inheritance (
+                                  role_id UUID NOT NULL REFERENCES role(id) ON DELETE CASCADE,
+                                  inherited_role_id UUID NOT NULL REFERENCES role(id) ON DELETE CASCADE,
+                                  PRIMARY KEY (role_id, inherited_role_id),
+                                  CHECK (role_id <> inherited_role_id)
+);
+
+-- SUPER_ADMIN > ADMIN > SECRETARY > {COMMITTEE > RESIDENT, GUARD}
+INSERT INTO role_inheritance (role_id, inherited_role_id)
+SELECT r.id, i.id FROM role r JOIN role i ON (r.code, i.code) IN (
+    ('SUPER_ADMIN','ADMIN'),
+    ('ADMIN','SECRETARY'),
+    ('SECRETARY','COMMITTEE'),
+    ('SECRETARY','GUARD'),
+    ('COMMITTEE','RESIDENT')
+);
+
+-- New permission codes
+INSERT INTO permission (module, feature, subfeature, action, code, description) VALUES
+('SOCIETY','SETTINGS',NULL,'CREATE','SOCIETY.SETTINGS.CREATE','Create a new society'),
+('USER','ROLE',NULL,'VIEW','USER.ROLE.VIEW','View role assignments of users'),
+('USER','ROLE',NULL,'ASSIGN','USER.ROLE.ASSIGN','Assign a (lower) role to a user'),
+('USER','ROLE',NULL,'DELETE','USER.ROLE.DELETE','Remove a role assignment from a user'),
+('SYSTEM','ROLE',NULL,'VIEW','SYSTEM.ROLE.VIEW','View role definitions'),
+('SYSTEM','ROLE',NULL,'CREATE','SYSTEM.ROLE.CREATE','Define a new role'),
+('SYSTEM','ROLE',NULL,'UPDATE','SYSTEM.ROLE.UPDATE','Edit a role and its place in the hierarchy'),
+('SYSTEM','ROLE',NULL,'DELETE','SYSTEM.ROLE.DELETE','Delete an unused custom role');
+
+-- role_permission: varchar role -> FK to role. Rebuilt from scratch: only direct grants are stored,
+-- inherited ones come from role_inheritance (so each permission lives on the lowest role that needs it).
+DROP TABLE role_permission;
+CREATE TABLE role_permission (
+                                 role_id UUID NOT NULL REFERENCES role(id) ON DELETE CASCADE,
+                                 permission_id UUID NOT NULL REFERENCES permission(id) ON DELETE CASCADE,
+                                 PRIMARY KEY (role_id, permission_id)
+);
+
+INSERT INTO role_permission (role_id, permission_id)
+SELECT r.id, p.id FROM role r JOIN permission p ON (r.code, p.code) IN (
+    -- RESIDENT
+    ('RESIDENT','USER.PROFILE.VIEW'), ('RESIDENT','USER.PROFILE.UPDATE'),
+    ('RESIDENT','FLAT.DIRECTORY.VIEW'),
+    ('RESIDENT','VISITOR.ENTRY.VIEW'), ('RESIDENT','VISITOR.APPROVAL.APPROVE'), ('RESIDENT','VISITOR.APPROVAL.REJECT'),
+    ('RESIDENT','NOTICE.POST.VIEW'),
+    ('RESIDENT','COMPLAINT.TICKET.CREATE'), ('RESIDENT','COMPLAINT.TICKET.VIEW'),
+    ('RESIDENT','COMPLAINT.TICKET.UPDATE'), ('RESIDENT','COMPLAINT.TICKET.DELETE'),
+    -- GUARD (profile perms added so guards can register their own FCM token)
+    ('GUARD','USER.PROFILE.VIEW'), ('GUARD','USER.PROFILE.UPDATE'),
+    ('GUARD','VISITOR.ENTRY.CREATE'), ('GUARD','VISITOR.ENTRY.VIEW'), ('GUARD','VISITOR.ENTRY.UPDATE'),
+    ('GUARD','NOTICE.POST.VIEW'),
+    -- COMMITTEE (+ everything RESIDENT has)
+    ('COMMITTEE','USER.ACCOUNT.VIEW'), ('COMMITTEE','USER.ROLE.VIEW'),
+    ('COMMITTEE','VISITOR.ENTRY.EXPORT'),
+    ('COMMITTEE','NOTICE.POST.CREATE'), ('COMMITTEE','NOTICE.POST.UPDATE'), ('COMMITTEE','NOTICE.POST.DELETE'),
+    ('COMMITTEE','COMPLAINT.TICKET.EXPORT'),
+    ('COMMITTEE','COMPLAINT.RESOLUTION.APPROVE'), ('COMMITTEE','COMPLAINT.RESOLUTION.REJECT'),
+    -- SECRETARY (+ COMMITTEE, GUARD) — what the old society-level ADMIN could do, minus SYSTEM.*
+    ('SECRETARY','USER.ACCOUNT.CREATE'), ('SECRETARY','USER.ACCOUNT.UPDATE'), ('SECRETARY','USER.ACCOUNT.DELETE'),
+    ('SECRETARY','USER.ROLE.ASSIGN'), ('SECRETARY','USER.ROLE.DELETE'),
+    ('SECRETARY','FLAT.STRUCTURE.CREATE'), ('SECRETARY','FLAT.STRUCTURE.UPDATE'), ('SECRETARY','FLAT.STRUCTURE.DELETE'),
+    ('SECRETARY','VISITOR.ENTRY.DELETE'),
+    ('SECRETARY','SOCIETY.SETTINGS.VIEW'), ('SECRETARY','SOCIETY.SETTINGS.UPDATE')
+    -- ADMIN: no direct grants yet — inherits SECRETARY, differs by scope (several societies) and by
+    --        being allowed to appoint SECRETARYs.
+    -- SUPER_ADMIN: all_permissions = true, no rows needed.
+);
+
+-- Role assignments
+CREATE TABLE user_role (
+                           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                           user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+                           role_id UUID NOT NULL REFERENCES role(id),
+                           society_id UUID REFERENCES society(id) ON DELETE CASCADE, -- null only for PLATFORM roles
+                           flat_id UUID REFERENCES flat(id) ON DELETE CASCADE,        -- set only for requires_flat roles
+                           resident_type VARCHAR(20) CHECK (resident_type IN ('OWNER','FAMILY','TENANT')),
+                           created_at TIMESTAMP DEFAULT now()
+);
+
+-- NULLs never collide in a plain UNIQUE, so fold them to a sentinel for the duplicate check.
+CREATE UNIQUE INDEX uq_user_role_scope ON user_role (
+    user_id, role_id,
+    COALESCE(society_id, '00000000-0000-0000-0000-000000000000'),
+    COALESCE(flat_id, '00000000-0000-0000-0000-000000000000')
+);
+CREATE INDEX idx_user_role_user ON user_role(user_id);
+CREATE INDEX idx_user_role_society ON user_role(society_id);
+
+-- Move existing users over. The old ADMIN was society-scoped, which is now SECRETARY.
+-- Complex-scoped users (complex_id set) get the same role in every society of that complex.
+INSERT INTO user_role (user_id, role_id, society_id, flat_id, resident_type)
+SELECT u.id, r.id, s.id, u.flat_id, u.resident_type
+FROM app_user u
+JOIN role r ON r.code = CASE u.role WHEN 'ADMIN' THEN 'SECRETARY' ELSE u.role END
+JOIN society s ON s.id = u.society_id OR (u.society_id IS NULL AND s.complex_id = u.complex_id);
+
+ALTER TABLE app_user DROP CONSTRAINT chk_user_scope;
+ALTER TABLE app_user
+    DROP COLUMN role,
+    DROP COLUMN society_id,
+    DROP COLUMN complex_id,
+    DROP COLUMN flat_id,
+    DROP COLUMN resident_type;

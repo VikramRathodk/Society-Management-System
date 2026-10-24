@@ -1,6 +1,7 @@
 package org.devvikram.societymanagement.society.interfaces
 
 import jakarta.validation.Valid
+import org.devvikram.societymanagement.security.AccessService
 import org.devvikram.societymanagement.security.RequiresPermission
 import org.devvikram.societymanagement.society.application.SocietyService
 import org.springframework.http.HttpStatus
@@ -14,27 +15,43 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
-// No SOCIETY.SETTINGS.CREATE in the catalog — creating a society is gated by UPDATE (Admin-only either way).
+// Creating a society is platform-level (SUPER_ADMIN); everything else is checked per society,
+// so an ADMIN/SECRETARY only sees and edits the societies they hold a role in.
 @RestController
 @RequestMapping("/api/societies")
-class SocietyController(private val societyService: SocietyService) {
+class SocietyController(
+    private val societyService: SocietyService,
+    private val accessService: AccessService,
+) {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("SOCIETY.SETTINGS.UPDATE")
-    fun create(@Valid @RequestBody request: CreateSocietyRequest): SocietyResponse =
-        SocietyResponse.from(societyService.createSociety(request.name, request.address, request.complexId))
+    @RequiresPermission("SOCIETY.SETTINGS.CREATE")
+    fun create(@Valid @RequestBody request: CreateSocietyRequest): SocietyResponse {
+        accessService.current().requireOnPlatform("SOCIETY.SETTINGS.CREATE")
+        return SocietyResponse.from(societyService.createSociety(request.name, request.address, request.complexId))
+    }
 
     @GetMapping("/{id}")
     @RequiresPermission("SOCIETY.SETTINGS.VIEW")
-    fun getById(@PathVariable id: UUID): SocietyResponse = SocietyResponse.from(societyService.getById(id))
+    fun getById(@PathVariable id: UUID): SocietyResponse {
+        accessService.current().requireIn("SOCIETY.SETTINGS.VIEW", id)
+        return SocietyResponse.from(societyService.getById(id))
+    }
 
     @GetMapping
     @RequiresPermission("SOCIETY.SETTINGS.VIEW")
-    fun getAll(): List<SocietyResponse> = societyService.getAll().map(SocietyResponse::from)
+    fun getAll(): List<SocietyResponse> {
+        val visible = accessService.current().societiesWith("SOCIETY.SETTINGS.VIEW")
+        return societyService.getAll()
+            .filter { visible == null || it.id in visible }
+            .map(SocietyResponse::from)
+    }
 
     @PatchMapping("/{id}")
     @RequiresPermission("SOCIETY.SETTINGS.UPDATE")
-    fun update(@PathVariable id: UUID, @RequestBody request: UpdateSocietyRequest): SocietyResponse =
-        SocietyResponse.from(societyService.updateSettings(id, request.name, request.address))
+    fun update(@PathVariable id: UUID, @RequestBody request: UpdateSocietyRequest): SocietyResponse {
+        accessService.current().requireIn("SOCIETY.SETTINGS.UPDATE", id)
+        return SocietyResponse.from(societyService.updateSettings(id, request.name, request.address))
+    }
 }

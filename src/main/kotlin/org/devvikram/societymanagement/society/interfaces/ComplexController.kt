@@ -1,6 +1,7 @@
 package org.devvikram.societymanagement.society.interfaces
 
 import jakarta.validation.Valid
+import org.devvikram.societymanagement.security.AccessService
 import org.devvikram.societymanagement.security.RequiresPermission
 import org.devvikram.societymanagement.society.application.ComplexService
 import org.springframework.http.HttpStatus
@@ -18,24 +19,37 @@ import java.util.UUID
 // so these endpoints return 403 for everyone until role_permission rows are added.
 @RestController
 @RequestMapping("/api/complexes")
-class ComplexController(private val complexService: ComplexService) {
+class ComplexController(
+    private val complexService: ComplexService,
+    private val accessService: AccessService,
+) {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("COMPLEX.SETTINGS.UPDATE")
-    fun create(@Valid @RequestBody request: CreateComplexRequest): ComplexResponse =
-        ComplexResponse.from(complexService.createComplex(request.name, request.address))
+    fun create(@Valid @RequestBody request: CreateComplexRequest): ComplexResponse {
+        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.UPDATE")
+        return ComplexResponse.from(complexService.createComplex(request.name, request.address))
+    }
 
     @GetMapping("/{id}")
     @RequiresPermission("COMPLEX.SETTINGS.VIEW")
-    fun getById(@PathVariable id: UUID): ComplexResponse = ComplexResponse.from(complexService.getById(id))
+    fun getById(@PathVariable id: UUID): ComplexResponse {
+        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.VIEW")
+        return ComplexResponse.from(complexService.getById(id))
+    }
 
     @GetMapping
     @RequiresPermission("COMPLEX.SETTINGS.VIEW")
-    fun getAll(): List<ComplexResponse> = complexService.getAll().map(ComplexResponse::from)
+    fun getAll(): List<ComplexResponse> {
+        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.VIEW")
+        return complexService.getAll().map(ComplexResponse::from)
+    }
 
     @PatchMapping("/{id}")
     @RequiresPermission("COMPLEX.SETTINGS.UPDATE")
-    fun update(@PathVariable id: UUID, @RequestBody request: UpdateComplexRequest): ComplexResponse =
-        ComplexResponse.from(complexService.updateSettings(id, request.name, request.address))
+    fun update(@PathVariable id: UUID, @RequestBody request: UpdateComplexRequest): ComplexResponse {
+        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.UPDATE")
+        return ComplexResponse.from(complexService.updateSettings(id, request.name, request.address))
+    }
 }

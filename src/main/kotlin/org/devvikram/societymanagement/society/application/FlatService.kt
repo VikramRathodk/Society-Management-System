@@ -25,6 +25,10 @@ class FlatService(
     fun getById(id: UUID): Flat =
         flatRepository.findById(id) ?: throw NoSuchElementException("Flat $id not found")
 
+    // Read inside a transaction: flat.wing and wing.society are lazy and open-in-view is off.
+    @Transactional(readOnly = true)
+    fun societyIdOf(flatId: UUID): UUID = getById(flatId).wing.society.id!!
+
     fun listByWing(wingId: UUID): List<Flat> = flatRepository.findByWingId(wingId)
 
     @Transactional

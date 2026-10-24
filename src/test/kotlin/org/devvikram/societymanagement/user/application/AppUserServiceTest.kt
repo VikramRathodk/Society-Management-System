@@ -1,17 +1,21 @@
 package org.devvikram.societymanagement.user.application
 
-import org.devvikram.societymanagement.society.domain.Complex
-import org.devvikram.societymanagement.society.domain.ComplexRepository
+import org.devvikram.societymanagement.security.role.Role
+import org.devvikram.societymanagement.security.role.RoleRepository
+import org.devvikram.societymanagement.security.role.RoleScope
+import org.devvikram.societymanagement.society.application.InMemoryFlatRepository
+import org.devvikram.societymanagement.society.application.InMemorySocietyRepository
 import org.devvikram.societymanagement.society.domain.Flat
-import org.devvikram.societymanagement.society.domain.FlatRepository
 import org.devvikram.societymanagement.society.domain.Society
-import org.devvikram.societymanagement.society.domain.SocietyRepository
 import org.devvikram.societymanagement.society.domain.Wing
 import org.devvikram.societymanagement.user.domain.AppUser
 import org.devvikram.societymanagement.user.domain.AppUserRepository
-import org.devvikram.societymanagement.user.domain.Role
+import org.devvikram.societymanagement.user.domain.ResidentType
+import org.devvikram.societymanagement.user.domain.UserRole
+import org.devvikram.societymanagement.user.domain.UserRoleRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -30,196 +34,217 @@ private class InMemoryAppUserRepository : AppUserRepository {
 
     override fun findById(id: UUID): AppUser? = store[id]
     override fun findAll(): List<AppUser> = store.values.toList()
+    override fun findAllById(ids: Collection<UUID>): List<AppUser> = ids.mapNotNull { store[it] }
     override fun findByPhone(phone: String): AppUser? = store.values.find { it.phone == phone }
 }
 
-private class InMemorySocietyRepository : SocietyRepository {
-    private val store = mutableMapOf<UUID, Society>()
+private class InMemoryUserRoleRepository : UserRoleRepository {
+    private val store = mutableMapOf<UUID, UserRole>()
 
-    override fun save(society: Society): Society {
-        if (society.id == null) society.id = UUID.randomUUID()
-        store[society.id!!] = society
-        return society
+    override fun save(userRole: UserRole): UserRole {
+        if (userRole.id == null) userRole.id = UUID.randomUUID()
+        store[userRole.id!!] = userRole
+        return userRole
     }
 
-    override fun findById(id: UUID): Society? = store[id]
-    override fun findAll(): List<Society> = store.values.toList()
+    override fun findById(id: UUID): UserRole? = store[id]
+    override fun findByUserId(userId: UUID): List<UserRole> = store.values.filter { it.user.id == userId }
+    override fun findByUserIds(userIds: Collection<UUID>): List<UserRole> = store.values.filter { it.user.id in userIds }
+    override fun findUserIdsBySocietyIds(societyIds: Collection<UUID>): Set<UUID> =
+        store.values.filter { it.society?.id in societyIds }.map { it.user.id!! }.toSet()
+    override fun countByRoleId(roleId: UUID): Long = store.values.count { it.role.id == roleId }.toLong()
+    override fun delete(userRole: UserRole) {
+        store.remove(userRole.id)
+    }
 }
 
-private class InMemoryComplexRepository : ComplexRepository {
-    private val store = mutableMapOf<UUID, Complex>()
+private class InMemoryRoleRepository : RoleRepository {
+    private val store = mutableMapOf<String, Role>()
 
-    override fun save(complex: Complex): Complex {
-        if (complex.id == null) complex.id = UUID.randomUUID()
-        store[complex.id!!] = complex
-        return complex
+    override fun save(role: Role): Role {
+        if (role.id == null) role.id = UUID.randomUUID()
+        store[role.code] = role
+        return role
     }
 
-    override fun findById(id: UUID): Complex? = store[id]
-    override fun findAll(): List<Complex> = store.values.toList()
-}
-
-private class InMemoryFlatRepository : FlatRepository {
-    private val store = mutableMapOf<UUID, Flat>()
-
-    override fun save(flat: Flat): Flat {
-        if (flat.id == null) flat.id = UUID.randomUUID()
-        store[flat.id!!] = flat
-        return flat
-    }
-
-    override fun findById(id: UUID): Flat? = store[id]
-    override fun findAll(): List<Flat> = store.values.toList()
-    override fun findByWingId(wingId: UUID): List<Flat> = store.values.filter { it.wing.id == wingId }
-    override fun deleteById(id: UUID) {
-        store.remove(id)
+    override fun findByCode(code: String): Role? = store[code]
+    override fun findByCodes(codes: Collection<String>): List<Role> = codes.mapNotNull { store[it] }
+    override fun findAll(): List<Role> = store.values.toList()
+    override fun delete(role: Role) {
+        store.remove(role.code)
     }
 }
 
 class AppUserServiceTest {
 
     private lateinit var appUserRepository: InMemoryAppUserRepository
+    private lateinit var userRoleRepository: InMemoryUserRoleRepository
     private lateinit var societyRepository: InMemorySocietyRepository
-    private lateinit var complexRepository: InMemoryComplexRepository
     private lateinit var flatRepository: InMemoryFlatRepository
     private lateinit var service: AppUserService
     private lateinit var society: Society
+    private lateinit var flat: Flat
 
     @BeforeEach
     fun setUp() {
         appUserRepository = InMemoryAppUserRepository()
+        userRoleRepository = InMemoryUserRoleRepository()
         societyRepository = InMemorySocietyRepository()
-        complexRepository = InMemoryComplexRepository()
         flatRepository = InMemoryFlatRepository()
+        val roleRepository = InMemoryRoleRepository().apply {
+            save(Role(code = "SUPER_ADMIN", name = "Super Admin", scopeLevel = RoleScope.PLATFORM, allPermissions = true))
+            save(Role(code = "ADMIN", name = "Admin", scopeLevel = RoleScope.SOCIETY))
+            save(Role(code = "GUARD", name = "Security Guard", scopeLevel = RoleScope.SOCIETY))
+            save(Role(code = "RESIDENT", name = "Resident", scopeLevel = RoleScope.SOCIETY, requiresFlat = true))
+        }
         service = AppUserService(
             appUserRepository,
+            userRoleRepository,
+            roleRepository,
             societyRepository,
-            complexRepository,
             flatRepository,
             BCryptPasswordEncoder(),
         )
         society = societyRepository.save(Society(name = "Sunrise Apartments"))
+        flat = flatRepository.save(Flat(wing = Wing(society = society, name = "A"), flatNumber = "101"))
     }
 
+    private fun create(phone: String, role: AssignRoleCommand, name: String = "User $phone") = service.createUser(
+        CreateAppUserCommand(name = name, phone = phone, rawPassword = "secret123", role = role),
+    )
+
+    private fun guardIn(societyId: UUID?) = AssignRoleCommand(roleCode = "GUARD", societyId = societyId)
+
     @Test
-    fun `creates a user and hashes the password`() {
-        val user = service.createUser(
-            CreateAppUserCommand(
-                name = "Asha Patil",
-                phone = "9000000001",
-                rawPassword = "secret123",
-                role = Role.RESIDENT,
-                societyId = society.id,
-            ),
-        )
+    fun `creates a user, hashes the password and assigns the first role`() {
+        val user = create("9000000001", guardIn(society.id))
 
         assertNotEquals("secret123", user.passwordHash)
         assertTrue(BCryptPasswordEncoder().matches("secret123", user.passwordHash))
-        assertEquals(society.id, user.society?.id)
+        val role = service.getRoles(user.id!!).single()
+        assertEquals("GUARD", role.role.code)
+        assertEquals(society.id, role.society?.id)
     }
 
     @Test
-    fun `resolves the flat when a flatId is provided`() {
-        val wing = Wing(society = society, name = "A")
-        val flat = flatRepository.save(Flat(wing = wing, flatNumber = "101"))
-
-        val user = service.createUser(
-            CreateAppUserCommand(
-                name = "Asha Patil",
-                phone = "9000000002",
-                rawPassword = "secret123",
-                role = Role.RESIDENT,
-                societyId = society.id,
-                flatId = flat.id,
-            ),
+    fun `resident assignment resolves the flat and resident type`() {
+        val user = create(
+            "9000000002",
+            AssignRoleCommand("RESIDENT", societyId = society.id, flatId = flat.id, residentType = ResidentType.OWNER),
         )
 
-        assertEquals(flat.id, user.flat?.id)
+        val role = service.getRoles(user.id!!).single()
+        assertEquals(flat.id, role.flat?.id)
+        assertEquals(ResidentType.OWNER, role.residentType)
     }
 
     @Test
-    fun `rejects a user scoped to both society and complex`() {
-        val complex = complexRepository.save(Complex(name = "Lakeview Township"))
+    fun `platform role is held without a society`() {
+        val user = create("9000000003", AssignRoleCommand("SUPER_ADMIN"))
 
+        assertNull(service.getRoles(user.id!!).single().society)
+    }
+
+    @Test
+    fun `rejects a platform role scoped to a society`() {
         assertThrows(IllegalArgumentException::class.java) {
-            service.createUser(
-                CreateAppUserCommand(
-                    name = "Bad Scope",
-                    phone = "9000000003",
-                    rawPassword = "secret123",
-                    role = Role.ADMIN,
-                    societyId = society.id,
-                    complexId = complex.id,
-                ),
-            )
+            create("9000000004", AssignRoleCommand("SUPER_ADMIN", societyId = society.id))
         }
     }
 
     @Test
-    fun `rejects a user scoped to neither society nor complex`() {
+    fun `rejects a society role without a society`() {
         assertThrows(IllegalArgumentException::class.java) {
-            service.createUser(
-                CreateAppUserCommand(
-                    name = "No Scope",
-                    phone = "9000000004",
-                    rawPassword = "secret123",
-                    role = Role.ADMIN,
-                ),
-            )
+            create("9000000005", guardIn(null))
         }
     }
 
     @Test
-    fun `rejects a duplicate phone number`() {
-        service.createUser(
-            CreateAppUserCommand(
-                name = "First",
-                phone = "9000000005",
-                rawPassword = "secret123",
-                role = Role.ADMIN,
-                societyId = society.id,
-            ),
-        )
+    fun `rejects a flat role without a flat`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            create("9000000006", AssignRoleCommand("RESIDENT", societyId = society.id))
+        }
+    }
+
+    @Test
+    fun `rejects a flat on a role not tied to a flat`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            create("9000000007", AssignRoleCommand("GUARD", societyId = society.id, flatId = flat.id))
+        }
+    }
+
+    @Test
+    fun `rejects a flat from another society`() {
+        val other = societyRepository.save(Society(name = "Lakeview Towers"))
 
         assertThrows(IllegalArgumentException::class.java) {
-            service.createUser(
-                CreateAppUserCommand(
-                    name = "Second",
-                    phone = "9000000005",
-                    rawPassword = "secret123",
-                    role = Role.ADMIN,
-                    societyId = society.id,
-                ),
-            )
+            create("9000000008", AssignRoleCommand("RESIDENT", societyId = other.id, flatId = flat.id))
+        }
+    }
+
+    @Test
+    fun `throws when the role does not exist`() {
+        assertThrows(NoSuchElementException::class.java) {
+            create("9000000009", AssignRoleCommand("NO_SUCH_ROLE", societyId = society.id))
         }
     }
 
     @Test
     fun `throws when the referenced society does not exist`() {
         assertThrows(NoSuchElementException::class.java) {
-            service.createUser(
-                CreateAppUserCommand(
-                    name = "Ghost Society",
-                    phone = "9000000006",
-                    rawPassword = "secret123",
-                    role = Role.ADMIN,
-                    societyId = UUID.randomUUID(),
-                ),
-            )
+            create("9000000010", guardIn(UUID.randomUUID()))
         }
     }
 
     @Test
+    fun `rejects a duplicate phone number`() {
+        create("9000000011", guardIn(society.id))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            create("9000000011", guardIn(society.id))
+        }
+    }
+
+    @Test
+    fun `assigns the same role in a second society but not twice in one`() {
+        val other = societyRepository.save(Society(name = "Lakeview Towers"))
+        val user = create("9000000012", AssignRoleCommand("ADMIN", societyId = society.id))
+
+        service.assignRole(user.id!!, AssignRoleCommand("ADMIN", societyId = other.id))
+        assertEquals(2, service.getRoles(user.id!!).size)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.assignRole(user.id!!, AssignRoleCommand("ADMIN", societyId = other.id))
+        }
+    }
+
+    @Test
+    fun `removes a role assignment only through its own user`() {
+        val user = create("9000000013", guardIn(society.id))
+        val other = create("9000000014", guardIn(society.id))
+        val assignment = service.getRoles(user.id!!).single()
+
+        assertThrows(NoSuchElementException::class.java) {
+            service.removeRole(other.id!!, assignment.id!!)
+        }
+
+        service.removeRole(user.id!!, assignment.id!!)
+        assertTrue(service.getRoles(user.id!!).isEmpty())
+    }
+
+    @Test
+    fun `lists only users holding a role in the given societies`() {
+        val other = societyRepository.save(Society(name = "Lakeview Towers"))
+        val inside = create("9000000015", guardIn(society.id))
+        create("9000000016", guardIn(other.id))
+        create("9000000017", AssignRoleCommand("SUPER_ADMIN"))
+
+        assertEquals(listOf(inside.id), service.getAllInSocieties(listOf(society.id!!)).map { it.id })
+    }
+
+    @Test
     fun `deactivates a user`() {
-        val user = service.createUser(
-            CreateAppUserCommand(
-                name = "Guard",
-                phone = "9000000007",
-                rawPassword = "secret123",
-                role = Role.GUARD,
-                societyId = society.id,
-            ),
-        )
+        val user = create("9000000018", guardIn(society.id))
 
         val deactivated = service.deactivate(user.id!!)
 
@@ -228,15 +253,7 @@ class AppUserServiceTest {
 
     @Test
     fun `updates profile fields`() {
-        val user = service.createUser(
-            CreateAppUserCommand(
-                name = "Old Name",
-                phone = "9000000008",
-                rawPassword = "secret123",
-                role = Role.RESIDENT,
-                societyId = society.id,
-            ),
-        )
+        val user = create("9000000019", guardIn(society.id), name = "Old Name")
 
         val updated = service.updateProfile(user.id!!, UpdateProfileCommand(name = "New Name", email = "new@example.com"))
 

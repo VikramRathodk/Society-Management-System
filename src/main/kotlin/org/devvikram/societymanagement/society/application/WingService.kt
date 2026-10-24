@@ -22,6 +22,10 @@ class WingService(
     fun getById(id: UUID): Wing =
         wingRepository.findById(id) ?: throw NoSuchElementException("Wing $id not found")
 
+    // Read inside a transaction: wing.society is lazy and open-in-view is off.
+    @Transactional(readOnly = true)
+    fun societyIdOf(wingId: UUID): UUID = getById(wingId).society.id!!
+
     fun listBySociety(societyId: UUID): List<Wing> = wingRepository.findBySocietyId(societyId)
 
     @Transactional

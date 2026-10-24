@@ -15,5 +15,8 @@ class AppUserRepositoryImpl(
 
     override fun findAll(): List<AppUser> = appUserJpaRepository.findAll()
 
+    override fun findAllById(ids: Collection<UUID>): List<AppUser> =
+        if (ids.isEmpty()) emptyList() else appUserJpaRepository.findAllById(ids)
+
     override fun findByPhone(phone: String): AppUser? = appUserJpaRepository.findByPhone(phone)
 }
