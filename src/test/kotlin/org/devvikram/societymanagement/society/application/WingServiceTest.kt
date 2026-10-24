@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class WingServiceTest {
 
@@ -31,7 +30,7 @@ class WingServiceTest {
 
     @Test
     fun `throws when the society does not exist`() {
-        assertThrows(NoSuchElementException::class.java) { service.addWing(UUID.randomUUID(), "A") }
+        assertThrows(NoSuchElementException::class.java) { service.addWing(999_999L, "A") }
     }
 
     @Test

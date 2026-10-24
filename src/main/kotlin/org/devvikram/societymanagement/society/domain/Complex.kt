@@ -8,7 +8,6 @@ import jakarta.persistence.Id
 import jakarta.persistence.PrePersist
 import jakarta.persistence.Table
 import java.time.Instant
-import java.util.UUID
 
 @Entity
 @Table(name = "complex")
@@ -19,8 +18,8 @@ class Complex(
     var address: String? = null,
 ) {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
 
     @Column(name = "created_at")
     var createdAt: Instant? = null

@@ -2,20 +2,19 @@ package org.devvikram.societymanagement.security
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.User
-import java.util.UUID
 
 // One role assignment as the security layer sees it. societyId == null means platform-wide.
 data class RoleGrant(
-    val assignmentId: UUID,
+    val assignmentId: Long,
     val roleCode: String,
-    val societyId: UUID?,
-    val flatId: UUID?,
+    val societyId: Long?,
+    val flatId: Long?,
 )
 
 // The request's principal: the usual UserDetails plus the user's id and role assignments,
 // loaded fresh on every request so role changes apply without re-login.
 class AuthenticatedUser(
-    val id: UUID,
+    val id: Long,
     phone: String,
     passwordHash: String,
     active: Boolean,

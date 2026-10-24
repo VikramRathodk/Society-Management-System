@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 // COMPLEX.SETTINGS.* are seeded but mapped to no role (reserved until a Complex Admin role exists),
 // so these endpoints return 403 for everyone until role_permission rows are added.
@@ -34,7 +33,7 @@ class ComplexController(
 
     @GetMapping("/{id}")
     @RequiresPermission("COMPLEX.SETTINGS.VIEW")
-    fun getById(@PathVariable id: UUID): ComplexResponse {
+    fun getById(@PathVariable id: Long): ComplexResponse {
         accessService.current().requireOnPlatform("COMPLEX.SETTINGS.VIEW")
         return ComplexResponse.from(complexService.getById(id))
     }
@@ -48,7 +47,7 @@ class ComplexController(
 
     @PatchMapping("/{id}")
     @RequiresPermission("COMPLEX.SETTINGS.UPDATE")
-    fun update(@PathVariable id: UUID, @RequestBody request: UpdateComplexRequest): ComplexResponse {
+    fun update(@PathVariable id: Long, @RequestBody request: UpdateComplexRequest): ComplexResponse {
         accessService.current().requireOnPlatform("COMPLEX.SETTINGS.UPDATE")
         return ComplexResponse.from(complexService.updateSettings(id, request.name, request.address))
     }

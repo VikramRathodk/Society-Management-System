@@ -8,7 +8,6 @@ import jakarta.persistence.Id
 import jakarta.persistence.PrePersist
 import jakarta.persistence.Table
 import java.time.Instant
-import java.util.UUID
 
 // Identity only. What the user may do, and where, lives in UserRole (one row per role per scope).
 @Entity
@@ -32,8 +31,8 @@ class AppUser(
     var isActive: Boolean = true,
 ) {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
 
     @Column(name = "created_at")
     var createdAt: Instant? = null

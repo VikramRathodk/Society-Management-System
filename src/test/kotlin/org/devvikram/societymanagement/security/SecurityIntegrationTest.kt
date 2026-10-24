@@ -21,7 +21,6 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -40,8 +39,8 @@ class SecurityIntegrationTest {
     @Autowired lateinit var permissionService: PermissionService
     @Autowired lateinit var cacheManager: CacheManager
 
-    private lateinit var societyId: UUID
-    private lateinit var otherSocietyId: UUID
+    private var societyId = 0L
+    private var otherSocietyId = 0L
     private lateinit var admin: AppUser
     private lateinit var secretary: AppUser
     private lateinit var resident: AppUser
@@ -51,7 +50,7 @@ class SecurityIntegrationTest {
 
     private fun randomPhone() = "9${(100000000..999999999).random()}"
 
-    private fun user(roleCode: String, inSociety: UUID = societyId, flatId: UUID? = null) = appUserService.createUser(
+    private fun user(roleCode: String, inSociety: Long = societyId, flatId: Long? = null) = appUserService.createUser(
         CreateAppUserCommand(
             name = "$roleCode user",
             phone = randomPhone(),
@@ -73,7 +72,7 @@ class SecurityIntegrationTest {
         outsider = user("GUARD", inSociety = otherSocietyId)
     }
 
-    private fun flatIn(societyId: UUID): UUID {
+    private fun flatIn(societyId: Long): Long {
         val wing = wingService.addWing(societyId, "A")
         return flatService.addFlat(wing.id!!, "101").id!!
     }
@@ -110,10 +109,10 @@ class SecurityIntegrationTest {
 
     @Test
     fun `structure endpoints are permission-gated`() {
-        mockMvc.perform(get("/api/wings/${UUID.randomUUID()}").header("Authorization", bearer(guard)))
+        mockMvc.perform(get("/api/wings/999999").header("Authorization", bearer(guard)))
             .andExpect(status().isForbidden)
         // Admin passes the gate and reaches the service, which 404s on the unknown id.
-        mockMvc.perform(get("/api/wings/${UUID.randomUUID()}").header("Authorization", bearer(admin)))
+        mockMvc.perform(get("/api/wings/999999").header("Authorization", bearer(admin)))
             .andExpect(status().isNotFound)
     }
 
@@ -194,7 +193,7 @@ class SecurityIntegrationTest {
 
     @Test
     fun `admin creates lower roles only in their own society`() {
-        fun createGuard(inSociety: UUID, roleCode: String = "GUARD") = mockMvc.perform(
+        fun createGuard(inSociety: Long, roleCode: String = "GUARD") = mockMvc.perform(
             post("/api/users")
                 .header("Authorization", bearer(admin))
                 .contentType(MediaType.APPLICATION_JSON)

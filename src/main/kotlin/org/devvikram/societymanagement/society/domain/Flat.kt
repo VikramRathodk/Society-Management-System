@@ -10,7 +10,6 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
-import java.util.UUID
 
 @Entity
 @Table(name = "flat", uniqueConstraints = [UniqueConstraint(columnNames = ["wing_id", "flat_number"])])
@@ -23,6 +22,6 @@ class Flat(
     var flatNumber: String,
 ) {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
 }

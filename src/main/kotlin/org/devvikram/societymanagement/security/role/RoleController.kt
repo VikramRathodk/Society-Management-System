@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 data class CreateRoleRequest(
     @field:NotBlank val code: String,
@@ -88,7 +87,7 @@ class RoleController(
     // For any user who can assign roles: which roles they may hand out in that society
     // (omit societyId for platform roles). Drives the role picker in the client.
     @GetMapping("/api/roles/assignable")
-    fun assignable(@RequestParam(required = false) societyId: UUID?): List<AssignableRoleResponse> {
+    fun assignable(@RequestParam(required = false) societyId: Long?): List<AssignableRoleResponse> {
         val access = accessService.current()
         return roleService.getAll()
             .filter { (if (societyId == null) it.scopeLevel == RoleScope.PLATFORM else it.scopeLevel == RoleScope.SOCIETY) }

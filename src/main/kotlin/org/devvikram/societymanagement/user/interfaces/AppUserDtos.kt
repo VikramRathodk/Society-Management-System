@@ -6,7 +6,6 @@ import org.devvikram.societymanagement.user.application.AssignRoleCommand
 import org.devvikram.societymanagement.user.domain.AppUser
 import org.devvikram.societymanagement.user.domain.ResidentType
 import org.devvikram.societymanagement.user.domain.UserRole
-import java.util.UUID
 
 // role is a role code (e.g. "RESIDENT", "SECRETARY", or any custom role a SUPER_ADMIN defined).
 data class CreateAppUserRequest(
@@ -15,8 +14,8 @@ data class CreateAppUserRequest(
     val email: String? = null,
     @field:NotBlank val password: String,
     @field:NotBlank val role: String,
-    val societyId: UUID? = null,
-    val flatId: UUID? = null,
+    val societyId: Long? = null,
+    val flatId: Long? = null,
     val residentType: ResidentType? = null,
 ) {
     fun roleCommand() = AssignRoleCommand(role, societyId, flatId, residentType)
@@ -24,8 +23,8 @@ data class CreateAppUserRequest(
 
 data class AssignRoleRequest(
     @field:NotBlank val role: String,
-    val societyId: UUID? = null,
-    val flatId: UUID? = null,
+    val societyId: Long? = null,
+    val flatId: Long? = null,
     val residentType: ResidentType? = null,
 ) {
     fun toCommand() = AssignRoleCommand(role, societyId, flatId, residentType)
@@ -38,11 +37,11 @@ data class UpdateProfileRequest(
 )
 
 data class RoleAssignmentResponse(
-    val id: UUID,
+    val id: Long,
     val role: String,
     val roleName: String,
-    val societyId: UUID?,
-    val flatId: UUID?,
+    val societyId: Long?,
+    val flatId: Long?,
     val residentType: ResidentType?,
 ) {
     companion object {
@@ -58,7 +57,7 @@ data class RoleAssignmentResponse(
 }
 
 data class AppUserResponse(
-    val id: UUID,
+    val id: Long,
     val name: String,
     val phone: String,
     val email: String?,
@@ -78,7 +77,7 @@ data class AppUserResponse(
 }
 
 data class SocietyAccessResponse(
-    val societyId: UUID,
+    val societyId: Long,
     val roles: List<String>,
     val permissions: Set<String>,
 )

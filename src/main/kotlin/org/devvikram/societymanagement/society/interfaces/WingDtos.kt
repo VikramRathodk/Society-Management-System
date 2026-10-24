@@ -2,15 +2,14 @@ package org.devvikram.societymanagement.society.interfaces
 
 import jakarta.validation.constraints.NotBlank
 import org.devvikram.societymanagement.society.domain.Wing
-import java.util.UUID
 
 data class CreateWingRequest(@field:NotBlank val name: String)
 
 data class RenameWingRequest(@field:NotBlank val name: String)
 
 data class WingResponse(
-    val id: UUID,
-    val societyId: UUID,
+    val id: Long,
+    val societyId: Long,
     val name: String,
 ) {
     companion object {

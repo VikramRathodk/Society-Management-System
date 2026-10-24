@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class FlatServiceTest {
 
@@ -20,7 +19,7 @@ class FlatServiceTest {
         flatRepository = InMemoryFlatRepository()
         wingRepository = InMemoryWingRepository()
         service = FlatService(flatRepository, wingRepository)
-        val society = Society(name = "Sunrise Apartments").also { it.id = UUID.randomUUID() }
+        val society = Society(name = "Sunrise Apartments").also { it.id = 1L }
         wing = wingRepository.save(Wing(society = society, name = "A"))
     }
 
@@ -33,7 +32,7 @@ class FlatServiceTest {
 
     @Test
     fun `throws when the wing does not exist`() {
-        assertThrows(NoSuchElementException::class.java) { service.addFlat(UUID.randomUUID(), "101") }
+        assertThrows(NoSuchElementException::class.java) { service.addFlat(999_999L, "101") }
     }
 
     @Test

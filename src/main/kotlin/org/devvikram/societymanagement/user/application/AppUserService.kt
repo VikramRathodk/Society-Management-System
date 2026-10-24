@@ -11,7 +11,6 @@ import org.devvikram.societymanagement.user.domain.UserRoleRepository
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 // Validates the shape of users and role assignments. *Who* may create/assign what is decided
 // by the caller (Access.canGrant / canManage in the controllers), not here.
@@ -42,7 +41,7 @@ class AppUserService(
     }
 
     @Transactional
-    fun assignRole(userId: UUID, command: AssignRoleCommand): UserRole {
+    fun assignRole(userId: Long, command: AssignRoleCommand): UserRole {
         val user = getById(userId)
         val role = roleRepository.findByCode(command.roleCode)
             ?: throw NoSuchElementException("Role ${command.roleCode} not found")
@@ -82,20 +81,20 @@ class AppUserService(
     }
 
     @Transactional
-    fun removeRole(userId: UUID, assignmentId: UUID) {
+    fun removeRole(userId: Long, assignmentId: Long) {
         userRoleRepository.delete(getRoleAssignment(userId, assignmentId))
     }
 
-    fun getRoleAssignment(userId: UUID, assignmentId: UUID): UserRole =
+    fun getRoleAssignment(userId: Long, assignmentId: Long): UserRole =
         userRoleRepository.findById(assignmentId)?.takeIf { it.user.id == userId }
             ?: throw NoSuchElementException("Role assignment $assignmentId not found for user $userId")
 
-    fun getRoles(userId: UUID): List<UserRole> = userRoleRepository.findByUserId(userId)
+    fun getRoles(userId: Long): List<UserRole> = userRoleRepository.findByUserId(userId)
 
-    fun getRolesByUser(userIds: Collection<UUID>): Map<UUID, List<UserRole>> =
+    fun getRolesByUser(userIds: Collection<Long>): Map<Long, List<UserRole>> =
         userRoleRepository.findByUserIds(userIds).groupBy { it.user.id!! }
 
-    fun getById(id: UUID): AppUser =
+    fun getById(id: Long): AppUser =
         appUserRepository.findById(id) ?: throw NoSuchElementException("User $id not found")
 
     fun getByPhone(phone: String): AppUser? = appUserRepository.findByPhone(phone)
@@ -103,11 +102,11 @@ class AppUserService(
     fun getAll(): List<AppUser> = appUserRepository.findAll()
 
     // Users holding any role in one of these societies.
-    fun getAllInSocieties(societyIds: Collection<UUID>): List<AppUser> =
+    fun getAllInSocieties(societyIds: Collection<Long>): List<AppUser> =
         appUserRepository.findAllById(userRoleRepository.findUserIdsBySocietyIds(societyIds))
 
     @Transactional
-    fun updateProfile(id: UUID, command: UpdateProfileCommand): AppUser {
+    fun updateProfile(id: Long, command: UpdateProfileCommand): AppUser {
         val user = getById(id)
         command.name?.let { user.name = it }
         command.email?.let { user.email = it }
@@ -116,7 +115,7 @@ class AppUserService(
     }
 
     @Transactional
-    fun deactivate(id: UUID): AppUser {
+    fun deactivate(id: Long): AppUser {
         val user = getById(id)
         user.isActive = false
         return appUserRepository.save(user)

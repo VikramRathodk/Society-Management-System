@@ -1,11 +1,10 @@
 package org.devvikram.societymanagement.user.domain
 
-import java.util.UUID
 
 interface AppUserRepository {
     fun save(appUser: AppUser): AppUser
-    fun findById(id: UUID): AppUser?
+    fun findById(id: Long): AppUser?
     fun findAll(): List<AppUser>
-    fun findAllById(ids: Collection<UUID>): List<AppUser>
+    fun findAllById(ids: Collection<Long>): List<AppUser>
     fun findByPhone(phone: String): AppUser?
 }

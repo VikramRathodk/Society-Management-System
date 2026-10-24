@@ -2,7 +2,6 @@ package org.devvikram.societymanagement.security.role
 
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
-import java.util.UUID
 
 // Plain port so services that need role lookups can be unit-tested against in-memory fakes.
 interface RoleRepository {
@@ -13,7 +12,7 @@ interface RoleRepository {
     fun delete(role: Role)
 }
 
-interface RoleJpaRepository : JpaRepository<Role, UUID> {
+interface RoleJpaRepository : JpaRepository<Role, Long> {
     fun findByCode(code: String): Role?
     fun findByCodeIn(codes: Collection<String>): List<Role>
 }

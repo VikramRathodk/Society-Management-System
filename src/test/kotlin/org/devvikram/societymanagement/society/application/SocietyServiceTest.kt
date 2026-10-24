@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class SocietyServiceTest {
 
@@ -39,7 +38,7 @@ class SocietyServiceTest {
     @Test
     fun `throws when the referenced complex does not exist`() {
         assertThrows(NoSuchElementException::class.java) {
-            service.createSociety("Ghost", complexId = UUID.randomUUID())
+            service.createSociety("Ghost", complexId = 999_999L)
         }
     }
 

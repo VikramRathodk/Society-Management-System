@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 // Creating a society is platform-level (SUPER_ADMIN); everything else is checked per society,
 // so an ADMIN/SECRETARY only sees and edits the societies they hold a role in.
@@ -34,7 +33,7 @@ class SocietyController(
 
     @GetMapping("/{id}")
     @RequiresPermission("SOCIETY.SETTINGS.VIEW")
-    fun getById(@PathVariable id: UUID): SocietyResponse {
+    fun getById(@PathVariable id: Long): SocietyResponse {
         accessService.current().requireIn("SOCIETY.SETTINGS.VIEW", id)
         return SocietyResponse.from(societyService.getById(id))
     }
@@ -50,7 +49,7 @@ class SocietyController(
 
     @PatchMapping("/{id}")
     @RequiresPermission("SOCIETY.SETTINGS.UPDATE")
-    fun update(@PathVariable id: UUID, @RequestBody request: UpdateSocietyRequest): SocietyResponse {
+    fun update(@PathVariable id: Long, @RequestBody request: UpdateSocietyRequest): SocietyResponse {
         accessService.current().requireIn("SOCIETY.SETTINGS.UPDATE", id)
         return SocietyResponse.from(societyService.updateSettings(id, request.name, request.address))
     }

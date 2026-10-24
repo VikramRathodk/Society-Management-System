@@ -12,7 +12,6 @@ import jakarta.persistence.PrePersist
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.time.Instant
-import java.util.UUID
 
 // Schema now, workflow deferred to Phase 2.
 @Entity
@@ -34,8 +33,8 @@ class ParkingSlot(
     var vehicleType: String? = null,
 ) {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
 
     @Column(name = "created_at")
     var createdAt: Instant? = null

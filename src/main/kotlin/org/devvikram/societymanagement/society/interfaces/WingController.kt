@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 // Every action is checked against the society the wing belongs to.
 @RestController
@@ -25,28 +24,28 @@ class WingController(
     @PostMapping("/api/societies/{societyId}/wings")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("FLAT.STRUCTURE.CREATE")
-    fun addWing(@PathVariable societyId: UUID, @Valid @RequestBody request: CreateWingRequest): WingResponse {
+    fun addWing(@PathVariable societyId: Long, @Valid @RequestBody request: CreateWingRequest): WingResponse {
         accessService.current().requireIn("FLAT.STRUCTURE.CREATE", societyId)
         return WingResponse.from(wingService.addWing(societyId, request.name))
     }
 
     @GetMapping("/api/societies/{societyId}/wings")
     @RequiresPermission("FLAT.DIRECTORY.VIEW")
-    fun listBySociety(@PathVariable societyId: UUID): List<WingResponse> {
+    fun listBySociety(@PathVariable societyId: Long): List<WingResponse> {
         accessService.current().requireIn("FLAT.DIRECTORY.VIEW", societyId)
         return wingService.listBySociety(societyId).map(WingResponse::from)
     }
 
     @GetMapping("/api/wings/{id}")
     @RequiresPermission("FLAT.DIRECTORY.VIEW")
-    fun getById(@PathVariable id: UUID): WingResponse {
+    fun getById(@PathVariable id: Long): WingResponse {
         accessService.current().requireIn("FLAT.DIRECTORY.VIEW", wingService.societyIdOf(id))
         return WingResponse.from(wingService.getById(id))
     }
 
     @PatchMapping("/api/wings/{id}")
     @RequiresPermission("FLAT.STRUCTURE.UPDATE")
-    fun rename(@PathVariable id: UUID, @Valid @RequestBody request: RenameWingRequest): WingResponse {
+    fun rename(@PathVariable id: Long, @Valid @RequestBody request: RenameWingRequest): WingResponse {
         accessService.current().requireIn("FLAT.STRUCTURE.UPDATE", wingService.societyIdOf(id))
         return WingResponse.from(wingService.renameWing(id, request.name))
     }
@@ -54,7 +53,7 @@ class WingController(
     @DeleteMapping("/api/wings/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("FLAT.STRUCTURE.DELETE")
-    fun delete(@PathVariable id: UUID) {
+    fun delete(@PathVariable id: Long) {
         accessService.current().requireIn("FLAT.STRUCTURE.DELETE", wingService.societyIdOf(id))
         wingService.deleteWing(id)
     }

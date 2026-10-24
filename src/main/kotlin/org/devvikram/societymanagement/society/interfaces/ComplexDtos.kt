@@ -2,7 +2,6 @@ package org.devvikram.societymanagement.society.interfaces
 
 import jakarta.validation.constraints.NotBlank
 import org.devvikram.societymanagement.society.domain.Complex
-import java.util.UUID
 
 data class CreateComplexRequest(
     @field:NotBlank val name: String,
@@ -15,7 +14,7 @@ data class UpdateComplexRequest(
 )
 
 data class ComplexResponse(
-    val id: UUID,
+    val id: Long,
     val name: String,
     val address: String?,
 ) {

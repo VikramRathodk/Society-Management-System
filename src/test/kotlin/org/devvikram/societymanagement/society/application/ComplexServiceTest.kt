@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class ComplexServiceTest {
 
@@ -37,6 +36,6 @@ class ComplexServiceTest {
 
     @Test
     fun `throws when the complex does not exist`() {
-        assertThrows(NoSuchElementException::class.java) { service.getById(UUID.randomUUID()) }
+        assertThrows(NoSuchElementException::class.java) { service.getById(999_999L) }
     }
 }

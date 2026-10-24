@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 // @RequiresPermission is the coarse gate (permission held somewhere); each handler then checks
 // the specific society and the role hierarchy: higher roles manage only roles below them.
@@ -58,12 +57,12 @@ class AppUserController(
 
     @GetMapping("/{id}")
     @RequiresPermission("USER.ACCOUNT.VIEW")
-    fun getById(@PathVariable id: UUID): AppUserResponse = viewable(id, "USER.ACCOUNT.VIEW")
+    fun getById(@PathVariable id: Long): AppUserResponse = viewable(id, "USER.ACCOUNT.VIEW")
 
     // Everyone in the caller's societies (all users for a platform-level viewer); ?societyId narrows it.
     @GetMapping
     @RequiresPermission("USER.ACCOUNT.VIEW")
-    fun getAll(@RequestParam(required = false) societyId: UUID?): List<AppUserResponse> {
+    fun getAll(@RequestParam(required = false) societyId: Long?): List<AppUserResponse> {
         val access = accessService.current()
         val visibleSocieties = access.societiesWith("USER.ACCOUNT.VIEW")
         val users = when {
@@ -82,7 +81,7 @@ class AppUserController(
     // USER.ACCOUNT.UPDATE and a role above every role the target holds.
     @PatchMapping("/{id}")
     @RequiresPermission("USER.PROFILE.UPDATE")
-    fun updateProfile(@PathVariable id: UUID, @RequestBody request: UpdateProfileRequest): AppUserResponse {
+    fun updateProfile(@PathVariable id: Long, @RequestBody request: UpdateProfileRequest): AppUserResponse {
         val access = accessService.current()
         if (access.userId != id) requireCanManage(id, "USER.ACCOUNT.UPDATE", "You can only update your own profile")
         val user = appUserService.updateProfile(
@@ -94,7 +93,7 @@ class AppUserController(
 
     @PatchMapping("/{id}/deactivate")
     @RequiresPermission("USER.ACCOUNT.DELETE")
-    fun deactivate(@PathVariable id: UUID): AppUserResponse {
+    fun deactivate(@PathVariable id: Long): AppUserResponse {
         if (accessService.current().userId == id) throw IllegalArgumentException("You cannot deactivate yourself")
         requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot deactivate a user at or above your level")
         return response(appUserService.deactivate(id))
@@ -102,12 +101,12 @@ class AppUserController(
 
     @GetMapping("/{id}/roles")
     @RequiresPermission("USER.ROLE.VIEW")
-    fun getRoles(@PathVariable id: UUID): List<RoleAssignmentResponse> = viewable(id, "USER.ROLE.VIEW").roles
+    fun getRoles(@PathVariable id: Long): List<RoleAssignmentResponse> = viewable(id, "USER.ROLE.VIEW").roles
 
     @PostMapping("/{id}/roles")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("USER.ROLE.ASSIGN")
-    fun assignRole(@PathVariable id: UUID, @Valid @RequestBody request: AssignRoleRequest): RoleAssignmentResponse {
+    fun assignRole(@PathVariable id: Long, @Valid @RequestBody request: AssignRoleRequest): RoleAssignmentResponse {
         if (!accessService.current().canGrant("USER.ROLE.ASSIGN", request.role, request.societyId)) {
             throw AccessDeniedException("You cannot assign ${request.role} in this scope")
         }
@@ -119,7 +118,7 @@ class AppUserController(
     @DeleteMapping("/{id}/roles/{assignmentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("USER.ROLE.DELETE")
-    fun removeRole(@PathVariable id: UUID, @PathVariable assignmentId: UUID) {
+    fun removeRole(@PathVariable id: Long, @PathVariable assignmentId: Long) {
         val assignment = appUserService.getRoleAssignment(id, assignmentId)
         if (!accessService.current().canManage("USER.ROLE.DELETE", listOf(assignment.toGrant()))) {
             throw AccessDeniedException("You cannot remove a role at or above your level")
@@ -128,7 +127,7 @@ class AppUserController(
     }
 
     // Viewing (unlike managing) needs no rank: the permission in any society the target belongs to.
-    private fun viewable(id: UUID, permission: String): AppUserResponse {
+    private fun viewable(id: Long, permission: String): AppUserResponse {
         val access = accessService.current()
         val user = appUserService.getById(id)
         val roles = appUserService.getRoles(id)
@@ -138,7 +137,7 @@ class AppUserController(
         return AppUserResponse.from(user, roles)
     }
 
-    private fun requireCanManage(targetId: UUID, permission: String, message: String) {
+    private fun requireCanManage(targetId: Long, permission: String, message: String) {
         appUserService.getById(targetId) // 404 before 403 for unknown users
         val targetGrants = appUserService.getRoles(targetId).map { it.toGrant() }
         if (!accessService.current().canManage(permission, targetGrants)) throw AccessDeniedException(message)

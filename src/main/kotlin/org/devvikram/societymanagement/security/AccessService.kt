@@ -3,7 +3,6 @@ package org.devvikram.societymanagement.security
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
-import java.util.UUID
 
 @Service
 class AccessService(private val permissionService: PermissionService) {
@@ -14,7 +13,7 @@ class AccessService(private val permissionService: PermissionService) {
         return accessFor(principal.id, principal.grants)
     }
 
-    fun accessFor(userId: UUID, grants: List<RoleGrant>): Access {
+    fun accessFor(userId: Long, grants: List<RoleGrant>): Access {
         val (platformGrants, societyGrants) = grants.partition { it.societyId == null }
         val bySociety = societyGrants.groupBy { it.societyId!! }
         return Access(

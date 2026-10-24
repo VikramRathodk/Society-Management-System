@@ -21,38 +21,39 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
-import java.util.UUID
 
 private class InMemoryAppUserRepository : AppUserRepository {
-    private val store = mutableMapOf<UUID, AppUser>()
+    private val store = mutableMapOf<Long, AppUser>()
+    private var nextId = 1L
 
     override fun save(appUser: AppUser): AppUser {
-        if (appUser.id == null) appUser.id = UUID.randomUUID()
+        if (appUser.id == null) appUser.id = nextId++
         store[appUser.id!!] = appUser
         return appUser
     }
 
-    override fun findById(id: UUID): AppUser? = store[id]
+    override fun findById(id: Long): AppUser? = store[id]
     override fun findAll(): List<AppUser> = store.values.toList()
-    override fun findAllById(ids: Collection<UUID>): List<AppUser> = ids.mapNotNull { store[it] }
+    override fun findAllById(ids: Collection<Long>): List<AppUser> = ids.mapNotNull { store[it] }
     override fun findByPhone(phone: String): AppUser? = store.values.find { it.phone == phone }
 }
 
 private class InMemoryUserRoleRepository : UserRoleRepository {
-    private val store = mutableMapOf<UUID, UserRole>()
+    private val store = mutableMapOf<Long, UserRole>()
+    private var nextId = 1L
 
     override fun save(userRole: UserRole): UserRole {
-        if (userRole.id == null) userRole.id = UUID.randomUUID()
+        if (userRole.id == null) userRole.id = nextId++
         store[userRole.id!!] = userRole
         return userRole
     }
 
-    override fun findById(id: UUID): UserRole? = store[id]
-    override fun findByUserId(userId: UUID): List<UserRole> = store.values.filter { it.user.id == userId }
-    override fun findByUserIds(userIds: Collection<UUID>): List<UserRole> = store.values.filter { it.user.id in userIds }
-    override fun findUserIdsBySocietyIds(societyIds: Collection<UUID>): Set<UUID> =
+    override fun findById(id: Long): UserRole? = store[id]
+    override fun findByUserId(userId: Long): List<UserRole> = store.values.filter { it.user.id == userId }
+    override fun findByUserIds(userIds: Collection<Long>): List<UserRole> = store.values.filter { it.user.id in userIds }
+    override fun findUserIdsBySocietyIds(societyIds: Collection<Long>): Set<Long> =
         store.values.filter { it.society?.id in societyIds }.map { it.user.id!! }.toSet()
-    override fun countByRoleId(roleId: UUID): Long = store.values.count { it.role.id == roleId }.toLong()
+    override fun countByRoleId(roleId: Long): Long = store.values.count { it.role.id == roleId }.toLong()
     override fun delete(userRole: UserRole) {
         store.remove(userRole.id)
     }
@@ -60,9 +61,10 @@ private class InMemoryUserRoleRepository : UserRoleRepository {
 
 private class InMemoryRoleRepository : RoleRepository {
     private val store = mutableMapOf<String, Role>()
+    private var nextId = 1L
 
     override fun save(role: Role): Role {
-        if (role.id == null) role.id = UUID.randomUUID()
+        if (role.id == null) role.id = nextId++
         store[role.code] = role
         return role
     }
@@ -113,7 +115,7 @@ class AppUserServiceTest {
         CreateAppUserCommand(name = name, phone = phone, rawPassword = "secret123", role = role),
     )
 
-    private fun guardIn(societyId: UUID?) = AssignRoleCommand(roleCode = "GUARD", societyId = societyId)
+    private fun guardIn(societyId: Long?) = AssignRoleCommand(roleCode = "GUARD", societyId = societyId)
 
     @Test
     fun `creates a user, hashes the password and assigns the first role`() {
@@ -192,7 +194,7 @@ class AppUserServiceTest {
     @Test
     fun `throws when the referenced society does not exist`() {
         assertThrows(NoSuchElementException::class.java) {
-            create("9000000010", guardIn(UUID.randomUUID()))
+            create("9000000010", guardIn(999_999L))
         }
     }
 

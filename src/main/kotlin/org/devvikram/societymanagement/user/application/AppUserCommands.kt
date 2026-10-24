@@ -1,14 +1,13 @@
 package org.devvikram.societymanagement.user.application
 
 import org.devvikram.societymanagement.user.domain.ResidentType
-import java.util.UUID
 
 // societyId is required for SOCIETY roles and must be empty for PLATFORM roles;
 // flatId/residentType apply only to roles that require a flat (e.g. RESIDENT).
 data class AssignRoleCommand(
     val roleCode: String,
-    val societyId: UUID? = null,
-    val flatId: UUID? = null,
+    val societyId: Long? = null,
+    val flatId: Long? = null,
     val residentType: ResidentType? = null,
 )
 

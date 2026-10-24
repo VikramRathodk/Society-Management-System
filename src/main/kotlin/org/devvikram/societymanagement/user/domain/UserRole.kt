@@ -16,7 +16,6 @@ import org.devvikram.societymanagement.security.role.Role
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
 import java.time.Instant
-import java.util.UUID
 
 // One role held by one user in one scope. society is null only for PLATFORM roles;
 // flat/residentType are set only for roles with requiresFlat. Enforced in AppUserService.
@@ -44,8 +43,8 @@ class UserRole(
     var residentType: ResidentType? = null,
 ) {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
 
     @Column(name = "created_at")
     var createdAt: Instant? = null

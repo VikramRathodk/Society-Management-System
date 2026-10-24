@@ -3,7 +3,6 @@ package org.devvikram.societymanagement.security
 import org.devvikram.societymanagement.user.domain.AppUser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class JwtServiceTest {
 
@@ -18,7 +17,7 @@ class JwtServiceTest {
             name = "Asha Rao",
             phone = "9999999999",
             passwordHash = "irrelevant-for-this-test",
-        ).apply { id = UUID.randomUUID() }
+        ).apply { id = 1L }
 
         val token = jwtService.generateToken(user)
 

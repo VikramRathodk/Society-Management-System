@@ -15,7 +15,6 @@ import jakarta.persistence.PrePersist
 import jakarta.persistence.Table
 import org.devvikram.societymanagement.security.permission.Permission
 import java.time.Instant
-import java.util.UUID
 
 enum class RoleScope {
     // Held without a society (e.g. SUPER_ADMIN) — its permissions apply in every society.
@@ -72,8 +71,8 @@ class Role(
     var permissions: MutableSet<Permission> = mutableSetOf(),
 ) {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
 
     @Column(name = "created_at")
     var createdAt: Instant? = null
