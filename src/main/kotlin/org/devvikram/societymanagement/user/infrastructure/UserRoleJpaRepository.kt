@@ -21,5 +21,9 @@ interface UserRoleJpaRepository : JpaRepository<UserRole, Long> {
     @Query("select distinct ur.user.id from UserRole ur where ur.society.id in :societyIds")
     fun findUserIdsBySocietyIds(@Param("societyIds") societyIds: Collection<Long>): Set<Long>
 
+    // Assignments tied to a flat (its residents), with the user loaded.
+    @Query("select ur from UserRole ur join fetch ur.user where ur.flat.id = :flatId")
+    fun findWithUserByFlatId(@Param("flatId") flatId: Long): List<UserRole>
+
     fun countByRoleId(roleId: Long): Long
 }

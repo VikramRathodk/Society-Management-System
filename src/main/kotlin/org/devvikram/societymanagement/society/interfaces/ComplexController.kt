@@ -5,6 +5,7 @@ import org.devvikram.societymanagement.security.AccessService
 import org.devvikram.societymanagement.security.RequiresPermission
 import org.devvikram.societymanagement.society.application.ComplexService
 import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -50,5 +51,14 @@ class ComplexController(
     fun update(@PathVariable id: Long, @RequestBody request: UpdateComplexRequest): ComplexResponse {
         accessService.current().requireOnPlatform("COMPLEX.SETTINGS.UPDATE")
         return ComplexResponse.from(complexService.updateSettings(id, request.name, request.address))
+    }
+
+    // Refused with 409 while any society belongs to the complex.
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequiresPermission("COMPLEX.SETTINGS.DELETE")
+    fun delete(@PathVariable id: Long) {
+        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.DELETE")
+        complexService.delete(id)
     }
 }

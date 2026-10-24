@@ -1,5 +1,6 @@
 package org.devvikram.societymanagement.user.application
 
+import org.devvikram.societymanagement.common.ConflictException
 import org.devvikram.societymanagement.security.role.RoleRepository
 import org.devvikram.societymanagement.security.role.RoleScope
 import org.devvikram.societymanagement.society.domain.FlatRepository
@@ -8,6 +9,7 @@ import org.devvikram.societymanagement.user.domain.AppUser
 import org.devvikram.societymanagement.user.domain.AppUserRepository
 import org.devvikram.societymanagement.user.domain.UserRole
 import org.devvikram.societymanagement.user.domain.UserRoleRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -118,6 +120,25 @@ class AppUserService(
     fun deactivate(id: Long): AppUser {
         val user = getById(id)
         user.isActive = false
+        return appUserRepository.save(user)
+    }
+
+    // Permanent. Role assignments go with the user (ON DELETE CASCADE); anything that records what
+    // they did — visitors logged or answered, notices, complaints — blocks it: deactivate instead.
+    @Transactional
+    fun delete(id: Long) {
+        val user = getById(id)
+        try {
+            appUserRepository.delete(user)
+        } catch (e: DataIntegrityViolationException) {
+            throw ConflictException("${user.name} has visitor, notice or complaint history; deactivate them instead")
+        }
+    }
+
+    @Transactional
+    fun activate(id: Long): AppUser {
+        val user = getById(id)
+        user.isActive = true
         return appUserRepository.save(user)
     }
 }

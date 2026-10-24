@@ -5,6 +5,7 @@ import org.devvikram.societymanagement.security.AccessService
 import org.devvikram.societymanagement.security.RequiresPermission
 import org.devvikram.societymanagement.society.application.SocietyService
 import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -52,5 +53,14 @@ class SocietyController(
     fun update(@PathVariable id: Long, @RequestBody request: UpdateSocietyRequest): SocietyResponse {
         accessService.current().requireIn("SOCIETY.SETTINGS.UPDATE", id)
         return SocietyResponse.from(societyService.updateSettings(id, request.name, request.address))
+    }
+
+    // Platform-only, like create. Refused with 409 while the society has history (see SocietyService.delete).
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequiresPermission("SOCIETY.SETTINGS.DELETE")
+    fun delete(@PathVariable id: Long) {
+        accessService.current().requireOnPlatform("SOCIETY.SETTINGS.DELETE")
+        societyService.delete(id)
     }
 }

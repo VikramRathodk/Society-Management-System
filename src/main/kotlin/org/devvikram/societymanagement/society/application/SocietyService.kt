@@ -1,8 +1,10 @@
 package org.devvikram.societymanagement.society.application
 
+import org.devvikram.societymanagement.common.ConflictException
 import org.devvikram.societymanagement.society.domain.ComplexRepository
 import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.society.domain.SocietyRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -30,5 +32,19 @@ class SocietyService(
         name?.let { society.name = it }
         address?.let { society.address = it }
         return societyRepository.save(society)
+    }
+
+    // Wings, flats and role assignments go with it (ON DELETE CASCADE). Anything with history —
+    // visitors, notices, complaints, staff, parking — blocks the delete instead of being lost.
+    @Transactional
+    fun delete(id: Long) {
+        val society = getById(id)
+        try {
+            societyRepository.delete(society)
+        } catch (e: DataIntegrityViolationException) {
+            throw ConflictException(
+                "Society ${society.name} still has visitors, notices, complaints, staff or parking slots and cannot be deleted"
+            )
+        }
     }
 }

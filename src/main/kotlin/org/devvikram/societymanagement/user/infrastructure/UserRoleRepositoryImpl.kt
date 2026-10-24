@@ -20,6 +20,8 @@ class UserRoleRepositoryImpl(
     override fun findUserIdsBySocietyIds(societyIds: Collection<Long>): Set<Long> =
         if (societyIds.isEmpty()) emptySet() else userRoleJpaRepository.findUserIdsBySocietyIds(societyIds)
 
+    override fun findByFlatId(flatId: Long): List<UserRole> = userRoleJpaRepository.findWithUserByFlatId(flatId)
+
     override fun countByRoleId(roleId: Long): Long = userRoleJpaRepository.countByRoleId(roleId)
 
     override fun delete(userRole: UserRole) = userRoleJpaRepository.delete(userRole)

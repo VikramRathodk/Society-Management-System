@@ -99,6 +99,27 @@ class AppUserController(
         return response(appUserService.deactivate(id))
     }
 
+    // Permanent removal, platform-only: society admins can deactivate but never erase a user. Refused
+    // with 409 while the user has history (see AppUserService.delete).
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequiresPermission("USER.ACCOUNT.DELETE")
+    fun delete(@PathVariable id: Long) {
+        val access = accessService.current()
+        if (access.userId == id) throw IllegalArgumentException("You cannot delete yourself")
+        access.requireOnPlatform("USER.ACCOUNT.DELETE")
+        requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot delete a user at or above your level")
+        appUserService.delete(id)
+    }
+
+    // The undo of deactivate, so it takes the same permission and rank check.
+    @PatchMapping("/{id}/activate")
+    @RequiresPermission("USER.ACCOUNT.DELETE")
+    fun activate(@PathVariable id: Long): AppUserResponse {
+        requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot activate a user at or above your level")
+        return response(appUserService.activate(id))
+    }
+
     @GetMapping("/{id}/roles")
     @RequiresPermission("USER.ROLE.VIEW")
     fun getRoles(@PathVariable id: Long): List<RoleAssignmentResponse> = viewable(id, "USER.ROLE.VIEW").roles

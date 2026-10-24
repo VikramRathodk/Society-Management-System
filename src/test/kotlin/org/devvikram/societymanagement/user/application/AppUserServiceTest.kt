@@ -36,6 +36,9 @@ private class InMemoryAppUserRepository : AppUserRepository {
     override fun findAll(): List<AppUser> = store.values.toList()
     override fun findAllById(ids: Collection<Long>): List<AppUser> = ids.mapNotNull { store[it] }
     override fun findByPhone(phone: String): AppUser? = store.values.find { it.phone == phone }
+    override fun delete(appUser: AppUser) {
+        store.remove(appUser.id)
+    }
 }
 
 private class InMemoryUserRoleRepository : UserRoleRepository {
@@ -53,6 +56,7 @@ private class InMemoryUserRoleRepository : UserRoleRepository {
     override fun findByUserIds(userIds: Collection<Long>): List<UserRole> = store.values.filter { it.user.id in userIds }
     override fun findUserIdsBySocietyIds(societyIds: Collection<Long>): Set<Long> =
         store.values.filter { it.society?.id in societyIds }.map { it.user.id!! }.toSet()
+    override fun findByFlatId(flatId: Long): List<UserRole> = store.values.filter { it.flat?.id == flatId }
     override fun countByRoleId(roleId: Long): Long = store.values.count { it.role.id == roleId }.toLong()
     override fun delete(userRole: UserRole) {
         store.remove(userRole.id)
@@ -251,6 +255,16 @@ class AppUserServiceTest {
         val deactivated = service.deactivate(user.id!!)
 
         assertEquals(false, deactivated.isActive)
+    }
+
+    @Test
+    fun `reactivates a deactivated user`() {
+        val user = create("9000000020", guardIn(society.id))
+        service.deactivate(user.id!!)
+
+        val activated = service.activate(user.id!!)
+
+        assertEquals(true, activated.isActive)
     }
 
     @Test

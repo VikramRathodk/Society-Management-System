@@ -9,6 +9,7 @@ interface UserRoleRepository {
     fun findByUserId(userId: Long): List<UserRole>
     fun findByUserIds(userIds: Collection<Long>): List<UserRole>
     fun findUserIdsBySocietyIds(societyIds: Collection<Long>): Set<Long>
+    fun findByFlatId(flatId: Long): List<UserRole>
     fun countByRoleId(roleId: Long): Long
     fun delete(userRole: UserRole)
 }

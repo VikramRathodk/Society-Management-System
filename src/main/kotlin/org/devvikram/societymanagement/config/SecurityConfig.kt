@@ -1,5 +1,6 @@
 package org.devvikram.societymanagement.config
 
+import jakarta.servlet.DispatcherType
 import org.devvikram.societymanagement.security.JwtAuthFilter
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
@@ -29,6 +30,10 @@ class SecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
                 it.requestMatchers("/api/auth/**").permitAll()
+                // The container's internal forward to /error (unmapped path, uncaught 500) carries no token;
+                // without this it is re-authorized and every such error reaches the client as a 401.
+                // The original request was already authorized before it got here.
+                it.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {

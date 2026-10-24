@@ -13,4 +13,8 @@ class SocietyRepositoryImpl(
     override fun findById(id: Long): Society? = societyJpaRepository.findById(id).orElse(null)
 
     override fun findAll(): List<Society> = societyJpaRepository.findAll()
+
+    override fun delete(society: Society) {
+        societyJpaRepository.deleteDirectly(society.id!!)
+    }
 }

@@ -16,6 +16,8 @@ class AccessService(private val permissionService: PermissionService) {
     fun accessFor(userId: Long, grants: List<RoleGrant>): Access {
         val (platformGrants, societyGrants) = grants.partition { it.societyId == null }
         val bySociety = societyGrants.groupBy { it.societyId!! }
+        val (flatGrants, societyWideGrants) = societyGrants.partition { it.flatId != null }
+        fun permissionsOf(g: List<RoleGrant>) = g.flatMap { permissionService.getPermissionsForRole(it.roleCode) }.toSet()
         return Access(
             userId = userId,
             grants = grants,
@@ -27,6 +29,8 @@ class AccessService(private val permissionService: PermissionService) {
             societySubordinates = bySociety.mapValues { (_, g) ->
                 g.flatMap { permissionService.getSubordinateRoles(it.roleCode) }.toSet()
             },
+            societyWidePermissions = societyWideGrants.groupBy { it.societyId!! }.mapValues { (_, g) -> permissionsOf(g) },
+            flatPermissions = flatGrants.groupBy { it.flatId!! }.mapValues { (_, g) -> permissionsOf(g) },
         )
     }
 }

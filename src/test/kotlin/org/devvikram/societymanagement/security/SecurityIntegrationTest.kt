@@ -184,6 +184,25 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    fun `deactivated user's login says so, and logs in again once reactivated`() {
+        val login = """{"phone": "${guard.phone}", "password": "secret123"}"""
+        appUserService.deactivate(guard.id!!)
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login))
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.message").value("Account is deactivated"))
+
+        mockMvc.perform(patch("/api/users/${guard.id}/activate").header("Authorization", bearer(resident)))
+            .andExpect(status().isForbidden)
+        mockMvc.perform(patch("/api/users/${guard.id}/activate").header("Authorization", bearer(secretary)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.isActive").value(true))
+
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login))
+            .andExpect(status().isOk)
+    }
+
+    @Test
     fun `admin cannot view a user outside their societies`() {
         mockMvc.perform(get("/api/users/${outsider.id}").header("Authorization", bearer(admin)))
             .andExpect(status().isForbidden)

@@ -24,6 +24,9 @@ class InMemoryComplexRepository : ComplexRepository {
 
     override fun findById(id: Long): Complex? = store[id]
     override fun findAll(): List<Complex> = store.values.toList()
+    override fun delete(complex: Complex) {
+        store.remove(complex.id)
+    }
 }
 
 class InMemorySocietyRepository : SocietyRepository {
@@ -38,6 +41,9 @@ class InMemorySocietyRepository : SocietyRepository {
 
     override fun findById(id: Long): Society? = store[id]
     override fun findAll(): List<Society> = store.values.toList()
+    override fun delete(society: Society) {
+        store.remove(society.id)
+    }
 }
 
 class InMemoryWingRepository : WingRepository {

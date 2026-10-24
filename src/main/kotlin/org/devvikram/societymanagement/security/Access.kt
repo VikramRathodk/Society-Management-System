@@ -10,6 +10,10 @@ class Access(
     val societyPermissions: Map<Long, Set<String>>,
     private val platformSubordinates: Set<String>,
     private val societySubordinates: Map<Long, Set<String>>,
+    // Split of the society grants: roles tied to a flat (RESIDENT-like) act only on that flat's
+    // records, every other society role acts on the whole society.
+    private val societyWidePermissions: Map<Long, Set<String>>,
+    private val flatPermissions: Map<Long, Set<String>>,
 ) {
     fun can(code: String, societyId: Long): Boolean =
         code in platformPermissions || code in societyPermissions[societyId].orEmpty()
@@ -22,6 +26,17 @@ class Access(
     // Societies where the permission holds; null means every society (a platform grant).
     fun societiesWith(code: String): Set<Long>? =
         if (canOnPlatform(code)) null else societyPermissions.filterValues { code in it }.keys
+
+    // For flat-owned records (visitors, later complaints): the permission across the whole society,
+    // from a platform grant or a society role that is not tied to a flat.
+    fun canSocietyWide(code: String, societyId: Long): Boolean =
+        canOnPlatform(code) || code in societyWidePermissions[societyId].orEmpty()
+
+    // Flats whose records the user may act on through a flat-tied role (e.g. a resident's own flat).
+    fun flatsWith(code: String): Set<Long> = flatPermissions.filterValues { code in it }.keys
+
+    fun canOnFlat(code: String, societyId: Long, flatId: Long): Boolean =
+        canSocietyWide(code, societyId) || flatId in flatsWith(code)
 
     // Higher roles may hand out only roles below them, and only where they hold them.
     fun outranks(roleCode: String, societyId: Long?): Boolean =

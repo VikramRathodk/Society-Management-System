@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Society Management API",
-    "description": "Works against the dynamic-roles model (V3). Run the folders top to bottom, or the whole collection in the Runner — every request has a status assertion.\n\n1. Auth logs in as the platform SUPER_ADMIN (Stan Lee) — everything in folders 2–6 runs with {{superAdminToken}}.\n2–5 build a fresh society → wing → flat and create a SECRETARY, GUARD and RESIDENT in it (random phones, password Pass@123), saving every id.\n6 logs in as those users; 7–8 exercise role assignment and role definitions; 9 checks what each role must NOT be able to do.\n\nExisting local data: Nick Fury (9000000616 / Shield@616) is SECRETARY of Avengers Tower.",
+    "description": "Works against the dynamic-roles model (V3). Run the folders top to bottom, or the whole collection in the Runner — every request has a status assertion.\n\n1. Auth logs in as the platform SUPER_ADMIN (Stan Lee) — everything in folders 2–6 runs with {{superAdminToken}}.\n2–5 build a fresh society → wing → flat and create a SECRETARY, GUARD and RESIDENT in it (random phones, password Pass@123), saving every id.\n6 logs in as those users; 7 runs the visitor gate flow; 8–9 exercise role assignment and role definitions; 10 checks what each role must NOT be able to do.\n\nExisting local data: Nick Fury (9000000616) is SECRETARY of Avengers Tower. Every local user's password is Pass@123.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -80,6 +80,18 @@
       "value": ""
     },
     {
+      "key": "visitorId",
+      "value": ""
+    },
+    {
+      "key": "rejectedVisitorId",
+      "value": ""
+    },
+    {
+      "key": "overrideVisitorId",
+      "value": ""
+    },
+    {
       "key": "roleAssignmentId",
       "value": ""
     },
@@ -109,7 +121,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"9000000999\",\n  \"password\": \"Excelsior@999\"\n}",
+              "raw": "{\n  \"phone\": \"9000000999\",\n  \"password\": \"Pass@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -150,7 +162,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phone\": \"9000000616\",\n  \"password\": \"Shield@616\"\n}",
+              "raw": "{\n  \"phone\": \"9000000616\",\n  \"password\": \"Pass@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1125,7 +1137,768 @@
       ]
     },
     {
-      "name": "7. Role assignments",
+      "name": "7. Visitors",
+      "description": "Gate flow for the flat created in folder 4: the guard logs visitors, the flat's resident approves or rejects (first answer wins); a SECRETARY or above may decide on the flat's behalf, recorded as an override; the guard marks entered/exited. Residents see only their own flat; guards and committee see the whole society. Push notifications are only logged server-side until FCM is wired up. Must run before folder 8, which deactivates (and then reactivates) the guard.",
+      "item": [
+        {
+          "name": "Guard logs a visitor",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "flatId",
+                  "value": "{{flatId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "visitorName",
+                  "value": "Ravi Kumar",
+                  "type": "text"
+                },
+                {
+                  "key": "visitorPhone",
+                  "value": "9123456780",
+                  "type": "text"
+                },
+                {
+                  "key": "purpose",
+                  "value": "Guest",
+                  "type": "text"
+                },
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true,
+                  "description": "Optional JPEG, PNG or WebP, at most 5MB. Enable and pick a file to attach one."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const r = pm.response.json();",
+                  "    pm.collectionVariables.set(\"visitorId\", r.id);",
+                  "    pm.test(\"logged as PENDING\", () => pm.expect(r.status).to.eql(\"PENDING\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard logs a delivery",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "flatId",
+                  "value": "{{flatId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "visitorName",
+                  "value": "Swiggy Delivery",
+                  "type": "text"
+                },
+                {
+                  "key": "visitorPhone",
+                  "value": "9123456781",
+                  "type": "text"
+                },
+                {
+                  "key": "purpose",
+                  "value": "Delivery",
+                  "type": "text"
+                },
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true,
+                  "description": "Optional JPEG, PNG or WebP, at most 5MB. Enable and pick a file to attach one."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const r = pm.response.json();",
+                  "    pm.collectionVariables.set(\"rejectedVisitorId\", r.id);",
+                  "    pm.test(\"logged as PENDING\", () => pm.expect(r.status).to.eql(\"PENDING\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard logs without a name (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "flatId",
+                  "value": "{{flatId}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident lists own flat's pending visitors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors?societyId={{societyId}}&status=PENDING",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const ids = pm.response.json().map(v => v.id);",
+                  "    pm.test(\"both visitors are listed\", () => pm.expect(ids).to.include.members([Number(pm.collectionVariables.get(\"visitorId\")), Number(pm.collectionVariables.get(\"rejectedVisitorId\"))]));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard sees the society gate log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors?societyId={{societyId}}&page=0&size=20",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard approves (expect 403 - not a resident, no override)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident approves the visitor",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"status is APPROVED\", () => pm.expect(pm.response.json().status).to.eql(\"APPROVED\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident rejects after approving (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}/reject",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident rejects the delivery",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{rejectedVisitorId}}/reject",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"status is REJECTED\", () => pm.expect(pm.response.json().status).to.eql(\"REJECTED\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard lets in the rejected delivery (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{rejectedVisitorId}}/enter",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard marks the visitor entered",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}/enter",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"status is ENTERED\", () => pm.expect(pm.response.json().status).to.eql(\"ENTERED\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard marks the visitor exited",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}/exit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"status is EXITED\", () => pm.expect(pm.response.json().status).to.eql(\"EXITED\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident gets the visitor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"status is EXITED\", () => pm.expect(pm.response.json().status).to.eql(\"EXITED\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Visitor photo (404 unless one was attached)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}/photo",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200 or 404\", () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Nick Fury views this visitor - not his society (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{furyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard logs a cab nobody answers for",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "flatId",
+                  "value": "{{flatId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "visitorName",
+                  "value": "Uber Driver",
+                  "type": "text"
+                },
+                {
+                  "key": "visitorPhone",
+                  "value": "9123456781",
+                  "type": "text"
+                },
+                {
+                  "key": "purpose",
+                  "value": "Cab",
+                  "type": "text"
+                },
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true,
+                  "description": "Optional JPEG, PNG or WebP, at most 5MB. Enable and pick a file to attach one."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const r = pm.response.json();",
+                  "    pm.collectionVariables.set(\"overrideVisitorId\", r.id);",
+                  "    pm.test(\"logged as PENDING\", () => pm.expect(r.status).to.eql(\"PENDING\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard tries to override (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{overrideVisitorId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary approves on the flat's behalf (override)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{overrideVisitorId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const r = pm.response.json();",
+                  "    pm.test(\"approved\", () => pm.expect(r.status).to.eql(\"APPROVED\"));",
+                  "    pm.test(\"recorded as an override\", () => pm.expect(r.overridden).to.eql(true));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident answers after the override (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{overrideVisitorId}}/reject",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"names the override\", () => pm.expect(pm.response.json().message).to.include(\"(override)\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary deletes the rejected delivery",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{rejectedVisitorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary deletes the cab entry",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{overrideVisitorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Role assignments",
       "description": "A user may only grant/remove roles below their own, in societies where they hold the permission.",
       "item": [
         {
@@ -1320,11 +2093,119 @@
               }
             }
           ]
+        },
+        {
+          "name": "Deactivated guard logs in (expect 403 Account is deactivated)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{guardPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"says the account is deactivated\", () => pm.expect(pm.response.json().message).to.eql(\"Account is deactivated\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary reactivates the guard",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{guardId}}/activate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"guard is active again\", () => pm.expect(pm.response.json().isActive).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reactivated guard logs in again",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{guardPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const r = pm.response.json();",
+                  "    pm.collectionVariables.set(\"guardToken\", r.token);",
+                  "    console.log(\"Logged in as\", r.name, r.roles.map(x => x.role + (x.societyId ? \"@\" + x.societyId : \"@PLATFORM\")));",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "8. Role definitions (Super Admin)",
+      "name": "9. Role definitions (Super Admin)",
       "description": "Platform-only: SYSTEM.ROLE.* / SYSTEM.PERMISSION.*. Creates a custom role, edits it, then deletes it so the folder can be re-run.",
       "item": [
         {
@@ -1558,7 +2439,7 @@
       ]
     },
     {
-      "name": "9. Access checks (negative)",
+      "name": "10. Access checks (negative)",
       "description": "Each request must be refused.",
       "item": [
         {
@@ -1903,7 +2784,7 @@
       ]
     },
     {
-      "name": "10. Complexes (Super Admin)",
+      "name": "11. Complexes (Super Admin)",
       "description": "COMPLEX.SETTINGS.* is platform-only until it's decided what a complex shares.",
       "item": [
         {
@@ -2017,9 +2898,28 @@
       ]
     },
     {
-      "name": "11. Cleanup (optional, destructive)",
-      "description": "Deletes the flat and wing created by folders 3–4. Not needed for re-runs.",
+      "name": "12. Cleanup (optional, destructive)",
+      "description": "Removes everything the run created: visitor, flat, wing, the three test users, the society and the complex. Society, complex and user deletes are super-admin only and are refused (409) while history references the record.",
       "item": [
+        {
+          "name": "Delete visitor (the flat cannot go while it has visitor entries)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/visitors/{{visitorId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
         {
           "name": "Delete flat",
           "request": {
@@ -2045,6 +2945,101 @@
             "method": "DELETE",
             "header": [],
             "url": "{{baseUrl}}/api/wings/{{wingId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete the test resident",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{residentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete the test guard",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{guardId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete the test secretary",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{secretaryId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete society (refused with 409 while it has visitors, notices or complaints)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete complex (refused with 409 while it has societies)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/complexes/{{complexId}}"
           },
           "event": [
             {

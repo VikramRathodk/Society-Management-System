@@ -13,4 +13,8 @@ class ComplexRepositoryImpl(
     override fun findById(id: Long): Complex? = complexJpaRepository.findById(id).orElse(null)
 
     override fun findAll(): List<Complex> = complexJpaRepository.findAll()
+
+    override fun delete(complex: Complex) {
+        complexJpaRepository.deleteDirectly(complex.id!!)
+    }
 }

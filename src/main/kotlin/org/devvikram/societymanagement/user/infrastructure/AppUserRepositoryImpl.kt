@@ -18,4 +18,8 @@ class AppUserRepositoryImpl(
         if (ids.isEmpty()) emptyList() else appUserJpaRepository.findAllById(ids)
 
     override fun findByPhone(phone: String): AppUser? = appUserJpaRepository.findByPhone(phone)
+
+    override fun delete(appUser: AppUser) {
+        appUserJpaRepository.deleteDirectly(appUser.id!!)
+    }
 }
