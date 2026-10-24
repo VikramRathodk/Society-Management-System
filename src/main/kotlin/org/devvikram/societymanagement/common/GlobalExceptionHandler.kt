@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.authentication.BadCredentialsException
+import org.springframework.security.core.AuthenticationException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -29,6 +30,11 @@ class GlobalExceptionHandler {
     @ExceptionHandler(BadCredentialsException::class)
     fun handleBadCredentials(ex: BadCredentialsException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.UNAUTHORIZED, "Invalid phone or password", request)
+
+    // Catch-all for the rest: missing/invalid token (via SecurityConfig's entry point), disabled account at login, etc.
+    @ExceptionHandler(AuthenticationException::class)
+    fun handleUnauthenticated(ex: AuthenticationException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
+        respond(HttpStatus.UNAUTHORIZED, "Authentication required", request)
 
     @ExceptionHandler(AccessDeniedException::class)
     fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =

@@ -1,11 +1,15 @@
 package org.devvikram.societymanagement.user.interfaces
 
 import jakarta.validation.Valid
+import org.devvikram.societymanagement.security.PermissionService
 import org.devvikram.societymanagement.security.RequiresPermission
 import org.devvikram.societymanagement.user.application.AppUserService
 import org.devvikram.societymanagement.user.application.CreateAppUserCommand
 import org.devvikram.societymanagement.user.application.UpdateProfileCommand
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -18,7 +22,10 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/users")
-class AppUserController(private val appUserService: AppUserService) {
+class AppUserController(
+    private val appUserService: AppUserService,
+    private val permissionService: PermissionService,
+) {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -48,10 +55,20 @@ class AppUserController(private val appUserService: AppUserService) {
     @RequiresPermission("USER.ACCOUNT.VIEW")
     fun getAll(): List<AppUserResponse> = appUserService.getAll().map(AppUserResponse::from)
 
-    // "Own profile" update per the permission matrix (society_planning.md) — an ownership check,
-    // not a role gate — needs current-user resolution from the security context, not built yet.
+    // USER.PROFILE.UPDATE lets a role edit its *own* profile (permission matrix, society_planning.md);
+    // editing anyone else's additionally needs USER.ACCOUNT.UPDATE.
     @PatchMapping("/{id}")
-    fun updateProfile(@PathVariable id: UUID, @RequestBody request: UpdateProfileRequest): AppUserResponse {
+    @RequiresPermission("USER.PROFILE.UPDATE")
+    fun updateProfile(
+        @PathVariable id: UUID,
+        @RequestBody request: UpdateProfileRequest,
+        @AuthenticationPrincipal principal: UserDetails,
+    ): AppUserResponse {
+        val currentUser = appUserService.getByPhone(principal.username)
+            ?: throw AccessDeniedException("Current user no longer exists")
+        if (currentUser.id != id && "USER.ACCOUNT.UPDATE" !in permissionService.getPermissionsForRole(currentUser.role)) {
+            throw AccessDeniedException("You can only update your own profile")
+        }
         val user = appUserService.updateProfile(
             id,
             UpdateProfileCommand(name = request.name, email = request.email, fcmToken = request.fcmToken),

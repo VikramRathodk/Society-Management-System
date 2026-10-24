@@ -20,7 +20,7 @@ class PermissionAspect(private val permissionService: PermissionService) {
             .firstOrNull { it.startsWith("ROLE_") }
             ?.removePrefix("ROLE_")
             ?: throw AccessDeniedException("No role found for current user")
-        if (!permissionService.hasPermission(Role.valueOf(roleName), requiresPermission.code)) {
+        if (requiresPermission.code !in permissionService.getPermissionsForRole(Role.valueOf(roleName))) {
             throw AccessDeniedException("Missing permission: ${requiresPermission.code}")
         }
     }
