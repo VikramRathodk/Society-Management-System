@@ -308,6 +308,7 @@ VISITOR.ENTRY.DELETE           Remove a visitor log
 VISITOR.ENTRY.EXPORT           Export visitor log report
 VISITOR.APPROVAL.APPROVE       Approve visitor request
 VISITOR.APPROVAL.REJECT        Reject visitor request
+VISITOR.APPROVAL.OVERRIDE      Approve/reject on a flat's behalf, recorded as an override (V5)
 ```
 
 **NOTICE**
@@ -334,12 +335,14 @@ COMPLAINT.RESOLUTION.REJECT    Reopen/reject resolution
 ```
 SOCIETY.SETTINGS.VIEW          View society profile
 SOCIETY.SETTINGS.UPDATE        Edit society profile
+SOCIETY.SETTINGS.DELETE        Delete a society with no history (V6, platform only)
 ```
 
 **COMPLEX** (reserved — no role assigned until a Complex Admin role is confirmed)
 ```
 COMPLEX.SETTINGS.VIEW          View complex profile
 COMPLEX.SETTINGS.UPDATE        Edit complex profile
+COMPLEX.SETTINGS.DELETE        Delete a complex with no societies (V6, platform only)
 ```
 
 **PARKING** (reserved — workflow deferred to Phase 2)
@@ -384,12 +387,13 @@ SYSTEM.PERMISSION.UPDATE       Edit role-permission mappings
 | `FLAT.STRUCTURE.UPDATE` | — | — | — | ✅ |
 | `FLAT.STRUCTURE.DELETE` | — | — | — | ✅ |
 | `VISITOR.ENTRY.CREATE` | — | ✅ | — | — |
-| `VISITOR.ENTRY.VIEW` | own flat's | logged by them | ✅ | ✅ |
+| `VISITOR.ENTRY.VIEW` | own flat's | ✅ (whole society, as built) | ✅ | ✅ |
 | `VISITOR.ENTRY.UPDATE` | — | ✅ | — | — |
 | `VISITOR.ENTRY.DELETE` | — | — | — | ✅ |
 | `VISITOR.ENTRY.EXPORT` | — | — | ✅ | ✅ |
 | `VISITOR.APPROVAL.APPROVE` | own flat's | — | — | — |
 | `VISITOR.APPROVAL.REJECT` | own flat's | — | — | — |
+| `VISITOR.APPROVAL.OVERRIDE` (V5) | — | — | — | ✅ (any flat in the society, recorded as override) |
 | `NOTICE.POST.CREATE` | — | — | ✅ | ✅ |
 | `NOTICE.POST.VIEW` | ✅ | ✅ | ✅ | ✅ |
 | `NOTICE.POST.UPDATE` | — | — | own posts | ✅ |
@@ -406,6 +410,7 @@ SYSTEM.PERMISSION.UPDATE       Edit role-permission mappings
 | `SOCIETY.SETTINGS.UPDATE` | — | — | — | ✅ |
 | `COMPLEX.SETTINGS.VIEW` | — | — | — | reserved, unassigned |
 | `COMPLEX.SETTINGS.UPDATE` | — | — | — | reserved, unassigned |
+| `SOCIETY.SETTINGS.DELETE` / `COMPLEX.SETTINGS.DELETE` (V6) | — | — | — | SUPER_ADMIN only |
 | `PARKING.SLOT.*` | — | — | — | reserved, unassigned |
 | `STAFF.MEMBER.*` | — | — | — | reserved, unassigned |
 | `SYSTEM.PERMISSION.VIEW` | — | — | — | ✅ |
@@ -653,7 +658,7 @@ Domain repository interfaces declare plain `save`/`findById`/`findAll` (+ custom
 ### Build Order
 1. **Auth & Permission System** — JWT auth, `permission`/`role_permission` tables + seed data (Flyway), `PermissionService` + `@RequiresPermission` aspect, `POST /auth/login` (returns JWT + resolved permission list), Admin-only `POST /users` (gated by `USER.ACCOUNT.CREATE`)
 2. **Society structure** — `Complex → Society → Wing → Flat → AppUser` entities + repositories, verified persistence before moving to next entity; resident-to-flat mapping; society settings
-3. **Visitor Management API** — CRUD + status transitions (`VISITOR.ENTRY.*`, `VISITOR.APPROVAL.*`), FCM push trigger on new entry, atomic conditional update for multi-resident race handling
+3. ✅ **Visitor Management API** (done except real FCM delivery — see Current Status) — CRUD + status transitions (`VISITOR.ENTRY.*`, `VISITOR.APPROVAL.*`), FCM push trigger on new entry, atomic conditional update for multi-resident race handling
 4. **Notices API** — CRUD, permission-gated posting (`NOTICE.POST.*`)
 5. **Complaints API** — CRUD + status workflow (`COMPLAINT.TICKET.*`, `COMPLAINT.RESOLUTION.*`)
 
@@ -719,7 +724,7 @@ Each shell shows a different bottom nav; underlying feature screens are shared w
 |---|---|
 | ✅ **M1 — Backend Foundation** (done 2026-10-24) | Postman-testable auth + permission system + user management API |
 | **M2 — Flutter Skeleton** | Installable APK; each role logs in, lands on distinct dashboard |
-| **M3 — Visitor Management** | End-to-end demo: guard logs visitor → resident gets push → approves → guard sees status update |
+| 🟡 **M3 — Visitor Management** (backend done 2026-10-25; real FCM push pending) | End-to-end demo: guard logs visitor → resident gets push → approves → guard sees status update |
 | **M4 — Notices** | Notice post/view working, permission-gated |
 | **M5 — Complaints** | Full complaint lifecycle working |
 | **M6 — Polish & Handoff** | Client-ready signed MVP build + README |
@@ -750,9 +755,14 @@ M1+M2 and M6 are natural payment checkpoints; M3 is typically the most convincin
 - ✅ Known gaps closed: (1) unauthenticated requests now get **401** with the standard `ErrorResponse` body — `SecurityConfig` sets an `AuthenticationEntryPoint`/`AccessDeniedHandler` that delegate to the `handlerExceptionResolver`, so `GlobalExceptionHandler` renders filter-chain errors too; `JwtAuthFilter` also ignores tokens of deactivated/deleted users. (2) `PATCH /api/users/{id}` is gated by `USER.PROFILE.UPDATE` plus an ownership check — editing someone else's profile also needs `USER.ACCOUNT.UPDATE`. (3) `PermissionService.evictAll()` (`@CacheEvict`) for future `role_permission` writers, plus a Caffeine TTL (`expireAfterWrite=10m`) bounding staleness after manual SQL edits. Also fixed: `hasPermission` self-invoked `getPermissionsForRole`, bypassing the proxy so `@Cacheable` never applied — removed, callers go through the bean. (4) `@RequiresPermission` on all society controllers: wing/flat writes → `FLAT.STRUCTURE.*`, reads → `FLAT.DIRECTORY.VIEW`; society → `SOCIETY.SETTINGS.VIEW/UPDATE` (create uses UPDATE, no CREATE code exists); complex → `COMPLEX.SETTINGS.*` (unmapped to any role, so 403 for everyone until a Complex Admin role exists). `SecurityIntegrationTest` (MockMvc + real JWTs) covers all of this. Full suite: 55/55 passing.
 - ✅ **M1 complete (2026-10-24)** — manual end-to-end smoke test passed against the real local DB: admin login → 200 with JWT + permissions; `GET /api/users` → 200; admin `POST /api/users` → 201; resident `POST /api/users` → 403 (`Missing permission: USER.ACCOUNT.CREATE`); no token → 401; wrong password → 401. Test data: "Avengers Tower" society / "Stark Wing" / flat "Penthouse", seeded via SQL (self-signup stays out of scope; passwords hashed with pgcrypto `crypt(..., gen_salt('bf', 10))`, which `BCryptPasswordEncoder` accepts). Admin login: `9000000616` / `Shield@616`; other roles: Steve Rogers (COMMITTEE, `9000000001`), Happy Hogan (GUARD, `9000000002`), Tony Stark / Peter Parker / Bruce Banner / Natasha Romanoff (RESIDENT OWNER/FAMILY/TENANT/TENANT, `9000000003`–`9000000006`).
 - ✅ **Dynamic roles (2026-10-24)** — `V3__dynamic_roles.sql` applied; roles, inheritance and per-scope assignments as described in [Dynamic Roles](#dynamic-roles-v3). Every society endpoint now checks the specific society (`Access.requireIn`), and user management is rank-checked. This closes two earlier follow-ups: cross-society access (an Admin of society A can no longer touch society B) and FCM token registration (GUARD gained `USER.PROFILE.UPDATE`; COMMITTEE inherits it from RESIDENT). Tests updated for the new model: `PermissionServiceTest` (replaces `RolePermissionJpaRepositoryTest`; resolves inheritance against the real seed data), `AppUserRepositoryTest` (user + `user_role` persistence, the NULL-folding unique index), `AppUserServiceTest` (assignment validation: scope, flat, cross-society flat, duplicates), `SecurityIntegrationTest` (per-society visibility, rank checks on create/deactivate). Full suite: 76/76 passing.
-- ✅ Test data after V3: Nick Fury (`9000000616`) is now **SECRETARY** of Avengers Tower (migrated from ADMIN); the other Avengers users keep their roles. New platform owner: **Stan Lee** — SUPER_ADMIN, `9000000999` / `Excelsior@999`, added via SQL (pgcrypto bcrypt) since there was no SUPER_ADMIN to create one through the API. Repository tests use `81000000xx` phones to stay clear of this data.
+- ✅ Test data after V3: Nick Fury (`9000000616`) is now **SECRETARY** of Avengers Tower (migrated from ADMIN); the other Avengers users keep their roles. New platform owner: **Stan Lee** — SUPER_ADMIN, `9000000999` / `Excelsior@999` (since reset — every dev user is now `Pass@123`, see below), added via SQL (pgcrypto bcrypt) since there was no SUPER_ADMIN to create one through the API. Repository tests use `81000000xx` phones to stay clear of this data.
 - ✅ **Long ids (2026-10-24)** — all entity ids switched from `UUID` to `Long` (BIGINT identity). Done by editing V1–V3 in place (pre-production, so no conversion migration) and recreating the local database; `pgcrypto` is no longer needed by the schema. Test data now lives in `scripts/dev-seed.sql` (run by hand after Flyway has migrated an empty DB): Avengers Tower + Test Society, all users above with their original password hashes, so every known login still works; Stan Lee is user 1, Avengers Tower is society 1. Note that rolled-back test transactions still consume identity values, so ids jump after a test run — to get clean ids again, `TRUNCATE ... RESTART IDENTITY` the data tables and re-run the seed. Postman collection rebuilt for the V3 role model with numeric ids (62/62 passing). Full suite: 76/76 passing.
-- ⏳ **Next:** Visitor Management API (`VISITOR.ENTRY.*`, `VISITOR.APPROVAL.*`, FCM push, atomic conditional update for multi-resident race handling), per Build Order step 3 — scope checks should use `Access.requireIn` against the visitor's society, and a resident's "own flat" from their `user_role.flat_id`. Open follow-ups: row-level "own" scoping *within* a society for `FLAT.DIRECTORY.VIEW` (a resident still sees every wing/flat of their own society); COMPLEX endpoints are platform-only until it's decided what a complex shares.
+- ✅ **Visitor Management backend (2026-10-25)** — `V4__visitor_management.sql`, `visitor/` module, `/api/visitors`. Lifecycle `PENDING → APPROVED | REJECTED`, `APPROVED → ENTERED → EXITED`. Every status change is a conditional single-statement update (`... where status = :expected`), so when several residents of a flat answer at once the first wins and the rest get **409** "Already responded by …"; a gate action can't skip a step either. Access: GUARD (and SECRETARY+) log visitors and mark entered/exited; society-wide roles see the whole society's log; a RESIDENT sees and answers only for flats in their own `user_role.flat_id` — `Access` now splits society grants into society-wide vs flat-tied (`canSocietyWide`, `flatsWith`, `canOnFlat`). Optional photo upload (multipart), validated by magic bytes (JPEG/PNG/WebP, ≤5MB), stored behind a `common/storage/PhotoStorage` key (`DatabasePhotoStorage` → `stored_photo` BYTEA table for now; swap for S3 without API change), served at `GET /api/visitors/{id}/photo`. Push: `VisitorLogged`/`VisitorResponded` events → `@TransactionalEventListener` (after commit, best-effort) → `common/notification/PushNotifier`; currently `LoggingPushNotifier` (logs only) until Firebase is set up.
+- ✅ **Visitor override (V5)** — `VISITOR.APPROVAL.OVERRIDE`, granted to SECRETARY (ADMIN inherits, SUPER_ADMIN has all): may approve/reject on a flat's behalf, e.g. when no resident answers. Recorded in `visitor_entry.responded_as_override` (API field `overridden`), shown in conflicts as "… (override)", and the flat's residents are notified. A resident of the flat always answers as a resident; COMMITTEE holds the approval permission but not the override, so it still gets 403.
+- ✅ **Accounts & security fixes** — `PATCH /api/users/{id}/activate` (undo of deactivate, same permission + rank check). Login on a deactivated account returns **403 "Account is deactivated"** instead of the generic 401. `SecurityConfig` permits the container's `DispatcherType.ERROR` forward, so unmapped paths/uncaught errors reach clients with their real status (previously every 404 surfaced as 401); covered by `ErrorDispatchIntegrationTest` on a real random-port server, since MockMvc never performs that forward.
+- ✅ **Safe deletes (V6)** — super admin only: `DELETE /api/societies/{id}` (wings, flats, role assignments cascade), `DELETE /api/complexes/{id}`, `DELETE /api/users/{id}` (hard delete; society admins can only deactivate). Each is refused with **409** and a specific message while history references the record (visitors, notices, complaints, staff, parking; a complex's societies; a user's logged/answered visitors) — users with history should be deactivated. Implemented as single JPQL bulk deletes so Postgres cascades/FKs decide, not the persistence context.
+- ✅ **Dev data & tooling** — every dev user's password is now **`Pass@123`** (local DB and `scripts/dev-seed.sql`). Avengers Tower gained flat **Stark Wing-1001** with Wanda Maximoff (`9000000007`, OWNER) and Vision (`9000000008`, FAMILY), so flat scoping can be checked against the Penthouse residents. Postman collection: new **7. Visitors** folder (gate flow, override, 400/403/409 cases), deactivate → 403 → reactivate checks, and a cleanup folder that deletes everything a run creates (user/society/complex deletes) — 92 requests, 106 assertions passing. Full suite: **113/113** passing.
+- ⏳ **Next:** (1) real FCM push — a Firebase-backed `PushNotifier` replacing `LoggingPushNotifier` (needs a Firebase project + service-account key), which completes the M3 demo together with M2; (2) **M4 Notices** (`NOTICE.POST.*`, "own posts" rule for committee edits/deletes). Open follow-ups: `VISITOR.ENTRY.EXPORT` has no endpoint yet; guards currently see the whole society's visitor log (the V2 matrix said "logged by them"); row-level "own" scoping *within* a society for `FLAT.DIRECTORY.VIEW`; COMPLEX endpoints are platform-only until it's decided what a complex shares; leftover "Postman Test Society CHS" rows from runs before the cleanup folder existed can be removed with the new delete endpoints.
 
 Note: Spring Boot 4 relocated test-slice classes into per-feature modules — `@DataJpaTest` is now `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest`, `TestEntityManager` is `org.springframework.boot.jpa.test.autoconfigure.TestEntityManager`, `@AutoConfigureTestDatabase` is `org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase` — not the old `org.springframework.boot.test.autoconfigure.*` paths from Boot 3. Also note: Spring Security 7's `PasswordEncoder.encode()` return type reads as nullable to the Kotlin compiler (JSpecify `@Contract` annotation, not a JSR-305 `@Nullable`) — a `!!` assertion on the call is needed and safe. And: with `-Xjsr305=strict`, `GrantedAuthority.getAuthority()` reads as `String?` to Kotlin — use `mapNotNull`/safe calls, not a bare `.map { it.authority }` chain, when working with `authentication.authorities`.
 
