@@ -4,10 +4,10 @@ import org.devvikram.societymanagement.security.JwtService
 import org.devvikram.societymanagement.society.application.FlatService
 import org.devvikram.societymanagement.society.application.SocietyService
 import org.devvikram.societymanagement.society.application.WingService
-import org.devvikram.societymanagement.user.application.AppUserService
+import org.devvikram.societymanagement.user.application.UserService
 import org.devvikram.societymanagement.user.application.AssignRoleCommand
-import org.devvikram.societymanagement.user.application.CreateAppUserCommand
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.application.CreateUserCommand
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.visitor.application.LogVisitorCommand
 import org.devvikram.societymanagement.visitor.application.VisitorService
 import org.devvikram.societymanagement.visitor.domain.VisitorSearch
@@ -38,7 +38,7 @@ class VisitorIntegrationTest {
 
     @Autowired lateinit var mockMvc: MockMvc
     @Autowired lateinit var jwtService: JwtService
-    @Autowired lateinit var appUserService: AppUserService
+    @Autowired lateinit var userService: UserService
     @Autowired lateinit var societyService: SocietyService
     @Autowired lateinit var wingService: WingService
     @Autowired lateinit var flatService: FlatService
@@ -49,20 +49,20 @@ class VisitorIntegrationTest {
     private var societyId = 0L
     private var flatId = 0L
     private var otherFlatId = 0L
-    private lateinit var guard: AppUser
-    private lateinit var resident: AppUser
-    private lateinit var flatmate: AppUser
-    private lateinit var neighbour: AppUser
-    private lateinit var admin: AppUser
-    private lateinit var secretary: AppUser
-    private lateinit var committee: AppUser
-    private lateinit var outsideGuard: AppUser
-    private lateinit var outsideSecretary: AppUser
+    private lateinit var guard: User
+    private lateinit var resident: User
+    private lateinit var flatmate: User
+    private lateinit var neighbour: User
+    private lateinit var admin: User
+    private lateinit var secretary: User
+    private lateinit var committee: User
+    private lateinit var outsideGuard: User
+    private lateinit var outsideSecretary: User
 
     private fun randomPhone() = "9${(100000000..999999999).random()}"
 
-    private fun user(roleCode: String, inSociety: Long = societyId, flatId: Long? = null) = appUserService.createUser(
-        CreateAppUserCommand(
+    private fun user(roleCode: String, inSociety: Long = societyId, flatId: Long? = null) = userService.createUser(
+        CreateUserCommand(
             name = "$roleCode user",
             phone = randomPhone(),
             rawPassword = "secret123",
@@ -88,7 +88,7 @@ class VisitorIntegrationTest {
         outsideSecretary = user("SECRETARY", inSociety = otherSocietyId)
     }
 
-    private fun bearer(user: AppUser) = "Bearer ${jwtService.generateToken(user)}"
+    private fun bearer(user: User) = "Bearer ${jwtService.generateToken(user)}"
 
     private fun visitorFor(flat: Long): Long =
         visitorService.logVisitor(LogVisitorCommand(flatId = flat, visitorName = "Courier"), guard.id!!)

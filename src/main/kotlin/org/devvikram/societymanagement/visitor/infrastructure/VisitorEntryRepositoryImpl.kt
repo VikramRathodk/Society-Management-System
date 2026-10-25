@@ -1,7 +1,7 @@
 package org.devvikram.societymanagement.visitor.infrastructure
 
 import jakarta.persistence.EntityManager
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.visitor.domain.VisitorEntry
 import org.devvikram.societymanagement.visitor.domain.VisitorEntryRepository
 import org.devvikram.societymanagement.visitor.domain.VisitorSearch
@@ -39,7 +39,7 @@ class VisitorEntryRepositoryImpl(
         return query.setFirstResult(search.page * search.size).setMaxResults(search.size).resultList
     }
 
-    override fun respond(id: Long, decision: VisitorStatus, responder: AppUser, asOverride: Boolean, at: Instant): Boolean =
+    override fun respond(id: Long, decision: VisitorStatus, responder: User, asOverride: Boolean, at: Instant): Boolean =
         visitorEntryJpaRepository.respond(id, VisitorStatus.PENDING, decision, responder, asOverride, at) == 1
 
     override fun markEntered(id: Long, at: Instant): Boolean =

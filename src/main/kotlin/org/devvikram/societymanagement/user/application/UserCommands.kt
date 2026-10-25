@@ -12,7 +12,7 @@ data class AssignRoleCommand(
 )
 
 // A user is always created with a first role assignment; more can be added via assignRole.
-data class CreateAppUserCommand(
+data class CreateUserCommand(
     val name: String,
     val phone: String,
     val email: String? = null,

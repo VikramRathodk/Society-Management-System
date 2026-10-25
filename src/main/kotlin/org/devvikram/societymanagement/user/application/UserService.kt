@@ -5,8 +5,8 @@ import org.devvikram.societymanagement.security.role.RoleRepository
 import org.devvikram.societymanagement.security.role.RoleScope
 import org.devvikram.societymanagement.society.domain.FlatRepository
 import org.devvikram.societymanagement.society.domain.SocietyRepository
-import org.devvikram.societymanagement.user.domain.AppUser
-import org.devvikram.societymanagement.user.domain.AppUserRepository
+import org.devvikram.societymanagement.user.domain.User
+import org.devvikram.societymanagement.user.domain.UserRepository
 import org.devvikram.societymanagement.user.domain.UserRole
 import org.devvikram.societymanagement.user.domain.UserRoleRepository
 import org.springframework.dao.DataIntegrityViolationException
@@ -17,8 +17,8 @@ import org.springframework.transaction.annotation.Transactional
 // Validates the shape of users and role assignments. *Who* may create/assign what is decided
 // by the caller (Access.canGrant / canManage in the controllers), not here.
 @Service
-class AppUserService(
-    private val appUserRepository: AppUserRepository,
+class UserService(
+    private val userRepository: UserRepository,
     private val userRoleRepository: UserRoleRepository,
     private val roleRepository: RoleRepository,
     private val societyRepository: SocietyRepository,
@@ -26,20 +26,20 @@ class AppUserService(
     private val passwordEncoder: PasswordEncoder,
 ) {
     @Transactional
-    fun createUser(command: CreateAppUserCommand): AppUser {
-        require(appUserRepository.findByPhone(command.phone) == null) {
+    fun createUser(command: CreateUserCommand): User {
+        require(userRepository.findByPhone(command.phone) == null) {
             "Phone number ${command.phone} is already in use"
         }
-        val appUser = appUserRepository.save(
-            AppUser(
+        val user = userRepository.save(
+            User(
                 name = command.name,
                 phone = command.phone,
                 email = command.email,
                 passwordHash = passwordEncoder.encode(command.rawPassword)!!,
             )
         )
-        assignRole(appUser.id!!, command.role)
-        return appUser
+        assignRole(user.id!!, command.role)
+        return user
     }
 
     @Transactional
@@ -96,31 +96,31 @@ class AppUserService(
     fun getRolesByUser(userIds: Collection<Long>): Map<Long, List<UserRole>> =
         userRoleRepository.findByUserIds(userIds).groupBy { it.user.id!! }
 
-    fun getById(id: Long): AppUser =
-        appUserRepository.findById(id) ?: throw NoSuchElementException("User $id not found")
+    fun getById(id: Long): User =
+        userRepository.findById(id) ?: throw NoSuchElementException("User $id not found")
 
-    fun getByPhone(phone: String): AppUser? = appUserRepository.findByPhone(phone)
+    fun getByPhone(phone: String): User? = userRepository.findByPhone(phone)
 
-    fun getAll(): List<AppUser> = appUserRepository.findAll()
+    fun getAll(): List<User> = userRepository.findAll()
 
     // Users holding any role in one of these societies.
-    fun getAllInSocieties(societyIds: Collection<Long>): List<AppUser> =
-        appUserRepository.findAllById(userRoleRepository.findUserIdsBySocietyIds(societyIds))
+    fun getAllInSocieties(societyIds: Collection<Long>): List<User> =
+        userRepository.findAllById(userRoleRepository.findUserIdsBySocietyIds(societyIds))
 
     @Transactional
-    fun updateProfile(id: Long, command: UpdateProfileCommand): AppUser {
+    fun updateProfile(id: Long, command: UpdateProfileCommand): User {
         val user = getById(id)
         command.name?.let { user.name = it }
         command.email?.let { user.email = it }
         command.fcmToken?.let { user.fcmToken = it }
-        return appUserRepository.save(user)
+        return userRepository.save(user)
     }
 
     @Transactional
-    fun deactivate(id: Long): AppUser {
+    fun deactivate(id: Long): User {
         val user = getById(id)
         user.isActive = false
-        return appUserRepository.save(user)
+        return userRepository.save(user)
     }
 
     // Permanent. Role assignments go with the user (ON DELETE CASCADE); anything that records what
@@ -129,16 +129,16 @@ class AppUserService(
     fun delete(id: Long) {
         val user = getById(id)
         try {
-            appUserRepository.delete(user)
+            userRepository.delete(user)
         } catch (e: DataIntegrityViolationException) {
             throw ConflictException("${user.name} has visitor, notice or complaint history; deactivate them instead")
         }
     }
 
     @Transactional
-    fun activate(id: Long): AppUser {
+    fun activate(id: Long): User {
         val user = getById(id)
         user.isActive = true
-        return appUserRepository.save(user)
+        return userRepository.save(user)
     }
 }

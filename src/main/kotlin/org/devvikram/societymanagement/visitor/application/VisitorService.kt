@@ -5,7 +5,7 @@ import org.devvikram.societymanagement.common.storage.ImageFormat
 import org.devvikram.societymanagement.common.storage.Photo
 import org.devvikram.societymanagement.common.storage.PhotoStorage
 import org.devvikram.societymanagement.society.domain.FlatRepository
-import org.devvikram.societymanagement.user.domain.AppUserRepository
+import org.devvikram.societymanagement.user.domain.UserRepository
 import org.devvikram.societymanagement.visitor.domain.VisitorEntry
 import org.devvikram.societymanagement.visitor.domain.VisitorEntryRepository
 import org.devvikram.societymanagement.visitor.domain.VisitorSearch
@@ -30,7 +30,7 @@ data class LogVisitorCommand(
 class VisitorService(
     private val visitorEntryRepository: VisitorEntryRepository,
     private val flatRepository: FlatRepository,
-    private val appUserRepository: AppUserRepository,
+    private val userRepository: UserRepository,
     private val photoStorage: PhotoStorage,
     private val events: ApplicationEventPublisher,
 ) {
@@ -38,7 +38,7 @@ class VisitorService(
     fun logVisitor(command: LogVisitorCommand, guardId: Long): Long {
         val flat = flatRepository.findById(command.flatId)
             ?: throw NoSuchElementException("Flat ${command.flatId} not found")
-        val guard = appUserRepository.findById(guardId) ?: throw NoSuchElementException("User $guardId not found")
+        val guard = userRepository.findById(guardId) ?: throw NoSuchElementException("User $guardId not found")
         val entry = visitorEntryRepository.save(
             VisitorEntry(
                 society = flat.wing.society,
@@ -63,7 +63,7 @@ class VisitorService(
         require(decision == VisitorStatus.APPROVED || decision == VisitorStatus.REJECTED) {
             "A visitor can only be approved or rejected"
         }
-        val responder = appUserRepository.findById(responderId)
+        val responder = userRepository.findById(responderId)
             ?: throw NoSuchElementException("User $responderId not found")
         if (!visitorEntryRepository.respond(id, decision, responder, asOverride, Instant.now())) {
             val current = getById(id)

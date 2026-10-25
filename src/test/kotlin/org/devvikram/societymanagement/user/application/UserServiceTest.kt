@@ -8,8 +8,8 @@ import org.devvikram.societymanagement.society.application.InMemorySocietyReposi
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.society.domain.Wing
-import org.devvikram.societymanagement.user.domain.AppUser
-import org.devvikram.societymanagement.user.domain.AppUserRepository
+import org.devvikram.societymanagement.user.domain.User
+import org.devvikram.societymanagement.user.domain.UserRepository
 import org.devvikram.societymanagement.user.domain.ResidentType
 import org.devvikram.societymanagement.user.domain.UserRole
 import org.devvikram.societymanagement.user.domain.UserRoleRepository
@@ -22,22 +22,22 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 
-private class InMemoryAppUserRepository : AppUserRepository {
-    private val store = mutableMapOf<Long, AppUser>()
+private class InMemoryUserRepository : UserRepository {
+    private val store = mutableMapOf<Long, User>()
     private var nextId = 1L
 
-    override fun save(appUser: AppUser): AppUser {
-        if (appUser.id == null) appUser.id = nextId++
-        store[appUser.id!!] = appUser
-        return appUser
+    override fun save(user: User): User {
+        if (user.id == null) user.id = nextId++
+        store[user.id!!] = user
+        return user
     }
 
-    override fun findById(id: Long): AppUser? = store[id]
-    override fun findAll(): List<AppUser> = store.values.toList()
-    override fun findAllById(ids: Collection<Long>): List<AppUser> = ids.mapNotNull { store[it] }
-    override fun findByPhone(phone: String): AppUser? = store.values.find { it.phone == phone }
-    override fun delete(appUser: AppUser) {
-        store.remove(appUser.id)
+    override fun findById(id: Long): User? = store[id]
+    override fun findAll(): List<User> = store.values.toList()
+    override fun findAllById(ids: Collection<Long>): List<User> = ids.mapNotNull { store[it] }
+    override fun findByPhone(phone: String): User? = store.values.find { it.phone == phone }
+    override fun delete(user: User) {
+        store.remove(user.id)
     }
 }
 
@@ -81,19 +81,19 @@ private class InMemoryRoleRepository : RoleRepository {
     }
 }
 
-class AppUserServiceTest {
+class UserServiceTest {
 
-    private lateinit var appUserRepository: InMemoryAppUserRepository
+    private lateinit var userRepository: InMemoryUserRepository
     private lateinit var userRoleRepository: InMemoryUserRoleRepository
     private lateinit var societyRepository: InMemorySocietyRepository
     private lateinit var flatRepository: InMemoryFlatRepository
-    private lateinit var service: AppUserService
+    private lateinit var service: UserService
     private lateinit var society: Society
     private lateinit var flat: Flat
 
     @BeforeEach
     fun setUp() {
-        appUserRepository = InMemoryAppUserRepository()
+        userRepository = InMemoryUserRepository()
         userRoleRepository = InMemoryUserRoleRepository()
         societyRepository = InMemorySocietyRepository()
         flatRepository = InMemoryFlatRepository()
@@ -103,8 +103,8 @@ class AppUserServiceTest {
             save(Role(code = "GUARD", name = "Security Guard", scopeLevel = RoleScope.SOCIETY))
             save(Role(code = "RESIDENT", name = "Resident", scopeLevel = RoleScope.SOCIETY, requiresFlat = true))
         }
-        service = AppUserService(
-            appUserRepository,
+        service = UserService(
+            userRepository,
             userRoleRepository,
             roleRepository,
             societyRepository,
@@ -116,7 +116,7 @@ class AppUserServiceTest {
     }
 
     private fun create(phone: String, role: AssignRoleCommand, name: String = "User $phone") = service.createUser(
-        CreateAppUserCommand(name = name, phone = phone, rawPassword = "secret123", role = role),
+        CreateUserCommand(name = name, phone = phone, rawPassword = "secret123", role = role),
     )
 
     private fun guardIn(societyId: Long?) = AssignRoleCommand(roleCode = "GUARD", societyId = societyId)

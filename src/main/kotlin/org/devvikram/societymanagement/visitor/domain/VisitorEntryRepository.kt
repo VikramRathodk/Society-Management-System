@@ -1,6 +1,6 @@
 package org.devvikram.societymanagement.visitor.domain
 
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import java.time.Instant
 
 // flatIds == null means every flat in the society; an empty set matches nothing.
@@ -20,7 +20,7 @@ interface VisitorEntryRepository {
     fun save(entry: VisitorEntry): VisitorEntry
     fun findById(id: Long): VisitorEntry?
     fun search(search: VisitorSearch): List<VisitorEntry>
-    fun respond(id: Long, decision: VisitorStatus, responder: AppUser, asOverride: Boolean, at: Instant): Boolean
+    fun respond(id: Long, decision: VisitorStatus, responder: User, asOverride: Boolean, at: Instant): Boolean
     fun markEntered(id: Long, at: Instant): Boolean
     fun markExited(id: Long, at: Instant): Boolean
     fun delete(entry: VisitorEntry)

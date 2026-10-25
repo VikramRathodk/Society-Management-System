@@ -22,7 +22,7 @@ SELECT w.id, '1001' FROM wing w JOIN society s ON s.id = w.society_id WHERE s.na
 UNION ALL
 SELECT w.id, '101' FROM wing w JOIN society s ON s.id = w.society_id WHERE s.name = 'Test Society';
 
-INSERT INTO app_user (name, phone, email, password_hash) VALUES
+INSERT INTO users (name, phone, email, password_hash) VALUES
 ('Stan Lee',         '9000000999', NULL,                        '$2a$10$YiYBOVodjNVV1Z3jZkfRjehxZ2IhkIzfWpuVWD2.lc5JHZuQCX3t2'),
 ('Nick Fury',        '9000000616', 'fury@shield.gov',           '$2a$10$YiYBOVodjNVV1Z3jZkfRjehxZ2IhkIzfWpuVWD2.lc5JHZuQCX3t2'),
 ('Steve Rogers',     '9000000001', 'cap@avengers.com',          '$2a$10$YiYBOVodjNVV1Z3jZkfRjehxZ2IhkIzfWpuVWD2.lc5JHZuQCX3t2'),
@@ -56,7 +56,7 @@ FROM (VALUES
     ('9999999999', 'SECRETARY',   'Test Society',   NULL,        NULL),
     ('8888888888', 'RESIDENT',    'Test Society',   '101',       'OWNER')
 ) AS a(phone, role_code, society_name, flat_number, resident_type)
-JOIN app_user u ON u.phone = a.phone
+JOIN users u ON u.phone = a.phone
 JOIN role r ON r.code = a.role_code
 LEFT JOIN society s ON s.name = a.society_name;
 

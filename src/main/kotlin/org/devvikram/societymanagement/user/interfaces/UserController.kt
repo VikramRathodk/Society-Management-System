@@ -4,10 +4,10 @@ import jakarta.validation.Valid
 import org.devvikram.societymanagement.security.AccessService
 import org.devvikram.societymanagement.security.RequiresPermission
 import org.devvikram.societymanagement.security.toGrant
-import org.devvikram.societymanagement.user.application.AppUserService
-import org.devvikram.societymanagement.user.application.CreateAppUserCommand
+import org.devvikram.societymanagement.user.application.UserService
+import org.devvikram.societymanagement.user.application.CreateUserCommand
 import org.devvikram.societymanagement.user.application.UpdateProfileCommand
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -25,26 +25,26 @@ import org.springframework.web.bind.annotation.RestController
 // the specific society and the role hierarchy: higher roles manage only roles below them.
 @RestController
 @RequestMapping("/api/users")
-class AppUserController(
-    private val appUserService: AppUserService,
+class UserController(
+    private val userService: UserService,
     private val accessService: AccessService,
 ) {
 
     @GetMapping("/me")
     fun me(): MeResponse {
         val access = accessService.current()
-        return MeResponse(user = response(appUserService.getById(access.userId)), access = AccessResponse.from(access))
+        return MeResponse(user = response(userService.getById(access.userId)), access = AccessResponse.from(access))
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("USER.ACCOUNT.CREATE")
-    fun create(@Valid @RequestBody request: CreateAppUserRequest): AppUserResponse {
+    fun create(@Valid @RequestBody request: CreateUserRequest): UserResponse {
         if (!accessService.current().canGrant("USER.ACCOUNT.CREATE", request.role, request.societyId)) {
             throw AccessDeniedException("You cannot create a ${request.role} in this scope")
         }
-        val user = appUserService.createUser(
-            CreateAppUserCommand(
+        val user = userService.createUser(
+            CreateUserCommand(
                 name = request.name,
                 phone = request.phone,
                 email = request.email,
@@ -57,34 +57,34 @@ class AppUserController(
 
     @GetMapping("/{id}")
     @RequiresPermission("USER.ACCOUNT.VIEW")
-    fun getById(@PathVariable id: Long): AppUserResponse = viewable(id, "USER.ACCOUNT.VIEW")
+    fun getById(@PathVariable id: Long): UserResponse = viewable(id, "USER.ACCOUNT.VIEW")
 
     // Everyone in the caller's societies (all users for a platform-level viewer); ?societyId narrows it.
     @GetMapping
     @RequiresPermission("USER.ACCOUNT.VIEW")
-    fun getAll(@RequestParam(required = false) societyId: Long?): List<AppUserResponse> {
+    fun getAll(@RequestParam(required = false) societyId: Long?): List<UserResponse> {
         val access = accessService.current()
         val visibleSocieties = access.societiesWith("USER.ACCOUNT.VIEW")
         val users = when {
             societyId != null -> {
                 access.requireIn("USER.ACCOUNT.VIEW", societyId)
-                appUserService.getAllInSocieties(listOf(societyId))
+                userService.getAllInSocieties(listOf(societyId))
             }
-            visibleSocieties == null -> appUserService.getAll()
-            else -> appUserService.getAllInSocieties(visibleSocieties)
+            visibleSocieties == null -> userService.getAll()
+            else -> userService.getAllInSocieties(visibleSocieties)
         }
-        val rolesByUser = appUserService.getRolesByUser(users.map { it.id!! })
-        return users.map { AppUserResponse.from(it, rolesByUser[it.id].orEmpty()) }
+        val rolesByUser = userService.getRolesByUser(users.map { it.id!! })
+        return users.map { UserResponse.from(it, rolesByUser[it.id].orEmpty()) }
     }
 
     // USER.PROFILE.UPDATE lets a role edit its *own* profile; editing anyone else's needs
     // USER.ACCOUNT.UPDATE and a role above every role the target holds.
     @PatchMapping("/{id}")
     @RequiresPermission("USER.PROFILE.UPDATE")
-    fun updateProfile(@PathVariable id: Long, @RequestBody request: UpdateProfileRequest): AppUserResponse {
+    fun updateProfile(@PathVariable id: Long, @RequestBody request: UpdateProfileRequest): UserResponse {
         val access = accessService.current()
         if (access.userId != id) requireCanManage(id, "USER.ACCOUNT.UPDATE", "You can only update your own profile")
-        val user = appUserService.updateProfile(
+        val user = userService.updateProfile(
             id,
             UpdateProfileCommand(name = request.name, email = request.email, fcmToken = request.fcmToken),
         )
@@ -93,14 +93,14 @@ class AppUserController(
 
     @PatchMapping("/{id}/deactivate")
     @RequiresPermission("USER.ACCOUNT.DELETE")
-    fun deactivate(@PathVariable id: Long): AppUserResponse {
+    fun deactivate(@PathVariable id: Long): UserResponse {
         if (accessService.current().userId == id) throw IllegalArgumentException("You cannot deactivate yourself")
         requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot deactivate a user at or above your level")
-        return response(appUserService.deactivate(id))
+        return response(userService.deactivate(id))
     }
 
     // Permanent removal, platform-only: society admins can deactivate but never erase a user. Refused
-    // with 409 while the user has history (see AppUserService.delete).
+    // with 409 while the user has history (see UserService.delete).
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("USER.ACCOUNT.DELETE")
@@ -109,15 +109,15 @@ class AppUserController(
         if (access.userId == id) throw IllegalArgumentException("You cannot delete yourself")
         access.requireOnPlatform("USER.ACCOUNT.DELETE")
         requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot delete a user at or above your level")
-        appUserService.delete(id)
+        userService.delete(id)
     }
 
     // The undo of deactivate, so it takes the same permission and rank check.
     @PatchMapping("/{id}/activate")
     @RequiresPermission("USER.ACCOUNT.DELETE")
-    fun activate(@PathVariable id: Long): AppUserResponse {
+    fun activate(@PathVariable id: Long): UserResponse {
         requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot activate a user at or above your level")
-        return response(appUserService.activate(id))
+        return response(userService.activate(id))
     }
 
     @GetMapping("/{id}/roles")
@@ -131,38 +131,38 @@ class AppUserController(
         if (!accessService.current().canGrant("USER.ROLE.ASSIGN", request.role, request.societyId)) {
             throw AccessDeniedException("You cannot assign ${request.role} in this scope")
         }
-        val assignment = appUserService.assignRole(id, request.toCommand())
+        val assignment = userService.assignRole(id, request.toCommand())
         // Re-read with role/society/flat loaded for the response.
-        return RoleAssignmentResponse.from(appUserService.getRoleAssignment(id, assignment.id!!))
+        return RoleAssignmentResponse.from(userService.getRoleAssignment(id, assignment.id!!))
     }
 
     @DeleteMapping("/{id}/roles/{assignmentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("USER.ROLE.DELETE")
     fun removeRole(@PathVariable id: Long, @PathVariable assignmentId: Long) {
-        val assignment = appUserService.getRoleAssignment(id, assignmentId)
+        val assignment = userService.getRoleAssignment(id, assignmentId)
         if (!accessService.current().canManage("USER.ROLE.DELETE", listOf(assignment.toGrant()))) {
             throw AccessDeniedException("You cannot remove a role at or above your level")
         }
-        appUserService.removeRole(id, assignmentId)
+        userService.removeRole(id, assignmentId)
     }
 
     // Viewing (unlike managing) needs no rank: the permission in any society the target belongs to.
-    private fun viewable(id: Long, permission: String): AppUserResponse {
+    private fun viewable(id: Long, permission: String): UserResponse {
         val access = accessService.current()
-        val user = appUserService.getById(id)
-        val roles = appUserService.getRoles(id)
+        val user = userService.getById(id)
+        val roles = userService.getRoles(id)
         val visible = access.canOnPlatform(permission) ||
             roles.any { r -> r.society?.id?.let { access.can(permission, it) } == true }
         if (!visible) throw AccessDeniedException("User is outside your societies")
-        return AppUserResponse.from(user, roles)
+        return UserResponse.from(user, roles)
     }
 
     private fun requireCanManage(targetId: Long, permission: String, message: String) {
-        appUserService.getById(targetId) // 404 before 403 for unknown users
-        val targetGrants = appUserService.getRoles(targetId).map { it.toGrant() }
+        userService.getById(targetId) // 404 before 403 for unknown users
+        val targetGrants = userService.getRoles(targetId).map { it.toGrant() }
         if (!accessService.current().canManage(permission, targetGrants)) throw AccessDeniedException(message)
     }
 
-    private fun response(user: AppUser) = AppUserResponse.from(user, appUserService.getRoles(user.id!!))
+    private fun response(user: User) = UserResponse.from(user, userService.getRoles(user.id!!))
 }

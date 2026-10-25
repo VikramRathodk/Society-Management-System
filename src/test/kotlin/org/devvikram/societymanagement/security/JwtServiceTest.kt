@@ -1,6 +1,6 @@
 package org.devvikram.societymanagement.security
 
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -13,7 +13,7 @@ class JwtServiceTest {
 
     @Test
     fun `token round-trips the user's phone as subject`() {
-        val user = AppUser(
+        val user = User(
             name = "Asha Rao",
             phone = "9999999999",
             passwordHash = "irrelevant-for-this-test",

@@ -1,7 +1,7 @@
 package org.devvikram.societymanagement.visitor.application
 
 import org.devvikram.societymanagement.common.notification.PushNotifier
-import org.devvikram.societymanagement.user.domain.AppUserRepository
+import org.devvikram.societymanagement.user.domain.UserRepository
 import org.devvikram.societymanagement.user.domain.UserRoleRepository
 import org.devvikram.societymanagement.visitor.domain.VisitorStatus
 import org.slf4j.LoggerFactory
@@ -33,7 +33,7 @@ data class VisitorResponded(
 @Component
 class VisitorNotificationListener(
     private val userRoleRepository: UserRoleRepository,
-    private val appUserRepository: AppUserRepository,
+    private val userRepository: UserRepository,
     private val pushNotifier: PushNotifier,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -61,7 +61,7 @@ class VisitorNotificationListener(
             "status" to event.decision.name,
             "override" to event.asOverride.toString(),
         )
-        appUserRepository.findById(event.guardId)?.takeIf { it.isActive }?.fcmToken?.let { token ->
+        userRepository.findById(event.guardId)?.takeIf { it.isActive }?.fcmToken?.let { token ->
             pushNotifier.send(
                 listOf(token),
                 title = "Visitor $decision",

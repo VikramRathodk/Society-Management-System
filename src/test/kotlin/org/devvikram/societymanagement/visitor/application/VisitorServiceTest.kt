@@ -8,8 +8,8 @@ import org.devvikram.societymanagement.society.application.InMemoryFlatRepositor
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.society.domain.Wing
-import org.devvikram.societymanagement.user.domain.AppUser
-import org.devvikram.societymanagement.user.domain.AppUserRepository
+import org.devvikram.societymanagement.user.domain.User
+import org.devvikram.societymanagement.user.domain.UserRepository
 import org.devvikram.societymanagement.visitor.domain.VisitorEntry
 import org.devvikram.societymanagement.visitor.domain.VisitorEntryRepository
 import org.devvikram.societymanagement.visitor.domain.VisitorSearch
@@ -24,22 +24,22 @@ import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
 import java.time.Instant
 
-private class InMemoryAppUserRepository : AppUserRepository {
-    private val store = mutableMapOf<Long, AppUser>()
+private class InMemoryUserRepository : UserRepository {
+    private val store = mutableMapOf<Long, User>()
     private var nextId = 1L
 
-    override fun save(appUser: AppUser): AppUser {
-        if (appUser.id == null) appUser.id = nextId++
-        store[appUser.id!!] = appUser
-        return appUser
+    override fun save(user: User): User {
+        if (user.id == null) user.id = nextId++
+        store[user.id!!] = user
+        return user
     }
 
-    override fun findById(id: Long): AppUser? = store[id]
-    override fun findAll(): List<AppUser> = store.values.toList()
-    override fun findAllById(ids: Collection<Long>): List<AppUser> = ids.mapNotNull { store[it] }
-    override fun findByPhone(phone: String): AppUser? = store.values.find { it.phone == phone }
-    override fun delete(appUser: AppUser) {
-        store.remove(appUser.id)
+    override fun findById(id: Long): User? = store[id]
+    override fun findAll(): List<User> = store.values.toList()
+    override fun findAllById(ids: Collection<Long>): List<User> = ids.mapNotNull { store[it] }
+    override fun findByPhone(phone: String): User? = store.values.find { it.phone == phone }
+    override fun delete(user: User) {
+        store.remove(user.id)
     }
 }
 
@@ -62,7 +62,7 @@ private class InMemoryVisitorEntryRepository : VisitorEntryRepository {
             (search.status == null || it.status == search.status)
     }
 
-    override fun respond(id: Long, decision: VisitorStatus, responder: AppUser, asOverride: Boolean, at: Instant): Boolean =
+    override fun respond(id: Long, decision: VisitorStatus, responder: User, asOverride: Boolean, at: Instant): Boolean =
         transition(id, VisitorStatus.PENDING, decision) {
             it.respondedBy = responder
             it.respondedAsOverride = asOverride
@@ -109,25 +109,25 @@ class VisitorServiceTest {
     private lateinit var events: MutableList<Any>
     private lateinit var service: VisitorService
     private lateinit var flat: Flat
-    private lateinit var guard: AppUser
-    private lateinit var resident: AppUser
-    private lateinit var neighbour: AppUser
+    private lateinit var guard: User
+    private lateinit var resident: User
+    private lateinit var neighbour: User
 
     @BeforeEach
     fun setUp() {
         visitors = InMemoryVisitorEntryRepository()
         photos = InMemoryPhotoStorage()
         events = mutableListOf()
-        val users = InMemoryAppUserRepository()
+        val users = InMemoryUserRepository()
         val flats = InMemoryFlatRepository()
         service = VisitorService(visitors, flats, users, photos, ApplicationEventPublisher { events += it })
 
         val society = Society(name = "Sunrise Apartments").also { it.id = 1L }
         val wing = Wing(society = society, name = "A").also { it.id = 1L }
         flat = flats.save(Flat(wing = wing, flatNumber = "101"))
-        guard = users.save(AppUser(name = "Gate Guard", phone = "8200000001", passwordHash = "hashed"))
-        resident = users.save(AppUser(name = "Asha Patil", phone = "8200000002", passwordHash = "hashed"))
-        neighbour = users.save(AppUser(name = "Ravi Patil", phone = "8200000003", passwordHash = "hashed"))
+        guard = users.save(User(name = "Gate Guard", phone = "8200000001", passwordHash = "hashed"))
+        resident = users.save(User(name = "Asha Patil", phone = "8200000002", passwordHash = "hashed"))
+        neighbour = users.save(User(name = "Ravi Patil", phone = "8200000003", passwordHash = "hashed"))
     }
 
     private fun logVisitor(photo: ByteArray? = null): Long =

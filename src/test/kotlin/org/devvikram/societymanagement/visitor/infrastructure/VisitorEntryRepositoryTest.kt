@@ -3,7 +3,7 @@ package org.devvikram.societymanagement.visitor.infrastructure
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.society.domain.Wing
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.visitor.domain.VisitorEntry
 import org.devvikram.societymanagement.visitor.domain.VisitorSearch
 import org.devvikram.societymanagement.visitor.domain.VisitorStatus
@@ -34,8 +34,8 @@ class VisitorEntryRepositoryTest {
     private lateinit var society: Society
     private lateinit var flat101: Flat
     private lateinit var flat102: Flat
-    private lateinit var guard: AppUser
-    private lateinit var resident: AppUser
+    private lateinit var guard: User
+    private lateinit var resident: User
 
     @BeforeEach
     fun setUp() {
@@ -43,8 +43,8 @@ class VisitorEntryRepositoryTest {
         val wing = entityManager.persistAndFlush(Wing(society = society, name = "A"))
         flat101 = entityManager.persistAndFlush(Flat(wing = wing, flatNumber = "101"))
         flat102 = entityManager.persistAndFlush(Flat(wing = wing, flatNumber = "102"))
-        guard = entityManager.persistAndFlush(AppUser(name = "Gate Guard", phone = "8200000001", passwordHash = "hashed"))
-        resident = entityManager.persistAndFlush(AppUser(name = "Asha Patil", phone = "8200000002", passwordHash = "hashed"))
+        guard = entityManager.persistAndFlush(User(name = "Gate Guard", phone = "8200000001", passwordHash = "hashed"))
+        resident = entityManager.persistAndFlush(User(name = "Asha Patil", phone = "8200000002", passwordHash = "hashed"))
     }
 
     private fun log(flat: Flat, name: String = "Courier"): VisitorEntry =

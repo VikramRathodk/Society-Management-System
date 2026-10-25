@@ -3,12 +3,12 @@ package org.devvikram.societymanagement.user.interfaces
 import jakarta.validation.constraints.NotBlank
 import org.devvikram.societymanagement.security.Access
 import org.devvikram.societymanagement.user.application.AssignRoleCommand
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.user.domain.ResidentType
 import org.devvikram.societymanagement.user.domain.UserRole
 
 // role is a role code (e.g. "RESIDENT", "SECRETARY", or any custom role a SUPER_ADMIN defined).
-data class CreateAppUserRequest(
+data class CreateUserRequest(
     @field:NotBlank val name: String,
     @field:NotBlank val phone: String,
     val email: String? = null,
@@ -56,7 +56,7 @@ data class RoleAssignmentResponse(
     }
 }
 
-data class AppUserResponse(
+data class UserResponse(
     val id: Long,
     val name: String,
     val phone: String,
@@ -65,7 +65,7 @@ data class AppUserResponse(
     val roles: List<RoleAssignmentResponse>,
 ) {
     companion object {
-        fun from(user: AppUser, roles: List<UserRole>) = AppUserResponse(
+        fun from(user: User, roles: List<UserRole>) = UserResponse(
             id = user.id!!,
             name = user.name,
             phone = user.phone,
@@ -104,6 +104,6 @@ data class AccessResponse(
 }
 
 data class MeResponse(
-    val user: AppUserResponse,
+    val user: UserResponse,
     val access: AccessResponse,
 )

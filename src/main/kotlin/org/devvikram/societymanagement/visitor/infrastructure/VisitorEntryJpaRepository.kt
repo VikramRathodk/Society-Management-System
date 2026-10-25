@@ -1,6 +1,6 @@
 package org.devvikram.societymanagement.visitor.infrastructure
 
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.visitor.domain.VisitorEntry
 import org.devvikram.societymanagement.visitor.domain.VisitorStatus
 import org.springframework.data.jpa.repository.JpaRepository
@@ -26,7 +26,7 @@ interface VisitorEntryJpaRepository : JpaRepository<VisitorEntry, Long> {
         @Param("id") id: Long,
         @Param("from") from: VisitorStatus,
         @Param("to") to: VisitorStatus,
-        @Param("responder") responder: AppUser,
+        @Param("responder") responder: User,
         @Param("asOverride") asOverride: Boolean,
         @Param("at") at: Instant,
     ): Int

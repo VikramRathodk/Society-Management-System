@@ -18,13 +18,13 @@ import org.devvikram.societymanagement.society.domain.Society
 import java.time.Instant
 
 // One role held by one user in one scope. society is null only for PLATFORM roles;
-// flat/residentType are set only for roles with requiresFlat. Enforced in AppUserService.
+// flat/residentType are set only for roles with requiresFlat. Enforced in UserService.
 @Entity
 @Table(name = "user_role")
 class UserRole(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
-    var user: AppUser,
+    var user: User,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false)

@@ -3,10 +3,10 @@ package org.devvikram.societymanagement.security
 import org.devvikram.societymanagement.society.application.FlatService
 import org.devvikram.societymanagement.society.application.SocietyService
 import org.devvikram.societymanagement.society.application.WingService
-import org.devvikram.societymanagement.user.application.AppUserService
+import org.devvikram.societymanagement.user.application.UserService
 import org.devvikram.societymanagement.user.application.AssignRoleCommand
-import org.devvikram.societymanagement.user.application.CreateAppUserCommand
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.application.CreateUserCommand
+import org.devvikram.societymanagement.user.domain.User
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -32,7 +32,7 @@ class SecurityIntegrationTest {
 
     @Autowired lateinit var mockMvc: MockMvc
     @Autowired lateinit var jwtService: JwtService
-    @Autowired lateinit var appUserService: AppUserService
+    @Autowired lateinit var userService: UserService
     @Autowired lateinit var societyService: SocietyService
     @Autowired lateinit var wingService: WingService
     @Autowired lateinit var flatService: FlatService
@@ -41,17 +41,17 @@ class SecurityIntegrationTest {
 
     private var societyId = 0L
     private var otherSocietyId = 0L
-    private lateinit var admin: AppUser
-    private lateinit var secretary: AppUser
-    private lateinit var resident: AppUser
-    private lateinit var otherResident: AppUser
-    private lateinit var guard: AppUser
-    private lateinit var outsider: AppUser
+    private lateinit var admin: User
+    private lateinit var secretary: User
+    private lateinit var resident: User
+    private lateinit var otherResident: User
+    private lateinit var guard: User
+    private lateinit var outsider: User
 
     private fun randomPhone() = "9${(100000000..999999999).random()}"
 
-    private fun user(roleCode: String, inSociety: Long = societyId, flatId: Long? = null) = appUserService.createUser(
-        CreateAppUserCommand(
+    private fun user(roleCode: String, inSociety: Long = societyId, flatId: Long? = null) = userService.createUser(
+        CreateUserCommand(
             name = "$roleCode user",
             phone = randomPhone(),
             rawPassword = "secret123",
@@ -77,7 +77,7 @@ class SecurityIntegrationTest {
         return flatService.addFlat(wing.id!!, "101").id!!
     }
 
-    private fun bearer(user: AppUser) = "Bearer ${jwtService.generateToken(user)}"
+    private fun bearer(user: User) = "Bearer ${jwtService.generateToken(user)}"
 
     @Test
     fun `missing token returns 401 with error body`() {
@@ -96,7 +96,7 @@ class SecurityIntegrationTest {
     @Test
     fun `token of a deactivated user returns 401`() {
         val token = bearer(resident)
-        appUserService.deactivate(resident.id!!)
+        userService.deactivate(resident.id!!)
         mockMvc.perform(get("/api/users/${resident.id}").header("Authorization", token))
             .andExpect(status().isUnauthorized)
     }
@@ -164,7 +164,7 @@ class SecurityIntegrationTest {
     @Test
     fun `user without any role cannot update even own profile`() {
         val roleless = user("GUARD")
-        appUserService.getRoles(roleless.id!!).forEach { appUserService.removeRole(roleless.id!!, it.id!!) }
+        userService.getRoles(roleless.id!!).forEach { userService.removeRole(roleless.id!!, it.id!!) }
 
         mockMvc.perform(
             patch("/api/users/${roleless.id}")
@@ -186,7 +186,7 @@ class SecurityIntegrationTest {
     @Test
     fun `deactivated user's login says so, and logs in again once reactivated`() {
         val login = """{"phone": "${guard.phone}", "password": "secret123"}"""
-        appUserService.deactivate(guard.id!!)
+        userService.deactivate(guard.id!!)
 
         mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login))
             .andExpect(status().isForbidden)

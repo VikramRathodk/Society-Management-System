@@ -1,10 +1,10 @@
 package org.devvikram.societymanagement.security
 
-import org.devvikram.societymanagement.user.application.AppUserService
+import org.devvikram.societymanagement.user.application.UserService
 import org.devvikram.societymanagement.user.application.AssignRoleCommand
-import org.devvikram.societymanagement.user.application.CreateAppUserCommand
-import org.devvikram.societymanagement.user.domain.AppUser
-import org.devvikram.societymanagement.user.infrastructure.AppUserJpaRepository
+import org.devvikram.societymanagement.user.application.CreateUserCommand
+import org.devvikram.societymanagement.user.domain.User
+import org.devvikram.societymanagement.user.infrastructure.UserJpaRepository
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
@@ -25,16 +25,16 @@ class ErrorDispatchIntegrationTest {
 
     @LocalServerPort var port = 0
     @Autowired lateinit var jwtService: JwtService
-    @Autowired lateinit var appUserService: AppUserService
-    @Autowired lateinit var appUserJpaRepository: AppUserJpaRepository
+    @Autowired lateinit var userService: UserService
+    @Autowired lateinit var userJpaRepository: UserJpaRepository
 
     private val http = HttpClient.newHttpClient()
-    private lateinit var user: AppUser
+    private lateinit var user: User
 
     @BeforeEach
     fun setUp() {
-        user = appUserService.createUser(
-            CreateAppUserCommand(
+        user = userService.createUser(
+            CreateUserCommand(
                 name = "Error dispatch user",
                 phone = "9${(100000000..999999999).random()}",
                 rawPassword = "secret123",
@@ -45,7 +45,7 @@ class ErrorDispatchIntegrationTest {
 
     @AfterEach
     fun tearDown() {
-        appUserJpaRepository.deleteById(user.id!!)
+        userJpaRepository.deleteById(user.id!!)
     }
 
     private fun get(path: String, token: String? = null): Int {

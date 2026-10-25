@@ -5,7 +5,7 @@ import org.devvikram.societymanagement.security.role.RoleJpaRepository
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
 import org.devvikram.societymanagement.society.domain.Wing
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.user.domain.ResidentType
 import org.devvikram.societymanagement.user.domain.UserRole
 import org.hibernate.exception.ConstraintViolationException
@@ -22,13 +22,13 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
 // Roles come from the V3__dynamic_roles.sql seed data, so they are looked up, not persisted.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class AppUserRepositoryTest {
+class UserRepositoryTest {
 
     @Autowired
     private lateinit var entityManager: TestEntityManager
 
     @Autowired
-    private lateinit var appUserRepository: AppUserJpaRepository
+    private lateinit var userRepository: UserJpaRepository
 
     @Autowired
     private lateinit var userRoleRepository: UserRoleJpaRepository
@@ -39,18 +39,18 @@ class AppUserRepositoryTest {
     private fun role(code: String): Role = requireNotNull(roleRepository.findByCode(code)) { "Role $code not seeded" }
 
     private fun user(phone: String, name: String = "User $phone") =
-        entityManager.persistAndFlush(AppUser(name = name, phone = phone, passwordHash = "hashed"))
+        entityManager.persistAndFlush(User(name = name, phone = phone, passwordHash = "hashed"))
 
     @Test
     fun `persists a user with defaults`() {
         val saved = entityManager.persistFlushFind(
-            AppUser(name = "Asha Patil", phone = "8100000001", passwordHash = "hashed"),
+            User(name = "Asha Patil", phone = "8100000001", passwordHash = "hashed"),
         )
 
         assertNotNull(saved.id)
         assertNotNull(saved.createdAt)
         assertEquals(true, saved.isActive)
-        assertEquals("Asha Patil", appUserRepository.findByPhone("8100000001")?.name)
+        assertEquals("Asha Patil", userRepository.findByPhone("8100000001")?.name)
     }
 
     @Test

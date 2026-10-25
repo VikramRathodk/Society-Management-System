@@ -5,10 +5,10 @@ import org.devvikram.societymanagement.society.application.ComplexService
 import org.devvikram.societymanagement.society.application.FlatService
 import org.devvikram.societymanagement.society.application.SocietyService
 import org.devvikram.societymanagement.society.application.WingService
-import org.devvikram.societymanagement.user.application.AppUserService
+import org.devvikram.societymanagement.user.application.UserService
 import org.devvikram.societymanagement.user.application.AssignRoleCommand
-import org.devvikram.societymanagement.user.application.CreateAppUserCommand
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.application.CreateUserCommand
+import org.devvikram.societymanagement.user.domain.User
 import org.devvikram.societymanagement.visitor.application.LogVisitorCommand
 import org.devvikram.societymanagement.visitor.application.VisitorService
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -34,7 +34,7 @@ class DeleteEndpointsIntegrationTest {
 
     @Autowired lateinit var mockMvc: MockMvc
     @Autowired lateinit var jwtService: JwtService
-    @Autowired lateinit var appUserService: AppUserService
+    @Autowired lateinit var userService: UserService
     @Autowired lateinit var societyService: SocietyService
     @Autowired lateinit var complexService: ComplexService
     @Autowired lateinit var wingService: WingService
@@ -43,15 +43,15 @@ class DeleteEndpointsIntegrationTest {
 
     private var societyId = 0L
     private var flatId = 0L
-    private lateinit var superAdmin: AppUser
-    private lateinit var admin: AppUser
-    private lateinit var guard: AppUser
-    private lateinit var resident: AppUser
+    private lateinit var superAdmin: User
+    private lateinit var admin: User
+    private lateinit var guard: User
+    private lateinit var resident: User
 
     private fun randomPhone() = "9${(100000000..999999999).random()}"
 
-    private fun user(roleCode: String, inSociety: Long? = societyId, flatId: Long? = null) = appUserService.createUser(
-        CreateAppUserCommand(
+    private fun user(roleCode: String, inSociety: Long? = societyId, flatId: Long? = null) = userService.createUser(
+        CreateUserCommand(
             name = "$roleCode user",
             phone = randomPhone(),
             rawPassword = "secret123",
@@ -69,7 +69,7 @@ class DeleteEndpointsIntegrationTest {
         resident = user("RESIDENT", flatId = flatId)
     }
 
-    private fun bearer(user: AppUser) = "Bearer ${jwtService.generateToken(user)}"
+    private fun bearer(user: User) = "Bearer ${jwtService.generateToken(user)}"
 
     @Test
     fun `super admin deletes a society with no history, taking its flats and role assignments`() {
@@ -83,7 +83,7 @@ class DeleteEndpointsIntegrationTest {
             .andExpect(status().isNotFound)
         mockMvc.perform(get("/api/flats/$flatId").header("Authorization", bearer(superAdmin)))
             .andExpect(status().isNotFound)
-        assertEquals(emptyList<Any>(), appUserService.getRoles(resident.id!!))
+        assertEquals(emptyList<Any>(), userService.getRoles(resident.id!!))
     }
 
     @Test

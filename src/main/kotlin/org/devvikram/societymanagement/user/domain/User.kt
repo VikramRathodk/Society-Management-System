@@ -11,8 +11,8 @@ import java.time.Instant
 
 // Identity only. What the user may do, and where, lives in UserRole (one row per role per scope).
 @Entity
-@Table(name = "app_user")
-class AppUser(
+@Table(name = "users")
+class User(
     @Column(nullable = false)
     var name: String,
 

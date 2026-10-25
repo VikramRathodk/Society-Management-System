@@ -14,7 +14,7 @@ import jakarta.persistence.PrePersist
 import jakarta.persistence.Table
 import org.devvikram.societymanagement.society.domain.Flat
 import org.devvikram.societymanagement.society.domain.Society
-import org.devvikram.societymanagement.user.domain.AppUser
+import org.devvikram.societymanagement.user.domain.User
 import java.time.Instant
 
 // PENDING → APPROVED | REJECTED (a resident of the flat responds, or a society authority overrides;
@@ -49,7 +49,7 @@ class VisitorEntry(
     // The guard who logged the visitor.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "logged_by", nullable = false)
-    var loggedBy: AppUser,
+    var loggedBy: User,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -63,7 +63,7 @@ class VisitorEntry(
     // who decided on the flat's behalf.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "responded_by")
-    var respondedBy: AppUser? = null
+    var respondedBy: User? = null
 
     @Column(name = "responded_as_override", nullable = false)
     var respondedAsOverride: Boolean = false
