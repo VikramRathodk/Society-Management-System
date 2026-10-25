@@ -124,6 +124,15 @@ class UserController(
     @RequiresPermission("USER.ROLE.VIEW")
     fun getRoles(@PathVariable id: Long): List<RoleAssignmentResponse> = viewable(id, "USER.ROLE.VIEW").roles
 
+    // Effective permissions of another user, resolved the same way as /me (inheritance, all_permissions).
+    @GetMapping("/{id}/permissions")
+    @RequiresPermission("USER.ROLE.VIEW")
+    fun getPermissions(@PathVariable id: Long): AccessResponse {
+        viewable(id, "USER.ROLE.VIEW")
+        val grants = userService.getRoles(id).map { it.toGrant() }
+        return AccessResponse.from(accessService.accessFor(id, grants))
+    }
+
     @PostMapping("/{id}/roles")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("USER.ROLE.ASSIGN")

@@ -7,6 +7,7 @@ import org.devvikram.societymanagement.user.application.UserService
 import org.devvikram.societymanagement.user.application.AssignRoleCommand
 import org.devvikram.societymanagement.user.application.CreateUserCommand
 import org.devvikram.societymanagement.user.domain.User
+import org.hamcrest.Matchers.hasItem
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -208,6 +209,28 @@ class SecurityIntegrationTest {
             .andExpect(status().isForbidden)
         mockMvc.perform(get("/api/users/${guard.id}").header("Authorization", bearer(admin)))
             .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `admin views effective permissions of a user in their society only`() {
+        mockMvc.perform(get("/api/users/${guard.id}/permissions").header("Authorization", bearer(admin)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.platformRoles").isEmpty)
+            .andExpect(jsonPath("$.societies[0].societyId").value(societyId))
+            .andExpect(jsonPath("$.societies[0].roles[0]").value("GUARD"))
+            .andExpect(jsonPath("$.societies[0].permissions").value(hasItem("VISITOR.ENTRY.CREATE")))
+        mockMvc.perform(get("/api/users/${outsider.id}/permissions").header("Authorization", bearer(admin)))
+            .andExpect(status().isForbidden)
+        mockMvc.perform(get("/api/users/${guard.id}/permissions").header("Authorization", bearer(resident)))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `permissions of a user include those of inherited roles`() {
+        // ADMIN inherits SECRETARY > COMMITTEE, which grants USER.ROLE.VIEW.
+        mockMvc.perform(get("/api/users/${admin.id}/permissions").header("Authorization", bearer(admin)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.societies[0].permissions").value(hasItem("USER.ROLE.VIEW")))
     }
 
     @Test

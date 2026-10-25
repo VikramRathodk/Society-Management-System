@@ -2008,6 +2008,41 @@
           ]
         },
         {
+          "name": "Resident's effective permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{residentId}}/permissions",
+            "description": "Resolved permissions per scope (role inheritance and all_permissions applied), same shape as `access` in /api/users/me. Needs USER.ROLE.VIEW in one of the user's societies.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"lists the resident's society permissions\", () => {",
+                  "    const s = pm.response.json().societies.find(s => s.societyId === Number(pm.collectionVariables.get(\"societyId\")));",
+                  "    pm.expect(s.roles).to.include(\"COMMITTEE\");",
+                  "    pm.expect(s.permissions).to.include(\"USER.ROLE.VIEW\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Secretary removes the committee role",
           "request": {
             "method": "DELETE",
