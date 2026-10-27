@@ -630,30 +630,44 @@ AppUser → UserRole (per scope: platform, or society [+ flat]) → Role → Rol
 
 ## Backend Development Plan (Spring Boot)
 
-### Module Structure (package-by-feature, layered within each feature)
-Each feature package is internally layered Clean-Architecture style: `domain` (entities + framework-free repository interfaces), `application` (services/use cases), `infrastructure` (Spring Data JPA repository + an adapter implementing the domain interface), `interfaces` (REST controllers + DTOs). `config/`, `security/`, and `common/` stay flat — they're cross-cutting, not features.
+### Module Structure (modular monolith: one deployable, one module per top-level package)
+Each top-level package is a module that owns its entities, repositories, services and APIs. Inside a feature module: `controller/` (REST controllers), `dto/` (request/response DTOs), `service/` (business logic, commands, events), `model/` (JPA entities + enums), `repository/` (repository interfaces + their Spring Data JPA adapters). Other subpackages (`config/`, `security/`, …) only where justified. `common/` holds only genuinely cross-cutting infrastructure — no business logic.
 ```
 org.devvikram.societymanagement
-├── config/                # SecurityConfig, JwtConfig, CacheConfig
-├── security/               # JwtAuthFilter, UserDetailsServiceImpl, PermissionAspect, Access/AccessService
-│   ├── permission/          # Permission entity + PermissionJpaRepository
-│   └── role/                # Role entity, RoleRepository, RoleService, RoleController
-├── common/                 # ApiResponse wrapper, GlobalExceptionHandler, enums
-├── user/
-│   ├── domain/              # AppUser, UserRole entities, ResidentType enum, AppUserRepository/UserRoleRepository (interfaces)
-│   ├── application/         # AppUserService (pending)
-│   ├── infrastructure/      # SpringDataAppUserRepository + AppUserRepositoryImpl
-│   └── interfaces/          # AppUserController, DTOs (pending)
-├── society/                 # Complex, Society, Wing, Flat, ParkingSlot, StaffMember
-│   ├── domain/
-│   ├── application/         # (pending)
-│   ├── infrastructure/
-│   └── interfaces/          # (pending)
-├── visitor/                 # domain/application/infrastructure/interfaces scaffolded, empty
-├── notice/                  # domain/application/infrastructure/interfaces scaffolded, empty
-└── complaint/                # domain/application/infrastructure/interfaces scaffolded, empty
+├── common/                  # cross-cutting infrastructure only
+│   ├── config/                # CacheConfig
+│   ├── exception/             # ErrorResponse, GlobalExceptionHandler, ConflictException
+│   └── storage/               # PhotoStorage port + DatabasePhotoStorage (stored_photo)
+├── notification/            # PushNotifier (LoggingPushNotifier until FCM) — delivers, owns no business rules
+├── authorization/           # roles, permissions, access control
+│   ├── Access, AccessService, AuthenticatedUser/RoleGrant, RequiresPermission, PermissionAspect  (module API)
+│   ├── controller/            # RoleController
+│   ├── dto/                   # RoleDtos
+│   ├── service/               # PermissionService (cached hierarchy), RoleService
+│   ├── model/                 # Role, RoleScope, Permission
+│   └── repository/            # RoleRepository (+ RoleJpaRepository/RoleRepositoryImpl), PermissionJpaRepository,
+│                              #   RoleAssignments (port, implemented by user)
+├── auth/                    # authentication: login, JWT, Spring Security wiring
+│   ├── controller/  dto/      # AuthController, AuthDtos
+│   ├── service/               # AuthService, UserDetailsServiceImpl
+│   └── security/              # JwtService, JwtAuthFilter, SecurityConfig, PasswordEncoderConfig
+├── society/                 # Complex, Society, Wing, Flat (+ ParkingSlot, StaffMember until their modules exist)
+├── user/                    # User (identity), UserRole (role assignment = society membership/residency)
+└── visitor/                 # visitor lifecycle, after-commit notification events
 ```
-Domain repository interfaces declare plain `save`/`findById`/`findAll` (+ custom finders like `findByPhone`) with no Spring Data types. The infrastructure adapter (`XRepositoryImpl`) implements the domain interface by delegating to a `XJpaRepository : JpaRepository<X, Long>`. Application/service code depends only on the domain interface — Spring wires the concrete adapter automatically since it's the sole implementation.
+**Allowed dependencies** (enforced by `ModuleDependencyTest`, which also rejects undeclared modules and cycles):
+
+| Module | May use |
+|---|---|
+| `common`, `notification` | — |
+| `authorization` | `common` |
+| `society` | `common`, `authorization` |
+| `user` | `common`, `authorization`, `society` |
+| `auth` | `common`, `authorization`, `user` |
+| `visitor` | `common`, `authorization`, `society`, `user`, `notification` |
+
+Where a lower module needs data owned by a higher one, it declares a port and the owner implements it — e.g. `authorization.repository.RoleAssignments` (is a role still assigned?) is implemented by `user.repository.UserRoleAssignments`. New modules (`invitation`, `onboarding`, later `resident`, `complaint`, …) are created only when their first feature is built, and must be added to `ModuleDependencyTest`.
+Repository interfaces (`XRepository`) declare plain `save`/`findById`/`findAll` (+ custom finders like `findByPhone`) with no Spring Data types. The adapter (`XRepositoryImpl`) implements the interface by delegating to a `XJpaRepository : JpaRepository<X, Long>`, all three in `repository/`. Services depend only on the `XRepository` interface — Spring wires the concrete adapter automatically since it's the sole implementation, and unit tests use in-memory fakes of it.
 
 ### Build Order
 1. **Auth & Permission System** — JWT auth, `permission`/`role_permission` tables + seed data (Flyway), `PermissionService` + `@RequiresPermission` aspect, `POST /auth/login` (returns JWT + resolved permission list), Admin-only `POST /users` (gated by `USER.ACCOUNT.CREATE`)
@@ -762,6 +776,7 @@ M1+M2 and M6 are natural payment checkpoints; M3 is typically the most convincin
 - ✅ **Accounts & security fixes** — `PATCH /api/users/{id}/activate` (undo of deactivate, same permission + rank check). Login on a deactivated account returns **403 "Account is deactivated"** instead of the generic 401. `SecurityConfig` permits the container's `DispatcherType.ERROR` forward, so unmapped paths/uncaught errors reach clients with their real status (previously every 404 surfaced as 401); covered by `ErrorDispatchIntegrationTest` on a real random-port server, since MockMvc never performs that forward.
 - ✅ **Safe deletes (V6)** — super admin only: `DELETE /api/societies/{id}` (wings, flats, role assignments cascade), `DELETE /api/complexes/{id}`, `DELETE /api/users/{id}` (hard delete; society admins can only deactivate). Each is refused with **409** and a specific message while history references the record (visitors, notices, complaints, staff, parking; a complex's societies; a user's logged/answered visitors) — users with history should be deactivated. Implemented as single JPQL bulk deletes so Postgres cascades/FKs decide, not the persistence context.
 - ✅ **Dev data & tooling** — every dev user's password is now **`Pass@123`** (local DB and `scripts/dev-seed.sql`). Avengers Tower gained flat **Stark Wing-1001** with Wanda Maximoff (`9000000007`, OWNER) and Vision (`9000000008`, FAMILY), so flat scoping can be checked against the Penthouse residents. Postman collection: new **7. Visitors** folder (gate flow, override, 400/403/409 cases), deactivate → 403 → reactivate checks, and a cleanup folder that deletes everything a run creates (user/society/complex deletes) — 92 requests, 106 assertions passing. Full suite: **113/113** passing.
+- ✅ **Modular monolith restructure (2026-10-27)** — packages regrouped into explicit modules (see Module Structure): `security/` split into `authorization/` (roles, permissions, `Access`) and `auth/` (JWT, `UserDetailsServiceImpl`, `SecurityConfig`, `PasswordEncoderConfig`); `common/` reorganised into `common/{config,exception,storage}`; `common/notification` → `notification/`; `RoleController` DTOs → `RoleDtos.kt`; `RoleRepository` split into interface + JPA adapter. Layer folders renamed in every module to `controller/ dto/ service/ model/ repository/` (was `interfaces/ application/ domain/ infrastructure/`); `auth/jwt` + `auth/config` → `auth/security/`. The `security ↔ user` package cycle is gone: `RoleService` asks the `RoleAssignments` port (implemented in `user`), and `toGrant()` is now a `UserRole` member. No API, schema or behaviour change. New `ModuleDependencyTest` enforces the dependency table. Suite: 116/117 — the one failure (`structure endpoints are permission-gated`) predates the change and is local-DB drift: GUARD was granted `FLAT.DIRECTORY.VIEW` in `role_permission` outside the migrations.
 - ⏳ **Next:** (1) real FCM push — a Firebase-backed `PushNotifier` replacing `LoggingPushNotifier` (needs a Firebase project + service-account key), which completes the M3 demo together with M2; (2) **M4 Notices** (`NOTICE.POST.*`, "own posts" rule for committee edits/deletes). Open follow-ups: `VISITOR.ENTRY.EXPORT` has no endpoint yet; guards currently see the whole society's visitor log (the V2 matrix said "logged by them"); row-level "own" scoping *within* a society for `FLAT.DIRECTORY.VIEW`; COMPLEX endpoints are platform-only until it's decided what a complex shares; leftover "Postman Test Society CHS" rows from runs before the cleanup folder existed can be removed with the new delete endpoints.
 
 Note: Spring Boot 4 relocated test-slice classes into per-feature modules — `@DataJpaTest` is now `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest`, `TestEntityManager` is `org.springframework.boot.jpa.test.autoconfigure.TestEntityManager`, `@AutoConfigureTestDatabase` is `org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase` — not the old `org.springframework.boot.test.autoconfigure.*` paths from Boot 3. Also note: Spring Security 7's `PasswordEncoder.encode()` return type reads as nullable to the Kotlin compiler (JSpecify `@Contract` annotation, not a JSR-305 `@Nullable`) — a `!!` assertion on the call is needed and safe. And: with `-Xjsr305=strict`, `GrantedAuthority.getAuthority()` reads as `String?` to Kotlin — use `mapNotNull`/safe calls, not a bare `.map { it.authority }` chain, when working with `authentication.authorities`.

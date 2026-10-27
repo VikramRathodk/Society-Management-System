@@ -1,0 +1,50 @@
+package org.devvikram.societymanagement.society.service
+
+import org.devvikram.societymanagement.common.exception.ConflictException
+import org.devvikram.societymanagement.society.model.Society
+import org.devvikram.societymanagement.society.repository.ComplexRepository
+import org.devvikram.societymanagement.society.repository.SocietyRepository
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
+@Service
+class SocietyService(
+    private val societyRepository: SocietyRepository,
+    private val complexRepository: ComplexRepository,
+) {
+    @Transactional
+    fun createSociety(name: String, address: String? = null, complexId: Long? = null): Society {
+        val complex = complexId?.let {
+            complexRepository.findById(it) ?: throw NoSuchElementException("Complex $it not found")
+        }
+        return societyRepository.save(Society(name = name, address = address, complex = complex))
+    }
+
+    fun getById(id: Long): Society =
+        societyRepository.findById(id) ?: throw NoSuchElementException("Society $id not found")
+
+    fun getAll(): List<Society> = societyRepository.findAll()
+
+    @Transactional
+    fun updateSettings(id: Long, name: String? = null, address: String? = null): Society {
+        val society = getById(id)
+        name?.let { society.name = it }
+        address?.let { society.address = it }
+        return societyRepository.save(society)
+    }
+
+    // Wings, flats and role assignments go with it (ON DELETE CASCADE). Anything with history —
+    // visitors, notices, complaints, staff, parking — blocks the delete instead of being lost.
+    @Transactional
+    fun delete(id: Long) {
+        val society = getById(id)
+        try {
+            societyRepository.delete(society)
+        } catch (e: DataIntegrityViolationException) {
+            throw ConflictException(
+                "Society ${society.name} still has visitors, notices, complaints, staff or parking slots and cannot be deleted"
+            )
+        }
+    }
+}

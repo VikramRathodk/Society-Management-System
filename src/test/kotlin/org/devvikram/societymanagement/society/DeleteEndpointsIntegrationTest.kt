@@ -1,16 +1,16 @@
 package org.devvikram.societymanagement.society
 
-import org.devvikram.societymanagement.security.JwtService
-import org.devvikram.societymanagement.society.application.ComplexService
-import org.devvikram.societymanagement.society.application.FlatService
-import org.devvikram.societymanagement.society.application.SocietyService
-import org.devvikram.societymanagement.society.application.WingService
-import org.devvikram.societymanagement.user.application.UserService
-import org.devvikram.societymanagement.user.application.AssignRoleCommand
-import org.devvikram.societymanagement.user.application.CreateUserCommand
-import org.devvikram.societymanagement.user.domain.User
-import org.devvikram.societymanagement.visitor.application.LogVisitorCommand
-import org.devvikram.societymanagement.visitor.application.VisitorService
+import org.devvikram.societymanagement.auth.security.JwtService
+import org.devvikram.societymanagement.society.service.ComplexService
+import org.devvikram.societymanagement.society.service.FlatService
+import org.devvikram.societymanagement.society.service.SocietyService
+import org.devvikram.societymanagement.society.service.WingService
+import org.devvikram.societymanagement.user.model.User
+import org.devvikram.societymanagement.user.service.AssignRoleCommand
+import org.devvikram.societymanagement.user.service.CreateUserCommand
+import org.devvikram.societymanagement.user.service.UserService
+import org.devvikram.societymanagement.visitor.service.LogVisitorCommand
+import org.devvikram.societymanagement.visitor.service.VisitorService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
