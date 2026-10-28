@@ -2,8 +2,10 @@ package org.devvikram.societymanagement.complaint.service
 
 import org.devvikram.societymanagement.common.exception.ConflictException
 import org.devvikram.societymanagement.complaint.model.Complaint
+import org.devvikram.societymanagement.complaint.model.ComplaintActivity
 import org.devvikram.societymanagement.complaint.model.ComplaintCategory
 import org.devvikram.societymanagement.complaint.model.ComplaintStatus
+import org.devvikram.societymanagement.complaint.repository.ComplaintActivityRepository
 import org.devvikram.societymanagement.complaint.repository.ComplaintRepository
 import org.devvikram.societymanagement.complaint.repository.ComplaintSearch
 import org.devvikram.societymanagement.society.model.Flat
@@ -73,6 +75,21 @@ private class InMemoryComplaintRepository : ComplaintRepository {
     }
 }
 
+private class InMemoryComplaintActivityRepository : ComplaintActivityRepository {
+    val store = mutableListOf<ComplaintActivity>()
+    private var nextId = 1L
+
+    override fun save(activity: ComplaintActivity): ComplaintActivity {
+        if (activity.id == null) activity.id = nextId++
+        if (activity.createdAt == null) activity.createdAt = Instant.now()
+        store += activity
+        return activity
+    }
+
+    override fun findByComplaintId(complaintId: Long): List<ComplaintActivity> =
+        store.filter { it.complaint.id == complaintId }
+}
+
 class ComplaintServiceTest {
 
     private lateinit var complaints: InMemoryComplaintRepository
@@ -88,7 +105,9 @@ class ComplaintServiceTest {
         events = mutableListOf()
         val users = InMemoryUserRepository()
         val flats = InMemoryFlatRepository()
-        service = ComplaintService(complaints, flats, users, ApplicationEventPublisher { events += it })
+        service = ComplaintService(
+            complaints, InMemoryComplaintActivityRepository(), flats, users, ApplicationEventPublisher { events += it },
+        )
 
         val society = Society(name = "Sunrise Apartments").also { it.id = 1L }
         val wing = Wing(society = society, name = "A").also { it.id = 1L }
@@ -110,6 +129,29 @@ class ComplaintServiceTest {
         assertEquals("Kitchen tap leaking", complaint.description)
         assertEquals(resident.id, complaint.raisedBy.id)
         assertNull(complaint.updatedAt)
+        assertEquals(listOf(ComplaintRaised(complaint.id!!, 1L, resident.id!!, "101", ComplaintCategory.PLUMBING)), events)
+        val raised = service.activityOf(complaint.id!!).single()
+        assertNull(raised.fromStatus)
+        assertEquals(ComplaintStatus.OPEN, raised.toStatus)
+        assertEquals(resident.id, raised.actor.id)
+    }
+
+    @Test
+    fun `each status change joins the timeline with its exact previous state and note`() {
+        val id = raise()
+
+        service.changeStatus(id, ComplaintStatus.RESOLVED, committee.id!!, "  Replaced the washer  ")
+        service.changeStatus(id, ComplaintStatus.OPEN, committee.id!!, "Still dripping")
+        service.changeStatus(id, ComplaintStatus.IN_PROGRESS, committee.id!!, "   ")
+
+        val timeline = service.activityOf(id)
+        assertEquals(
+            listOf(null to ComplaintStatus.OPEN, ComplaintStatus.OPEN to ComplaintStatus.RESOLVED,
+                ComplaintStatus.RESOLVED to ComplaintStatus.OPEN, ComplaintStatus.OPEN to ComplaintStatus.IN_PROGRESS),
+            timeline.map { it.fromStatus to it.toStatus },
+        )
+        assertEquals(listOf(null, "Replaced the washer", "Still dripping", null), timeline.map { it.note })
+        assertEquals("Replaced the washer", events.filterIsInstance<ComplaintStatusChanged>().first().note)
     }
 
     @Test

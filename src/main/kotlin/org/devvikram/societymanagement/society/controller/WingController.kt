@@ -1,14 +1,17 @@
 package org.devvikram.societymanagement.society.controller
 
 import jakarta.validation.Valid
+import org.devvikram.societymanagement.authorization.Access
 import org.devvikram.societymanagement.authorization.AccessService
 import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.society.dto.CreateWingRequest
 import org.devvikram.societymanagement.society.dto.RenameWingRequest
 import org.devvikram.societymanagement.society.dto.WingResponse
+import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.WingService
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -18,10 +21,12 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-// Every action is checked against the society the wing belongs to.
+// Every action is checked against the society the wing belongs to. Society-wide roles see every wing;
+// flat-tied roles (RESIDENT) see only the wings their own flats are in.
 @RestController
 class WingController(
     private val wingService: WingService,
+    private val flatService: FlatService,
     private val accessService: AccessService,
 ) {
 
@@ -36,14 +41,23 @@ class WingController(
     @GetMapping("/api/societies/{societyId}/wings")
     @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun listBySociety(@PathVariable societyId: Long): List<WingResponse> {
-        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, societyId)
-        return wingService.listBySociety(societyId).map(WingResponse::from)
+        val access = accessService.current()
+        access.requireIn(Permissions.FLAT_DIRECTORY_VIEW, societyId)
+        val wings = wingService.listBySociety(societyId)
+        if (access.canSocietyWide(Permissions.FLAT_DIRECTORY_VIEW, societyId)) return wings.map(WingResponse::from)
+        val own = ownWingIds(access)
+        return wings.filter { it.id in own }.map(WingResponse::from)
     }
 
     @GetMapping("/api/wings/{id}")
     @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun getById(@PathVariable id: Long): WingResponse {
-        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, wingService.societyIdOf(id))
+        val access = accessService.current()
+        val societyId = wingService.societyIdOf(id)
+        access.requireIn(Permissions.FLAT_DIRECTORY_VIEW, societyId)
+        if (!access.canSocietyWide(Permissions.FLAT_DIRECTORY_VIEW, societyId) && id !in ownWingIds(access)) {
+            throw AccessDeniedException("You can only see your own wing")
+        }
         return WingResponse.from(wingService.getById(id))
     }
 
@@ -61,4 +75,7 @@ class WingController(
         accessService.current().requireIn(Permissions.FLAT_STRUCTURE_DELETE, wingService.societyIdOf(id))
         wingService.deleteWing(id)
     }
+
+    private fun ownWingIds(access: Access): Set<Long> =
+        access.flatsWith(Permissions.FLAT_DIRECTORY_VIEW).map { flatService.getById(it).wing.id!! }.toSet()
 }

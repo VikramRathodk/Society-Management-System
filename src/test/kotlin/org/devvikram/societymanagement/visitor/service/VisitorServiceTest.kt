@@ -59,7 +59,10 @@ private class InMemoryVisitorEntryRepository : VisitorEntryRepository {
     override fun search(search: VisitorSearch): List<VisitorEntry> = store.values.filter {
         it.society.id == search.societyId &&
             (search.flatIds == null || it.flat.id in search.flatIds) &&
-            (search.status == null || it.status == search.status)
+            (search.status == null || it.status == search.status) &&
+            (search.loggedByOrActive == null || it.loggedBy.id == search.loggedByOrActive || it.status in VisitorStatus.ACTIVE) &&
+            (search.loggedFrom == null || !it.loggedAt!!.isBefore(search.loggedFrom)) &&
+            (search.loggedTo == null || it.loggedAt!!.isBefore(search.loggedTo))
     }
 
     override fun respond(id: Long, decision: VisitorStatus, responder: User, asOverride: Boolean, at: Instant): Boolean =

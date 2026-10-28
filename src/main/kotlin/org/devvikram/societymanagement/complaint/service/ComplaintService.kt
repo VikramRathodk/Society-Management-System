@@ -2,8 +2,10 @@ package org.devvikram.societymanagement.complaint.service
 
 import org.devvikram.societymanagement.common.exception.ConflictException
 import org.devvikram.societymanagement.complaint.model.Complaint
+import org.devvikram.societymanagement.complaint.model.ComplaintActivity
 import org.devvikram.societymanagement.complaint.model.ComplaintCategory
 import org.devvikram.societymanagement.complaint.model.ComplaintStatus
+import org.devvikram.societymanagement.complaint.repository.ComplaintActivityRepository
 import org.devvikram.societymanagement.complaint.repository.ComplaintRepository
 import org.devvikram.societymanagement.complaint.repository.ComplaintSearch
 import org.devvikram.societymanagement.society.repository.FlatRepository
@@ -31,6 +33,7 @@ data class UpdateComplaintCommand(
 @Service
 class ComplaintService(
     private val complaintRepository: ComplaintRepository,
+    private val activityRepository: ComplaintActivityRepository,
     private val flatRepository: FlatRepository,
     private val userRepository: UserRepository,
     private val events: ApplicationEventPublisher,
@@ -49,6 +52,10 @@ class ComplaintService(
                 description = command.description.trim(),
                 raisedBy = raiser,
             )
+        )
+        activityRepository.save(ComplaintActivity(complaint, fromStatus = null, toStatus = complaint.status, actor = raiser))
+        events.publishEvent(
+            ComplaintRaised(complaint.id!!, flat.wing.society.id!!, raiser.id!!, flat.flatNumber, complaint.category)
         )
         return complaint.id!!
     }
@@ -76,22 +83,28 @@ class ComplaintService(
         complaintRepository.delete(complaint)
     }
 
-    // Moves the complaint to `to` if it is in a state that allows it. The conditional update makes the
-    // check and the change one step, so concurrent moves can't both apply.
+    // Moves the complaint to `to` if its current state allows it, recording the step and its note. The
+    // conditional update applies only while the complaint is still in the state just read, so concurrent
+    // moves can't both apply and the timeline's fromStatus is exact.
     @Transactional
-    fun changeStatus(id: Long, to: ComplaintStatus, actorId: Long) {
-        val from = ALLOWED_FROM[to] ?: throw IllegalArgumentException("A complaint cannot be moved to $to")
+    fun changeStatus(id: Long, to: ComplaintStatus, actorId: Long, note: String? = null) {
+        val allowedFrom = ALLOWED_FROM[to] ?: throw IllegalArgumentException("A complaint cannot be moved to $to")
         val actor = userRepository.findById(actorId) ?: throw NoSuchElementException("User $actorId not found")
-        if (!complaintRepository.changeStatus(id, from, to, actor, Instant.now())) {
+        val from = getById(id).status
+        if (from !in allowedFrom || !complaintRepository.changeStatus(id, setOf(from), to, actor, Instant.now())) {
             throw ConflictException("Complaint is ${getById(id).status}; it cannot be moved to $to")
         }
         val complaint = getById(id)
+        val cleanNote = note?.trim()?.ifEmpty { null }
+        activityRepository.save(ComplaintActivity(complaint, fromStatus = from, toStatus = to, note = cleanNote, actor = actor))
         events.publishEvent(
             ComplaintStatusChanged(
-                complaint.id!!, complaint.raisedBy.id!!, actor.id!!, complaint.category, to, actor.name,
+                complaint.id!!, complaint.raisedBy.id!!, actor.id!!, complaint.category, to, actor.name, cleanNote,
             )
         )
     }
+
+    fun activityOf(id: Long): List<ComplaintActivity> = activityRepository.findByComplaintId(getById(id).id!!)
 
     fun getById(id: Long): Complaint =
         complaintRepository.findById(id) ?: throw NoSuchElementException("Complaint $id not found")

@@ -2,38 +2,56 @@ package org.devvikram.societymanagement.complaint
 
 import org.devvikram.societymanagement.auth.security.JwtService
 import org.devvikram.societymanagement.complaint.model.ComplaintCategory
+import org.devvikram.societymanagement.complaint.model.ComplaintStatus
+import org.devvikram.societymanagement.complaint.service.ComplaintNotificationListener
+import org.devvikram.societymanagement.complaint.service.ComplaintRaised
 import org.devvikram.societymanagement.complaint.service.ComplaintService
 import org.devvikram.societymanagement.complaint.service.RaiseComplaintCommand
+import org.devvikram.societymanagement.notification.PushNotifier
 import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.SocietyService
 import org.devvikram.societymanagement.society.service.WingService
 import org.devvikram.societymanagement.user.model.User
 import org.devvikram.societymanagement.user.service.AssignRoleCommand
 import org.devvikram.societymanagement.user.service.CreateUserCommand
+import org.devvikram.societymanagement.user.service.UpdateProfileCommand
 import org.devvikram.societymanagement.user.service.UserService
+import org.hamcrest.Matchers.containsString
+import org.hamcrest.Matchers.startsWith
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 // Who may do what with complaints, end to end through the controller. Same setup as VisitorIntegrationTest:
 // real local Postgres with seeded roles, rolled back after each test.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@Import(ComplaintIntegrationTest.RecordingPushConfig::class)
 class ComplaintIntegrationTest {
 
     @Autowired lateinit var mockMvc: MockMvc
+    @Autowired lateinit var notificationListener: ComplaintNotificationListener
+    @Autowired lateinit var pushNotifier: RecordingPushNotifier
     @Autowired lateinit var jwtService: JwtService
     @Autowired lateinit var userService: UserService
     @Autowired lateinit var societyService: SocietyService
@@ -199,5 +217,97 @@ class ComplaintIntegrationTest {
         patchAs(resident, id, """{"description":"Too late"}""").andExpect(status().isConflict)
         mockMvc.perform(delete("/api/complaints/$id").header("Authorization", bearer(resident)))
             .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `status notes build a timeline the flat's residents can read`() {
+        val id = complaintBy(resident)
+
+        mockMvc.perform(
+            post("/api/complaints/$id/resolve").header("Authorization", bearer(committee))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"note":"Plumber replaced the washer"}""")
+        ).andExpect(status().isOk)
+        actAs(committee, id, "close").andExpect(status().isOk)
+
+        mockMvc.perform(get("/api/complaints/$id/activity").header("Authorization", bearer(flatmate)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(3))
+            .andExpect(jsonPath("$[0].fromStatus").doesNotExist())
+            .andExpect(jsonPath("$[0].toStatus").value("OPEN"))
+            .andExpect(jsonPath("$[0].actorId").value(resident.id!!))
+            .andExpect(jsonPath("$[1].toStatus").value("RESOLVED"))
+            .andExpect(jsonPath("$[1].note").value("Plumber replaced the washer"))
+            .andExpect(jsonPath("$[1].actorName").value("COMMITTEE user"))
+            .andExpect(jsonPath("$[2].fromStatus").value("RESOLVED"))
+            .andExpect(jsonPath("$[2].note").doesNotExist())
+        mockMvc.perform(get("/api/complaints/$id/activity").header("Authorization", bearer(neighbour)))
+            .andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `withdrawing a complaint removes its timeline too`() {
+        val id = complaintBy(resident)
+        complaintService.changeStatus(id, ComplaintStatus.IN_PROGRESS, committee.id!!, "On it")
+
+        mockMvc.perform(delete("/api/complaints/$id").header("Authorization", bearer(resident)))
+            .andExpect(status().isNoContent)
+        mockMvc.perform(get("/api/complaints/$id/activity").header("Authorization", bearer(committee)))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `the committee exports complaints as CSV, residents cannot`() {
+        complaintBy(resident)
+        val today = LocalDate.now(ZoneId.of("Asia/Kolkata")).toString()
+        fun exportAs(user: User) = mockMvc.perform(
+            get("/api/complaints/export").param("societyId", societyId.toString()).param("from", today).param("to", today)
+                .header("Authorization", bearer(user))
+        )
+
+        exportAs(committee)
+            .andExpect(status().isOk)
+            .andExpect(content().contentType("text/csv;charset=UTF-8"))
+            .andExpect(content().string(startsWith("id,wing,flat,category,description,status,")))
+            .andExpect(content().string(containsString(",A,101,PLUMBING,Kitchen tap leaking,OPEN,")))
+        listOf(resident, guard, outsideCommittee).forEach { exportAs(it).andExpect(status().isForbidden) }
+    }
+
+    @Test
+    fun `a new complaint alerts the society's committee, not residents, guards or the raiser`() {
+        deviceOf(committee, "committee-token")
+        deviceOf(guard, "guard-token")
+        deviceOf(flatmate, "flatmate-token")
+        deviceOf(outsideCommittee, "outside-token")
+        val raisingCommittee = deviceOf(user("COMMITTEE"), "raiser-token")
+        pushNotifier.sent.clear()
+
+        notificationListener.onRaised(
+            ComplaintRaised(1L, societyId, raisingCommittee.id!!, "101", ComplaintCategory.PLUMBING)
+        )
+
+        val push = pushNotifier.sent.single()
+        assertEquals(listOf("committee-token"), push.tokens.toList())
+        assertEquals("New complaint", push.title)
+        assertEquals("plumbing complaint from flat 101", push.body)
+    }
+
+    private fun deviceOf(user: User, token: String): User =
+        userService.updateProfile(user.id!!, UpdateProfileCommand(fcmToken = token))
+
+    @TestConfiguration
+    class RecordingPushConfig {
+        @Bean
+        @Primary
+        fun recordingPushNotifier() = RecordingPushNotifier()
+    }
+
+    class RecordingPushNotifier : PushNotifier {
+        data class Push(val tokens: Collection<String>, val title: String, val body: String)
+
+        val sent = mutableListOf<Push>()
+
+        override fun send(tokens: Collection<String>, title: String, body: String, data: Map<String, String>) {
+            sent += Push(tokens, title, body)
+        }
     }
 }

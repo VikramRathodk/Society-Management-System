@@ -112,7 +112,13 @@ class SecurityIntegrationTest {
 
     @Test
     fun `structure endpoints are permission-gated`() {
-        mockMvc.perform(get("/api/wings/999999").header("Authorization", bearer(guard)))
+        // A guard of another society holds the directory permission, but not in this society.
+        val wingId = wingService.listBySociety(societyId).single().id!!
+        mockMvc.perform(get("/api/wings/$wingId").header("Authorization", bearer(outsider)))
+            .andExpect(status().isForbidden)
+        // Without any structure permission, the gate stops the request before the service.
+        mockMvc.perform(patch("/api/wings/999999").header("Authorization", bearer(guard))
+            .contentType(MediaType.APPLICATION_JSON).content("""{"name":"B"}"""))
             .andExpect(status().isForbidden)
         // Admin passes the gate and reaches the service, which 404s on the unknown id.
         mockMvc.perform(get("/api/wings/999999").header("Authorization", bearer(admin)))

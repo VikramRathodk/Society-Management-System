@@ -6,10 +6,15 @@ import org.devvikram.societymanagement.visitor.model.VisitorStatus
 import java.time.Instant
 
 // flatIds == null means every flat in the society; an empty set matches nothing.
+// loggedByOrActive: only entries logged by this user or still active (a guard's view of the gate log).
+// loggedFrom (inclusive) / loggedTo (exclusive) bound loggedAt, for reports.
 data class VisitorSearch(
     val societyId: Long,
     val flatIds: Set<Long>? = null,
     val status: VisitorStatus? = null,
+    val loggedByOrActive: Long? = null,
+    val loggedFrom: Instant? = null,
+    val loggedTo: Instant? = null,
     val page: Int = 0,
     val size: Int = 20,
 )

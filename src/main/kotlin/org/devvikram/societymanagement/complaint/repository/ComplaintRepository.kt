@@ -7,11 +7,14 @@ import org.devvikram.societymanagement.user.model.User
 import java.time.Instant
 
 // flatIds == null means every flat in the society; an empty set matches nothing.
+// createdFrom (inclusive) / createdTo (exclusive) bound createdAt, for reports.
 data class ComplaintSearch(
     val societyId: Long,
     val flatIds: Set<Long>? = null,
     val status: ComplaintStatus? = null,
     val category: ComplaintCategory? = null,
+    val createdFrom: Instant? = null,
+    val createdTo: Instant? = null,
     val page: Int = 0,
     val size: Int = 20,
 )
@@ -24,5 +27,6 @@ interface ComplaintRepository {
     fun findById(id: Long): Complaint?
     fun search(search: ComplaintSearch): List<Complaint>
     fun changeStatus(id: Long, from: Set<ComplaintStatus>, to: ComplaintStatus, by: User, at: Instant): Boolean
+    // Removes the complaint and its timeline.
     fun delete(complaint: Complaint)
 }

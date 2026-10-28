@@ -12,7 +12,9 @@ import org.devvikram.societymanagement.visitor.model.VisitorStatus
 import org.devvikram.societymanagement.visitor.repository.VisitorSearch
 import org.devvikram.societymanagement.visitor.service.LogVisitorCommand
 import org.devvikram.societymanagement.visitor.service.VisitorService
+import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.endsWith
+import org.hamcrest.Matchers.startsWith
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -25,9 +27,12 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 // Who may do what with visitors, end to end through the controller. Same setup as SecurityIntegrationTest:
 // real local Postgres with seeded roles, rolled back after each test.
@@ -144,7 +149,7 @@ class VisitorIntegrationTest {
     }
 
     @Test
-    fun `residents see only their own flat's visitors while guards see the whole society`() {
+    fun `residents see only their own flat's visitors while the logging guard sees both`() {
         val own = visitorFor(flatId)
         val others = visitorFor(otherFlatId)
 
@@ -239,5 +244,65 @@ class VisitorIntegrationTest {
             .andExpect(status().isNoContent)
         mockMvc.perform(get("/api/visitors/$id").header("Authorization", bearer(admin)))
             .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `another guard sees active entries but not finished ones they didn't log, the committee sees all`() {
+        val active = visitorFor(flatId)
+        val finished = visitorFor(otherFlatId)
+        visitorService.respond(finished, VisitorStatus.REJECTED, neighbour.id!!)
+        val nextShift = user("GUARD")
+
+        mockMvc.perform(get("/api/visitors").param("societyId", societyId.toString()).header("Authorization", bearer(nextShift)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].id").value(active))
+        mockMvc.perform(get("/api/visitors/$active").header("Authorization", bearer(nextShift)))
+            .andExpect(status().isOk)
+        mockMvc.perform(get("/api/visitors/$finished").header("Authorization", bearer(nextShift)))
+            .andExpect(status().isForbidden)
+
+        // The guard who logged it still sees it once finished.
+        mockMvc.perform(get("/api/visitors/$finished").header("Authorization", bearer(guard)))
+            .andExpect(status().isOk)
+        listOf(committee, secretary).forEach {
+            mockMvc.perform(get("/api/visitors").param("societyId", societyId.toString()).header("Authorization", bearer(it)))
+                .andExpect(jsonPath("$.length()").value(2))
+        }
+    }
+
+    @Test
+    fun `the committee exports the gate log as CSV, guards and residents cannot`() {
+        visitorFor(flatId)
+        val today = LocalDate.now(ZoneId.of("Asia/Kolkata")).toString()
+
+        mockMvc.perform(
+            get("/api/visitors/export").param("societyId", societyId.toString()).param("from", today).param("to", today)
+                .header("Authorization", bearer(committee))
+        )
+            .andExpect(status().isOk)
+            .andExpect(content().contentType("text/csv;charset=UTF-8"))
+            .andExpect(header().string("Content-Disposition", containsString("attachment")))
+            .andExpect(content().string(startsWith("id,wing,flat,visitor,")))
+            .andExpect(content().string(containsString(",A,101,Courier,")))
+
+        listOf(guard, resident, outsideSecretary).forEach {
+            mockMvc.perform(
+                get("/api/visitors/export").param("societyId", societyId.toString()).param("from", today).param("to", today)
+                    .header("Authorization", bearer(it))
+            ).andExpect(status().isForbidden)
+        }
+    }
+
+    @Test
+    fun `an export range must be ordered and at most a year`() {
+        fun export(from: String, to: String) = mockMvc.perform(
+            get("/api/visitors/export").param("societyId", societyId.toString()).param("from", from).param("to", to)
+                .header("Authorization", bearer(committee))
+        )
+        export("2026-10-10", "2026-10-01").andExpect(status().isBadRequest)
+        export("2025-01-01", "2026-10-01").andExpect(status().isBadRequest)
+        export("not-a-date", "2026-10-01").andExpect(status().isBadRequest)
+        export("2025-10-02", "2026-10-01").andExpect(status().isOk)
     }
 }

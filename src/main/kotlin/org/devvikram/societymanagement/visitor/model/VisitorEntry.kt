@@ -20,7 +20,14 @@ import java.time.Instant
 // PENDING → APPROVED | REJECTED (a resident of the flat responds, or a society authority overrides;
 // first response wins)
 // APPROVED → ENTERED → EXITED (marked by gate security). PENDING never expires on its own.
-enum class VisitorStatus { PENDING, APPROVED, REJECTED, ENTERED, EXITED }
+enum class VisitorStatus {
+    PENDING, APPROVED, REJECTED, ENTERED, EXITED;
+
+    companion object {
+        // Still needs action at the gate (answer, entry or exit).
+        val ACTIVE: Set<VisitorStatus> = setOf(PENDING, APPROVED, ENTERED)
+    }
+}
 
 @Entity
 @Table(name = "visitor_entry")

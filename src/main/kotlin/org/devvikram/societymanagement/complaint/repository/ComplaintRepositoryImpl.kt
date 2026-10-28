@@ -25,9 +25,11 @@ class ComplaintRepositoryImpl(
             if (search.flatIds != null) add("c.flat.id in :flatIds")
             if (search.status != null) add("c.status = :status")
             if (search.category != null) add("c.category = :category")
+            if (search.createdFrom != null) add("c.createdAt >= :createdFrom")
+            if (search.createdTo != null) add("c.createdAt < :createdTo")
         }
         val query = entityManager.createQuery(
-            "select c from Complaint c join fetch c.society join fetch c.flat join fetch c.raisedBy " +
+            "select c from Complaint c join fetch c.society join fetch c.flat f join fetch f.wing join fetch c.raisedBy " +
                 "left join fetch c.updatedBy where ${filters.joinToString(" and ")} " +
                 "order by c.createdAt desc, c.id desc",
             Complaint::class.java,
@@ -36,11 +38,15 @@ class ComplaintRepositoryImpl(
         search.flatIds?.let { query.setParameter("flatIds", it) }
         search.status?.let { query.setParameter("status", it) }
         search.category?.let { query.setParameter("category", it) }
+        search.createdFrom?.let { query.setParameter("createdFrom", it) }
+        search.createdTo?.let { query.setParameter("createdTo", it) }
         return query.setFirstResult(search.page * search.size).setMaxResults(search.size).resultList
     }
 
     override fun changeStatus(id: Long, from: Set<ComplaintStatus>, to: ComplaintStatus, by: User, at: Instant): Boolean =
         complaintJpaRepository.changeStatus(id, from, to, by, at) == 1
 
-    override fun delete(complaint: Complaint) = complaintJpaRepository.delete(complaint)
+    override fun delete(complaint: Complaint) {
+        complaintJpaRepository.deleteDirectly(complaint.id!!)
+    }
 }

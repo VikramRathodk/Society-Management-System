@@ -16,6 +16,12 @@ interface ComplaintJpaRepository : JpaRepository<Complaint, Long> {
     )
     fun findWithDetailsById(@Param("id") id: Long): Complaint?
 
+    // A single statement so Postgres cascades the timeline (complaint_activity ON DELETE CASCADE)
+    // instead of the persistence context deciding.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from Complaint c where c.id = :id")
+    fun deleteDirectly(@Param("id") id: Long): Int
+
     // clearAutomatically: the update bypasses the persistence context, so drop stale copies of the complaint.
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(

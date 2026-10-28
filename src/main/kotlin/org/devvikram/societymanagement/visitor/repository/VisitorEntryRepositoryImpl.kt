@@ -24,9 +24,12 @@ class VisitorEntryRepositoryImpl(
             add("e.society.id = :societyId")
             if (search.flatIds != null) add("e.flat.id in :flatIds")
             if (search.status != null) add("e.status = :status")
+            if (search.loggedByOrActive != null) add("(e.loggedBy.id = :viewerId or e.status in :activeStatuses)")
+            if (search.loggedFrom != null) add("e.loggedAt >= :loggedFrom")
+            if (search.loggedTo != null) add("e.loggedAt < :loggedTo")
         }
         val query = entityManager.createQuery(
-            "select e from VisitorEntry e join fetch e.society join fetch e.flat join fetch e.loggedBy " +
+            "select e from VisitorEntry e join fetch e.society join fetch e.flat f join fetch f.wing join fetch e.loggedBy " +
                 "left join fetch e.respondedBy where ${filters.joinToString(" and ")} " +
                 "order by e.loggedAt desc, e.id desc",
             VisitorEntry::class.java,
@@ -34,6 +37,12 @@ class VisitorEntryRepositoryImpl(
         query.setParameter("societyId", search.societyId)
         search.flatIds?.let { query.setParameter("flatIds", it) }
         search.status?.let { query.setParameter("status", it) }
+        search.loggedByOrActive?.let {
+            query.setParameter("viewerId", it)
+            query.setParameter("activeStatuses", VisitorStatus.ACTIVE)
+        }
+        search.loggedFrom?.let { query.setParameter("loggedFrom", it) }
+        search.loggedTo?.let { query.setParameter("loggedTo", it) }
         return query.setFirstResult(search.page * search.size).setMaxResults(search.size).resultList
     }
 

@@ -10,6 +10,7 @@ import org.devvikram.societymanagement.society.dto.UpdateFlatRequest
 import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.WingService
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -19,7 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-// Every action is checked against the society the flat (or its wing) belongs to.
+// Every action is checked against the society the flat (or its wing) belongs to. Society-wide roles see
+// every flat; flat-tied roles (RESIDENT) see only their own.
 @RestController
 class FlatController(
     private val flatService: FlatService,
@@ -38,14 +40,24 @@ class FlatController(
     @GetMapping("/api/wings/{wingId}/flats")
     @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun listByWing(@PathVariable wingId: Long): List<FlatResponse> {
-        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, wingService.societyIdOf(wingId))
-        return flatService.listByWing(wingId).map(FlatResponse::from)
+        val access = accessService.current()
+        val societyId = wingService.societyIdOf(wingId)
+        access.requireIn(Permissions.FLAT_DIRECTORY_VIEW, societyId)
+        val flats = flatService.listByWing(wingId)
+        if (access.canSocietyWide(Permissions.FLAT_DIRECTORY_VIEW, societyId)) return flats.map(FlatResponse::from)
+        val own = access.flatsWith(Permissions.FLAT_DIRECTORY_VIEW)
+        return flats.filter { it.id in own }.map(FlatResponse::from)
     }
 
     @GetMapping("/api/flats/{id}")
     @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun getById(@PathVariable id: Long): FlatResponse {
-        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, flatService.societyIdOf(id))
+        val access = accessService.current()
+        val societyId = flatService.societyIdOf(id)
+        access.requireIn(Permissions.FLAT_DIRECTORY_VIEW, societyId)
+        if (!access.canOnFlat(Permissions.FLAT_DIRECTORY_VIEW, societyId, id)) {
+            throw AccessDeniedException("You can only see your own flat")
+        }
         return FlatResponse.from(flatService.getById(id))
     }
 
