@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.society.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.society.dto.ComplexResponse
 import org.devvikram.societymanagement.society.dto.CreateComplexRequest
@@ -29,39 +30,39 @@ class ComplexController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("COMPLEX.SETTINGS.UPDATE")
+    @RequiresPermission(Permissions.COMPLEX_SETTINGS_UPDATE)
     fun create(@Valid @RequestBody request: CreateComplexRequest): ComplexResponse {
-        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.UPDATE")
+        accessService.current().requireOnPlatform(Permissions.COMPLEX_SETTINGS_UPDATE)
         return ComplexResponse.from(complexService.createComplex(request.name, request.address))
     }
 
     @GetMapping("/{id}")
-    @RequiresPermission("COMPLEX.SETTINGS.VIEW")
+    @RequiresPermission(Permissions.COMPLEX_SETTINGS_VIEW)
     fun getById(@PathVariable id: Long): ComplexResponse {
-        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.VIEW")
+        accessService.current().requireOnPlatform(Permissions.COMPLEX_SETTINGS_VIEW)
         return ComplexResponse.from(complexService.getById(id))
     }
 
     @GetMapping
-    @RequiresPermission("COMPLEX.SETTINGS.VIEW")
+    @RequiresPermission(Permissions.COMPLEX_SETTINGS_VIEW)
     fun getAll(): List<ComplexResponse> {
-        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.VIEW")
+        accessService.current().requireOnPlatform(Permissions.COMPLEX_SETTINGS_VIEW)
         return complexService.getAll().map(ComplexResponse::from)
     }
 
     @PatchMapping("/{id}")
-    @RequiresPermission("COMPLEX.SETTINGS.UPDATE")
+    @RequiresPermission(Permissions.COMPLEX_SETTINGS_UPDATE)
     fun update(@PathVariable id: Long, @RequestBody request: UpdateComplexRequest): ComplexResponse {
-        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.UPDATE")
+        accessService.current().requireOnPlatform(Permissions.COMPLEX_SETTINGS_UPDATE)
         return ComplexResponse.from(complexService.updateSettings(id, request.name, request.address))
     }
 
     // Refused with 409 while any society belongs to the complex.
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("COMPLEX.SETTINGS.DELETE")
+    @RequiresPermission(Permissions.COMPLEX_SETTINGS_DELETE)
     fun delete(@PathVariable id: Long) {
-        accessService.current().requireOnPlatform("COMPLEX.SETTINGS.DELETE")
+        accessService.current().requireOnPlatform(Permissions.COMPLEX_SETTINGS_DELETE)
         complexService.delete(id)
     }
 }

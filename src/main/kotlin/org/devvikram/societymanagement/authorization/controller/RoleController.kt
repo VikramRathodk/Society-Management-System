@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.authorization.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.authorization.dto.AssignableRoleResponse
 import org.devvikram.societymanagement.authorization.dto.CreateRoleRequest
@@ -37,16 +38,16 @@ class RoleController(
 ) {
 
     @GetMapping("/api/permissions")
-    @RequiresPermission("SYSTEM.PERMISSION.VIEW")
+    @RequiresPermission(Permissions.SYSTEM_PERMISSION_VIEW)
     fun permissions(): List<PermissionResponse> {
-        accessService.current().requireOnPlatform("SYSTEM.PERMISSION.VIEW")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_PERMISSION_VIEW)
         return roleService.getAllPermissions().map(PermissionResponse::from)
     }
 
     @GetMapping("/api/roles")
-    @RequiresPermission("SYSTEM.ROLE.VIEW")
+    @RequiresPermission(Permissions.SYSTEM_ROLE_VIEW)
     fun getAll(): List<RoleResponse> {
-        accessService.current().requireOnPlatform("SYSTEM.ROLE.VIEW")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_ROLE_VIEW)
         return roleService.getAll().map(::response)
     }
 
@@ -57,22 +58,22 @@ class RoleController(
         val access = accessService.current()
         return roleService.getAll()
             .filter { (if (societyId == null) it.scopeLevel == RoleScope.PLATFORM else it.scopeLevel == RoleScope.SOCIETY) }
-            .filter { access.canGrant("USER.ROLE.ASSIGN", it.code, societyId) }
+            .filter { access.canGrant(Permissions.USER_ROLE_ASSIGN, it.code, societyId) }
             .map { AssignableRoleResponse(it.code, it.name, it.scopeLevel, it.requiresFlat) }
     }
 
     @GetMapping("/api/roles/{code}")
-    @RequiresPermission("SYSTEM.ROLE.VIEW")
+    @RequiresPermission(Permissions.SYSTEM_ROLE_VIEW)
     fun getByCode(@PathVariable code: String): RoleResponse {
-        accessService.current().requireOnPlatform("SYSTEM.ROLE.VIEW")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_ROLE_VIEW)
         return response(roleService.getByCode(code))
     }
 
     @PostMapping("/api/roles")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("SYSTEM.ROLE.CREATE")
+    @RequiresPermission(Permissions.SYSTEM_ROLE_CREATE)
     fun create(@Valid @RequestBody request: CreateRoleRequest): RoleResponse {
-        accessService.current().requireOnPlatform("SYSTEM.ROLE.CREATE")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_ROLE_CREATE)
         val role = roleService.create(
             CreateRoleCommand(
                 code = request.code,
@@ -89,34 +90,34 @@ class RoleController(
     }
 
     @PatchMapping("/api/roles/{code}")
-    @RequiresPermission("SYSTEM.ROLE.UPDATE")
+    @RequiresPermission(Permissions.SYSTEM_ROLE_UPDATE)
     fun update(@PathVariable code: String, @RequestBody request: UpdateRoleRequest): RoleResponse {
-        accessService.current().requireOnPlatform("SYSTEM.ROLE.UPDATE")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_ROLE_UPDATE)
         roleService.update(code, request.name, request.description)
         return response(roleService.getByCode(code))
     }
 
     @PutMapping("/api/roles/{code}/permissions")
-    @RequiresPermission("SYSTEM.PERMISSION.UPDATE")
+    @RequiresPermission(Permissions.SYSTEM_PERMISSION_UPDATE)
     fun setPermissions(@PathVariable code: String, @RequestBody request: SetPermissionsRequest): RoleResponse {
-        accessService.current().requireOnPlatform("SYSTEM.PERMISSION.UPDATE")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_PERMISSION_UPDATE)
         roleService.setPermissions(code, request.permissions)
         return response(roleService.getByCode(code))
     }
 
     @PutMapping("/api/roles/{code}/inherits")
-    @RequiresPermission("SYSTEM.ROLE.UPDATE")
+    @RequiresPermission(Permissions.SYSTEM_ROLE_UPDATE)
     fun setInherits(@PathVariable code: String, @RequestBody request: SetInheritsRequest): RoleResponse {
-        accessService.current().requireOnPlatform("SYSTEM.ROLE.UPDATE")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_ROLE_UPDATE)
         roleService.setInherits(code, request.inherits)
         return response(roleService.getByCode(code))
     }
 
     @DeleteMapping("/api/roles/{code}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("SYSTEM.ROLE.DELETE")
+    @RequiresPermission(Permissions.SYSTEM_ROLE_DELETE)
     fun delete(@PathVariable code: String) {
-        accessService.current().requireOnPlatform("SYSTEM.ROLE.DELETE")
+        accessService.current().requireOnPlatform(Permissions.SYSTEM_ROLE_DELETE)
         roleService.delete(code)
     }
 

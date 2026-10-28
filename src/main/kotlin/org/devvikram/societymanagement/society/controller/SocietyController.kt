@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.society.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.society.dto.CreateSocietyRequest
 import org.devvikram.societymanagement.society.dto.SocietyResponse
@@ -29,41 +30,41 @@ class SocietyController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("SOCIETY.SETTINGS.CREATE")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_CREATE)
     fun create(@Valid @RequestBody request: CreateSocietyRequest): SocietyResponse {
-        accessService.current().requireOnPlatform("SOCIETY.SETTINGS.CREATE")
+        accessService.current().requireOnPlatform(Permissions.SOCIETY_SETTINGS_CREATE)
         return SocietyResponse.from(societyService.createSociety(request.name, request.address, request.complexId))
     }
 
     @GetMapping("/{id}")
-    @RequiresPermission("SOCIETY.SETTINGS.VIEW")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_VIEW)
     fun getById(@PathVariable id: Long): SocietyResponse {
-        accessService.current().requireIn("SOCIETY.SETTINGS.VIEW", id)
+        accessService.current().requireIn(Permissions.SOCIETY_SETTINGS_VIEW, id)
         return SocietyResponse.from(societyService.getById(id))
     }
 
     @GetMapping
-    @RequiresPermission("SOCIETY.SETTINGS.VIEW")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_VIEW)
     fun getAll(): List<SocietyResponse> {
-        val visible = accessService.current().societiesWith("SOCIETY.SETTINGS.VIEW")
+        val visible = accessService.current().societiesWith(Permissions.SOCIETY_SETTINGS_VIEW)
         return societyService.getAll()
             .filter { visible == null || it.id in visible }
             .map(SocietyResponse::from)
     }
 
     @PatchMapping("/{id}")
-    @RequiresPermission("SOCIETY.SETTINGS.UPDATE")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_UPDATE)
     fun update(@PathVariable id: Long, @RequestBody request: UpdateSocietyRequest): SocietyResponse {
-        accessService.current().requireIn("SOCIETY.SETTINGS.UPDATE", id)
+        accessService.current().requireIn(Permissions.SOCIETY_SETTINGS_UPDATE, id)
         return SocietyResponse.from(societyService.updateSettings(id, request.name, request.address))
     }
 
     // Platform-only, like create. Refused with 409 while the society has history (see SocietyService.delete).
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("SOCIETY.SETTINGS.DELETE")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_DELETE)
     fun delete(@PathVariable id: Long) {
-        accessService.current().requireOnPlatform("SOCIETY.SETTINGS.DELETE")
+        accessService.current().requireOnPlatform(Permissions.SOCIETY_SETTINGS_DELETE)
         societyService.delete(id)
     }
 }

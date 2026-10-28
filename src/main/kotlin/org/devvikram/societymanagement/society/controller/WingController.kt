@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.society.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.society.dto.CreateWingRequest
 import org.devvikram.societymanagement.society.dto.RenameWingRequest
@@ -26,38 +27,38 @@ class WingController(
 
     @PostMapping("/api/societies/{societyId}/wings")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("FLAT.STRUCTURE.CREATE")
+    @RequiresPermission(Permissions.FLAT_STRUCTURE_CREATE)
     fun addWing(@PathVariable societyId: Long, @Valid @RequestBody request: CreateWingRequest): WingResponse {
-        accessService.current().requireIn("FLAT.STRUCTURE.CREATE", societyId)
+        accessService.current().requireIn(Permissions.FLAT_STRUCTURE_CREATE, societyId)
         return WingResponse.from(wingService.addWing(societyId, request.name))
     }
 
     @GetMapping("/api/societies/{societyId}/wings")
-    @RequiresPermission("FLAT.DIRECTORY.VIEW")
+    @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun listBySociety(@PathVariable societyId: Long): List<WingResponse> {
-        accessService.current().requireIn("FLAT.DIRECTORY.VIEW", societyId)
+        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, societyId)
         return wingService.listBySociety(societyId).map(WingResponse::from)
     }
 
     @GetMapping("/api/wings/{id}")
-    @RequiresPermission("FLAT.DIRECTORY.VIEW")
+    @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun getById(@PathVariable id: Long): WingResponse {
-        accessService.current().requireIn("FLAT.DIRECTORY.VIEW", wingService.societyIdOf(id))
+        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, wingService.societyIdOf(id))
         return WingResponse.from(wingService.getById(id))
     }
 
     @PatchMapping("/api/wings/{id}")
-    @RequiresPermission("FLAT.STRUCTURE.UPDATE")
+    @RequiresPermission(Permissions.FLAT_STRUCTURE_UPDATE)
     fun rename(@PathVariable id: Long, @Valid @RequestBody request: RenameWingRequest): WingResponse {
-        accessService.current().requireIn("FLAT.STRUCTURE.UPDATE", wingService.societyIdOf(id))
+        accessService.current().requireIn(Permissions.FLAT_STRUCTURE_UPDATE, wingService.societyIdOf(id))
         return WingResponse.from(wingService.renameWing(id, request.name))
     }
 
     @DeleteMapping("/api/wings/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("FLAT.STRUCTURE.DELETE")
+    @RequiresPermission(Permissions.FLAT_STRUCTURE_DELETE)
     fun delete(@PathVariable id: Long) {
-        accessService.current().requireIn("FLAT.STRUCTURE.DELETE", wingService.societyIdOf(id))
+        accessService.current().requireIn(Permissions.FLAT_STRUCTURE_DELETE, wingService.societyIdOf(id))
         wingService.deleteWing(id)
     }
 }

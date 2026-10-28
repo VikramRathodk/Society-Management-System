@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.society.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.society.dto.CreateFlatRequest
 import org.devvikram.societymanagement.society.dto.FlatResponse
@@ -28,38 +29,38 @@ class FlatController(
 
     @PostMapping("/api/wings/{wingId}/flats")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("FLAT.STRUCTURE.CREATE")
+    @RequiresPermission(Permissions.FLAT_STRUCTURE_CREATE)
     fun addFlat(@PathVariable wingId: Long, @Valid @RequestBody request: CreateFlatRequest): FlatResponse {
-        accessService.current().requireIn("FLAT.STRUCTURE.CREATE", wingService.societyIdOf(wingId))
+        accessService.current().requireIn(Permissions.FLAT_STRUCTURE_CREATE, wingService.societyIdOf(wingId))
         return FlatResponse.from(flatService.addFlat(wingId, request.flatNumber))
     }
 
     @GetMapping("/api/wings/{wingId}/flats")
-    @RequiresPermission("FLAT.DIRECTORY.VIEW")
+    @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun listByWing(@PathVariable wingId: Long): List<FlatResponse> {
-        accessService.current().requireIn("FLAT.DIRECTORY.VIEW", wingService.societyIdOf(wingId))
+        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, wingService.societyIdOf(wingId))
         return flatService.listByWing(wingId).map(FlatResponse::from)
     }
 
     @GetMapping("/api/flats/{id}")
-    @RequiresPermission("FLAT.DIRECTORY.VIEW")
+    @RequiresPermission(Permissions.FLAT_DIRECTORY_VIEW)
     fun getById(@PathVariable id: Long): FlatResponse {
-        accessService.current().requireIn("FLAT.DIRECTORY.VIEW", flatService.societyIdOf(id))
+        accessService.current().requireIn(Permissions.FLAT_DIRECTORY_VIEW, flatService.societyIdOf(id))
         return FlatResponse.from(flatService.getById(id))
     }
 
     @PatchMapping("/api/flats/{id}")
-    @RequiresPermission("FLAT.STRUCTURE.UPDATE")
+    @RequiresPermission(Permissions.FLAT_STRUCTURE_UPDATE)
     fun update(@PathVariable id: Long, @Valid @RequestBody request: UpdateFlatRequest): FlatResponse {
-        accessService.current().requireIn("FLAT.STRUCTURE.UPDATE", flatService.societyIdOf(id))
+        accessService.current().requireIn(Permissions.FLAT_STRUCTURE_UPDATE, flatService.societyIdOf(id))
         return FlatResponse.from(flatService.updateFlatNumber(id, request.flatNumber))
     }
 
     @DeleteMapping("/api/flats/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("FLAT.STRUCTURE.DELETE")
+    @RequiresPermission(Permissions.FLAT_STRUCTURE_DELETE)
     fun delete(@PathVariable id: Long) {
-        accessService.current().requireIn("FLAT.STRUCTURE.DELETE", flatService.societyIdOf(id))
+        accessService.current().requireIn(Permissions.FLAT_STRUCTURE_DELETE, flatService.societyIdOf(id))
         flatService.deleteFlat(id)
     }
 }

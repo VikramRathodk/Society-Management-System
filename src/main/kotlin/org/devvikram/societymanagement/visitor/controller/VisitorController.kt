@@ -3,6 +3,7 @@ package org.devvikram.societymanagement.visitor.controller
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.Access
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.visitor.dto.LogVisitorRequest
@@ -44,13 +45,13 @@ class VisitorController(
 
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("VISITOR.ENTRY.CREATE")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_CREATE)
     fun log(
         @Valid @ModelAttribute request: LogVisitorRequest,
         @RequestPart("photo", required = false) photo: MultipartFile?,
     ): VisitorResponse {
         val access = accessService.current()
-        access.requireIn("VISITOR.ENTRY.CREATE", flatService.societyIdOf(request.flatId!!))
+        access.requireIn(Permissions.VISITOR_ENTRY_CREATE, flatService.societyIdOf(request.flatId!!))
         val id = visitorService.logVisitor(
             LogVisitorCommand(
                 flatId = request.flatId,
@@ -66,7 +67,7 @@ class VisitorController(
 
     // The society's gate log, newest first. Residents get their own flat(s) only; flatId narrows it.
     @GetMapping
-    @RequiresPermission("VISITOR.ENTRY.VIEW")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_VIEW)
     fun list(
         @RequestParam societyId: Long,
         @RequestParam(required = false) status: VisitorStatus?,
@@ -75,11 +76,11 @@ class VisitorController(
         @RequestParam(defaultValue = "20") size: Int,
     ): List<VisitorResponse> {
         val access = accessService.current()
-        access.requireIn("VISITOR.ENTRY.VIEW", societyId)
-        val flatIds = if (access.canSocietyWide("VISITOR.ENTRY.VIEW", societyId)) {
+        access.requireIn(Permissions.VISITOR_ENTRY_VIEW, societyId)
+        val flatIds = if (access.canSocietyWide(Permissions.VISITOR_ENTRY_VIEW, societyId)) {
             flatId?.let { setOf(it) }
         } else {
-            val own = access.flatsWith("VISITOR.ENTRY.VIEW")
+            val own = access.flatsWith(Permissions.VISITOR_ENTRY_VIEW)
             if (flatId != null && flatId !in own) throw AccessDeniedException("You can only see visitors of your own flat")
             flatId?.let { setOf(it) } ?: own
         }
@@ -88,11 +89,11 @@ class VisitorController(
     }
 
     @GetMapping("/{id}")
-    @RequiresPermission("VISITOR.ENTRY.VIEW")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_VIEW)
     fun getById(@PathVariable id: Long): VisitorResponse = VisitorResponse.from(viewable(id))
 
     @GetMapping("/{id}/photo")
-    @RequiresPermission("VISITOR.ENTRY.VIEW")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_VIEW)
     fun photo(@PathVariable id: Long): ResponseEntity<ByteArray> {
         viewable(id)
         val photo = visitorService.getPhoto(id)
@@ -104,34 +105,34 @@ class VisitorController(
     }
 
     @PostMapping("/{id}/approve")
-    @RequiresPermission("VISITOR.APPROVAL.APPROVE")
-    fun approve(@PathVariable id: Long): VisitorResponse = respond(id, VisitorStatus.APPROVED, "VISITOR.APPROVAL.APPROVE")
+    @RequiresPermission(Permissions.VISITOR_APPROVAL_APPROVE)
+    fun approve(@PathVariable id: Long): VisitorResponse = respond(id, VisitorStatus.APPROVED, Permissions.VISITOR_APPROVAL_APPROVE)
 
     @PostMapping("/{id}/reject")
-    @RequiresPermission("VISITOR.APPROVAL.REJECT")
-    fun reject(@PathVariable id: Long): VisitorResponse = respond(id, VisitorStatus.REJECTED, "VISITOR.APPROVAL.REJECT")
+    @RequiresPermission(Permissions.VISITOR_APPROVAL_REJECT)
+    fun reject(@PathVariable id: Long): VisitorResponse = respond(id, VisitorStatus.REJECTED, Permissions.VISITOR_APPROVAL_REJECT)
 
     @PostMapping("/{id}/enter")
-    @RequiresPermission("VISITOR.ENTRY.UPDATE")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_UPDATE)
     fun enter(@PathVariable id: Long): VisitorResponse {
-        accessService.current().requireIn("VISITOR.ENTRY.UPDATE", societyOf(id))
+        accessService.current().requireIn(Permissions.VISITOR_ENTRY_UPDATE, societyOf(id))
         visitorService.markEntered(id)
         return VisitorResponse.from(visitorService.getById(id))
     }
 
     @PostMapping("/{id}/exit")
-    @RequiresPermission("VISITOR.ENTRY.UPDATE")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_UPDATE)
     fun exit(@PathVariable id: Long): VisitorResponse {
-        accessService.current().requireIn("VISITOR.ENTRY.UPDATE", societyOf(id))
+        accessService.current().requireIn(Permissions.VISITOR_ENTRY_UPDATE, societyOf(id))
         visitorService.markExited(id)
         return VisitorResponse.from(visitorService.getById(id))
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("VISITOR.ENTRY.DELETE")
+    @RequiresPermission(Permissions.VISITOR_ENTRY_DELETE)
     fun delete(@PathVariable id: Long) {
-        accessService.current().requireIn("VISITOR.ENTRY.DELETE", societyOf(id))
+        accessService.current().requireIn(Permissions.VISITOR_ENTRY_DELETE, societyOf(id))
         visitorService.delete(id)
     }
 
@@ -143,7 +144,7 @@ class VisitorController(
         val entry = visitorService.getById(id)
         val asOverride = when {
             entry.flat.id in access.flatsWith(permission) -> false
-            access.canSocietyWide("VISITOR.APPROVAL.OVERRIDE", entry.society.id!!) -> true
+            access.canSocietyWide(Permissions.VISITOR_APPROVAL_OVERRIDE, entry.society.id!!) -> true
             else -> throw AccessDeniedException("Only residents of flat ${entry.flat.flatNumber} can respond to this visitor")
         }
         visitorService.respond(id, decision, access.userId, asOverride)
@@ -157,7 +158,7 @@ class VisitorController(
     }
 
     private fun Access.canView(entry: VisitorEntry) =
-        canOnFlat("VISITOR.ENTRY.VIEW", entry.society.id!!, entry.flat.id!!)
+        canOnFlat(Permissions.VISITOR_ENTRY_VIEW, entry.society.id!!, entry.flat.id!!)
 
     private fun societyOf(id: Long): Long = visitorService.getById(id).society.id!!
 }

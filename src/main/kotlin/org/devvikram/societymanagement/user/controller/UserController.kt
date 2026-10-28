@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.user.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.user.dto.AccessResponse
 import org.devvikram.societymanagement.user.dto.AssignRoleRequest
@@ -44,9 +45,9 @@ class UserController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("USER.ACCOUNT.CREATE")
+    @RequiresPermission(Permissions.USER_ACCOUNT_CREATE)
     fun create(@Valid @RequestBody request: CreateUserRequest): UserResponse {
-        if (!accessService.current().canGrant("USER.ACCOUNT.CREATE", request.role, request.societyId)) {
+        if (!accessService.current().canGrant(Permissions.USER_ACCOUNT_CREATE, request.role, request.societyId)) {
             throw AccessDeniedException("You cannot create a ${request.role} in this scope")
         }
         val user = userService.createUser(
@@ -62,18 +63,18 @@ class UserController(
     }
 
     @GetMapping("/{id}")
-    @RequiresPermission("USER.ACCOUNT.VIEW")
-    fun getById(@PathVariable id: Long): UserResponse = viewable(id, "USER.ACCOUNT.VIEW")
+    @RequiresPermission(Permissions.USER_ACCOUNT_VIEW)
+    fun getById(@PathVariable id: Long): UserResponse = viewable(id, Permissions.USER_ACCOUNT_VIEW)
 
     // Everyone in the caller's societies (all users for a platform-level viewer); ?societyId narrows it.
     @GetMapping
-    @RequiresPermission("USER.ACCOUNT.VIEW")
+    @RequiresPermission(Permissions.USER_ACCOUNT_VIEW)
     fun getAll(@RequestParam(required = false) societyId: Long?): List<UserResponse> {
         val access = accessService.current()
-        val visibleSocieties = access.societiesWith("USER.ACCOUNT.VIEW")
+        val visibleSocieties = access.societiesWith(Permissions.USER_ACCOUNT_VIEW)
         val users = when {
             societyId != null -> {
-                access.requireIn("USER.ACCOUNT.VIEW", societyId)
+                access.requireIn(Permissions.USER_ACCOUNT_VIEW, societyId)
                 userService.getAllInSocieties(listOf(societyId))
             }
             visibleSocieties == null -> userService.getAll()
@@ -86,10 +87,10 @@ class UserController(
     // USER.PROFILE.UPDATE lets a role edit its *own* profile; editing anyone else's needs
     // USER.ACCOUNT.UPDATE and a role above every role the target holds.
     @PatchMapping("/{id}")
-    @RequiresPermission("USER.PROFILE.UPDATE")
+    @RequiresPermission(Permissions.USER_PROFILE_UPDATE)
     fun updateProfile(@PathVariable id: Long, @RequestBody request: UpdateProfileRequest): UserResponse {
         val access = accessService.current()
-        if (access.userId != id) requireCanManage(id, "USER.ACCOUNT.UPDATE", "You can only update your own profile")
+        if (access.userId != id) requireCanManage(id, Permissions.USER_ACCOUNT_UPDATE, "You can only update your own profile")
         val user = userService.updateProfile(
             id,
             UpdateProfileCommand(name = request.name, email = request.email, fcmToken = request.fcmToken),
@@ -98,10 +99,10 @@ class UserController(
     }
 
     @PatchMapping("/{id}/deactivate")
-    @RequiresPermission("USER.ACCOUNT.DELETE")
+    @RequiresPermission(Permissions.USER_ACCOUNT_DELETE)
     fun deactivate(@PathVariable id: Long): UserResponse {
         if (accessService.current().userId == id) throw IllegalArgumentException("You cannot deactivate yourself")
-        requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot deactivate a user at or above your level")
+        requireCanManage(id, Permissions.USER_ACCOUNT_DELETE, "You cannot deactivate a user at or above your level")
         return response(userService.deactivate(id))
     }
 
@@ -109,41 +110,41 @@ class UserController(
     // with 409 while the user has history (see UserService.delete).
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("USER.ACCOUNT.DELETE")
+    @RequiresPermission(Permissions.USER_ACCOUNT_DELETE)
     fun delete(@PathVariable id: Long) {
         val access = accessService.current()
         if (access.userId == id) throw IllegalArgumentException("You cannot delete yourself")
-        access.requireOnPlatform("USER.ACCOUNT.DELETE")
-        requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot delete a user at or above your level")
+        access.requireOnPlatform(Permissions.USER_ACCOUNT_DELETE)
+        requireCanManage(id, Permissions.USER_ACCOUNT_DELETE, "You cannot delete a user at or above your level")
         userService.delete(id)
     }
 
     // The undo of deactivate, so it takes the same permission and rank check.
     @PatchMapping("/{id}/activate")
-    @RequiresPermission("USER.ACCOUNT.DELETE")
+    @RequiresPermission(Permissions.USER_ACCOUNT_DELETE)
     fun activate(@PathVariable id: Long): UserResponse {
-        requireCanManage(id, "USER.ACCOUNT.DELETE", "You cannot activate a user at or above your level")
+        requireCanManage(id, Permissions.USER_ACCOUNT_DELETE, "You cannot activate a user at or above your level")
         return response(userService.activate(id))
     }
 
     @GetMapping("/{id}/roles")
-    @RequiresPermission("USER.ROLE.VIEW")
-    fun getRoles(@PathVariable id: Long): List<RoleAssignmentResponse> = viewable(id, "USER.ROLE.VIEW").roles
+    @RequiresPermission(Permissions.USER_ROLE_VIEW)
+    fun getRoles(@PathVariable id: Long): List<RoleAssignmentResponse> = viewable(id, Permissions.USER_ROLE_VIEW).roles
 
     // Effective permissions of another user, resolved the same way as /me (inheritance, all_permissions).
     @GetMapping("/{id}/permissions")
-    @RequiresPermission("USER.ROLE.VIEW")
+    @RequiresPermission(Permissions.USER_ROLE_VIEW)
     fun getPermissions(@PathVariable id: Long): AccessResponse {
-        viewable(id, "USER.ROLE.VIEW")
+        viewable(id, Permissions.USER_ROLE_VIEW)
         val grants = userService.getRoles(id).map { it.toGrant() }
         return AccessResponse.from(accessService.accessFor(id, grants))
     }
 
     @PostMapping("/{id}/roles")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission("USER.ROLE.ASSIGN")
+    @RequiresPermission(Permissions.USER_ROLE_ASSIGN)
     fun assignRole(@PathVariable id: Long, @Valid @RequestBody request: AssignRoleRequest): RoleAssignmentResponse {
-        if (!accessService.current().canGrant("USER.ROLE.ASSIGN", request.role, request.societyId)) {
+        if (!accessService.current().canGrant(Permissions.USER_ROLE_ASSIGN, request.role, request.societyId)) {
             throw AccessDeniedException("You cannot assign ${request.role} in this scope")
         }
         val assignment = userService.assignRole(id, request.toCommand())
@@ -153,10 +154,10 @@ class UserController(
 
     @DeleteMapping("/{id}/roles/{assignmentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @RequiresPermission("USER.ROLE.DELETE")
+    @RequiresPermission(Permissions.USER_ROLE_DELETE)
     fun removeRole(@PathVariable id: Long, @PathVariable assignmentId: Long) {
         val assignment = userService.getRoleAssignment(id, assignmentId)
-        if (!accessService.current().canManage("USER.ROLE.DELETE", listOf(assignment.toGrant()))) {
+        if (!accessService.current().canManage(Permissions.USER_ROLE_DELETE, listOf(assignment.toGrant()))) {
             throw AccessDeniedException("You cannot remove a role at or above your level")
         }
         userService.removeRole(id, assignmentId)
