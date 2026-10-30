@@ -16,7 +16,7 @@ Firebase project: **`society-managment-8d21f`**.
 | `LoggingPushNotifier` | same file | ✅ default (`app.push.provider=logging` or unset); logs only |
 | `FcmPushNotifier` + `FirebaseConfig` | `notification/` | ✅ active with `app.push.provider=fcm` |
 | Dead-token cleanup | `notification/InvalidPushTokens.kt` → `user/service/PushTokenCleanup.kt` | ✅ |
-| Push triggers | `visitor/…/VisitorNotifications.kt`, `communication/…/NoticeNotifications.kt`, `complaint/…/ComplaintNotifications.kt` | ✅ after-commit `@TransactionalEventListener` |
+| Push triggers | `visitor/…/VisitorNotifications.kt`, `notice/…/NoticeNotifications.kt`, `complaint/…/ComplaintNotifications.kt` | ✅ after-commit `@TransactionalEventListener` |
 | Token storage | `users.fcm_token VARCHAR(512)` (V1, widened in V12) | ✅ one token per user |
 | Token registration | `PATCH /api/users/{id}` `{"fcmToken": "..."}` (`USER.PROFILE.UPDATE`) | ✅ blank clears; a token moves between accounts |
 | Service-account key | `secrets/` (git-ignored) | ✅ verified: the app boots with `PUSH_PROVIDER=fcm` |

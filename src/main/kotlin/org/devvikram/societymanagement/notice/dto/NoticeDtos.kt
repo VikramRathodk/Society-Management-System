@@ -1,8 +1,8 @@
-package org.devvikram.societymanagement.communication.dto
+package org.devvikram.societymanagement.notice.dto
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import org.devvikram.societymanagement.communication.model.Notice
+import org.devvikram.societymanagement.notice.model.Notice
 import java.time.Instant
 
 data class CreateNoticeRequest(

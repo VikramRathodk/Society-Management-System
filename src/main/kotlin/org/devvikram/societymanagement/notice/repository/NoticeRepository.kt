@@ -1,6 +1,6 @@
-package org.devvikram.societymanagement.communication.repository
+package org.devvikram.societymanagement.notice.repository
 
-import org.devvikram.societymanagement.communication.model.Notice
+import org.devvikram.societymanagement.notice.model.Notice
 
 // Reads return notices with society, postedBy and updatedBy loaded (open-in-view is off).
 interface NoticeRepository {

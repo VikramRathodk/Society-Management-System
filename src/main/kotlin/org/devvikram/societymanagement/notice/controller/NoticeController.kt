@@ -1,16 +1,16 @@
-package org.devvikram.societymanagement.communication.controller
+package org.devvikram.societymanagement.notice.controller
 
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
 import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
-import org.devvikram.societymanagement.communication.dto.CreateNoticeRequest
-import org.devvikram.societymanagement.communication.dto.NoticeResponse
-import org.devvikram.societymanagement.communication.dto.UpdateNoticeRequest
-import org.devvikram.societymanagement.communication.model.Notice
-import org.devvikram.societymanagement.communication.service.NoticeService
-import org.devvikram.societymanagement.communication.service.PostNoticeCommand
-import org.devvikram.societymanagement.communication.service.UpdateNoticeCommand
+import org.devvikram.societymanagement.notice.dto.CreateNoticeRequest
+import org.devvikram.societymanagement.notice.dto.NoticeResponse
+import org.devvikram.societymanagement.notice.dto.UpdateNoticeRequest
+import org.devvikram.societymanagement.notice.model.Notice
+import org.devvikram.societymanagement.notice.service.NoticeService
+import org.devvikram.societymanagement.notice.service.PostNoticeCommand
+import org.devvikram.societymanagement.notice.service.UpdateNoticeCommand
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.annotation.DeleteMapping

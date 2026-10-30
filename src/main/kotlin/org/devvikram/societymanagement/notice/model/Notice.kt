@@ -1,4 +1,4 @@
-package org.devvikram.societymanagement.communication.model
+package org.devvikram.societymanagement.notice.model
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

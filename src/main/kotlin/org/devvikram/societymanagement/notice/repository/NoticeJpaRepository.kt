@@ -1,6 +1,6 @@
-package org.devvikram.societymanagement.communication.repository
+package org.devvikram.societymanagement.notice.repository
 
-import org.devvikram.societymanagement.communication.model.Notice
+import org.devvikram.societymanagement.notice.model.Notice
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query

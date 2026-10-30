@@ -1,7 +1,7 @@
-package org.devvikram.societymanagement.communication.service
+package org.devvikram.societymanagement.notice.service
 
-import org.devvikram.societymanagement.communication.model.Notice
-import org.devvikram.societymanagement.communication.repository.NoticeRepository
+import org.devvikram.societymanagement.notice.model.Notice
+import org.devvikram.societymanagement.notice.repository.NoticeRepository
 import org.devvikram.societymanagement.society.model.Society
 import org.devvikram.societymanagement.society.service.InMemorySocietyRepository
 import org.devvikram.societymanagement.user.model.User

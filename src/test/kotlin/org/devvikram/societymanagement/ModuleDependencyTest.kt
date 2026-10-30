@@ -19,7 +19,7 @@ class ModuleDependencyTest {
         "user" to setOf("common", "authorization", "society", "notification"),
         "auth" to setOf("common", "authorization", "user"),
         "visitor" to setOf("common", "authorization", "society", "user", "notification"),
-        "communication" to setOf("common", "authorization", "society", "user", "notification"),
+        "notice" to setOf("common", "authorization", "society", "user", "notification"),
         "complaint" to setOf("common", "authorization", "society", "user", "notification"),
     )
 

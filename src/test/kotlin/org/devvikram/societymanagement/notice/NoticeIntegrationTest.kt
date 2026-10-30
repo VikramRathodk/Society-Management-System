@@ -1,8 +1,8 @@
-package org.devvikram.societymanagement.communication
+package org.devvikram.societymanagement.notice
 
 import org.devvikram.societymanagement.auth.security.JwtService
-import org.devvikram.societymanagement.communication.service.NoticeService
-import org.devvikram.societymanagement.communication.service.PostNoticeCommand
+import org.devvikram.societymanagement.notice.service.NoticeService
+import org.devvikram.societymanagement.notice.service.PostNoticeCommand
 import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.SocietyService
 import org.devvikram.societymanagement.society.service.WingService

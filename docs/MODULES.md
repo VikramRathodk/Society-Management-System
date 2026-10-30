@@ -34,7 +34,7 @@ A package is created only when its module's first feature is built, and is then 
 | 19 | Asset Management | *`asset`* | — | |
 | 20 | Work Order Management | *`workorder`* | — | Pairs with `COMPLAINT.RESOLUTION.ASSIGN` once staff/vendors exist. |
 | 21 | Incident & Emergency Management | *`incident`* | — | |
-| 22 | Notice & Announcement | `communication` | ✅ | M4. Notice board, own-post rule, moderation, push. **Package name mismatch** — see below. |
+| 22 | Notice & Announcement | `notice` | ✅ | M4. Notice board, own-post rule, moderation, push. (Was the `communication` package until 2026-10-30.) |
 | 23 | Communication | — | — | In-app chat/messaging is out of MVP scope. |
 | 24 | Rules & Policies | *`policy`* | ⏳ | Deferred until after the MVP; reuses notice publishing, approval workflow undefined. |
 | 25 | Document Management | *`document`* | — | Could build on `common/storage/PhotoStorage`. |
@@ -44,11 +44,8 @@ A package is created only when its module's first feature is built, and is then 
 | 29 | Audit & Activity Logs | *`audit`* | 🟡 | Only module-local history so far (complaint timeline, `updated_by`, visitor override flag). Global audit log (`AUDIT_LOG.VIEW`) is Phase 2. |
 | 30 | Subscription & Billing | *`subscription`* | — | Platform-level billing of societies. |
 | 31 | Platform Administration | `society`, `authorization` | 🟡 | SUPER_ADMIN endpoints (complex/society create and delete, roles) live in their owning modules. |
-| 32 | Integration Management | *`integration`* | — | Firebase is configured in `notification`; a module only if integrations become configurable per society. |
+| 32 | Integration Management | *`integration`* | — | Firebase is configured in `notification`; a module only if integrations become configurable per society
+## Communication (23) vs Notice & Announcement (22)
 
-## Known mismatch: `communication` holds notices
-
-Notices (22) were built in a package named `communication`, but the list has Communication (23) as a
-separate module. To keep the package matching the module it holds, rename `communication` → `notice`
-before more code depends on it. The rename touches only package names and `ModuleDependencyTest`; no API
-or schema change (`/api/.../notices` stays the same).
+They are separate modules. Notices live in `notice`; the name `communication` is kept free for
+in-app chat and messaging, which is out of MVP scope.

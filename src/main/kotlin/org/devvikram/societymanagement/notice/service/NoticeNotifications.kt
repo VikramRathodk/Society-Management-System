@@ -1,4 +1,4 @@
-package org.devvikram.societymanagement.communication.service
+package org.devvikram.societymanagement.notice.service
 
 import org.devvikram.societymanagement.notification.PushNotifier
 import org.devvikram.societymanagement.user.repository.UserRepository
