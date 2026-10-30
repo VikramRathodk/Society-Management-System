@@ -6,6 +6,7 @@ import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.user.dto.AccessResponse
 import org.devvikram.societymanagement.user.dto.AssignRoleRequest
+import org.devvikram.societymanagement.user.dto.ChangePasswordRequest
 import org.devvikram.societymanagement.user.dto.CreateUserRequest
 import org.devvikram.societymanagement.user.dto.MeResponse
 import org.devvikram.societymanagement.user.dto.RoleAssignmentResponse
@@ -96,6 +97,14 @@ class UserController(
             UpdateProfileCommand(name = request.name, email = request.email, fcmToken = request.fcmToken),
         )
         return response(user)
+    }
+
+    // Own account only, proven by the current password; same permission as editing one's own profile.
+    @PostMapping("/me/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequiresPermission(Permissions.USER_PROFILE_UPDATE)
+    fun changePassword(@Valid @RequestBody request: ChangePasswordRequest) {
+        userService.changePassword(accessService.current().userId, request.currentPassword, request.newPassword)
     }
 
     @PatchMapping("/{id}/deactivate")

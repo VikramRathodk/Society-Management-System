@@ -185,6 +185,38 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    fun `user changes own password and logs in with the new one`() {
+        fun changePassword(body: String) = mockMvc.perform(
+            post("/api/users/me/password")
+                .header("Authorization", bearer(resident))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+        )
+        fun login(password: String) = mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"phone": "${resident.phone}", "password": "$password"}""")
+        )
+
+        changePassword("""{"currentPassword":"wrong-password","newPassword":"newSecret456"}""")
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.message").value("Current password is incorrect"))
+        changePassword("""{"currentPassword":"secret123","newPassword":"short"}""")
+            .andExpect(status().isBadRequest)
+        mockMvc.perform(
+            post("/api/users/me/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"currentPassword":"secret123","newPassword":"newSecret456"}""")
+        )
+            .andExpect(status().isUnauthorized)
+
+        changePassword("""{"currentPassword":"secret123","newPassword":"newSecret456"}""")
+            .andExpect(status().isNoContent)
+        login("secret123").andExpect(status().isUnauthorized)
+        login("newSecret456").andExpect(status().isOk)
+    }
+
+    @Test
     fun `secretary cannot deactivate a higher-ranked admin`() {
         mockMvc.perform(patch("/api/users/${admin.id}/deactivate").header("Authorization", bearer(secretary)))
             .andExpect(status().isForbidden)

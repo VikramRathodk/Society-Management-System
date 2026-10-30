@@ -1,6 +1,7 @@
 package org.devvikram.societymanagement.user.dto
 
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.devvikram.societymanagement.authorization.Access
 import org.devvikram.societymanagement.user.model.ResidentType
 import org.devvikram.societymanagement.user.model.User
@@ -34,6 +35,12 @@ data class UpdateProfileRequest(
     val name: String? = null,
     val email: String? = null,
     val fcmToken: String? = null,
+)
+
+// BCrypt only reads the first 72 bytes, so a longer password would silently be truncated.
+data class ChangePasswordRequest(
+    @field:NotBlank val currentPassword: String,
+    @field:NotBlank @field:Size(min = 8, max = 72) val newPassword: String,
 )
 
 data class RoleAssignmentResponse(

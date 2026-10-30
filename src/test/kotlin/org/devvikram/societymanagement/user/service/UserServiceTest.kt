@@ -14,6 +14,7 @@ import org.devvikram.societymanagement.user.model.UserRole
 import org.devvikram.societymanagement.user.repository.UserRepository
 import org.devvikram.societymanagement.user.repository.UserRoleRepository
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -276,6 +277,23 @@ class UserServiceTest {
 
         assertEquals("New Name", updated.name)
         assertEquals("new@example.com", updated.email)
+    }
+
+    @Test
+    fun `changes the password only with the correct current one`() {
+        val user = create("9000000023", guardIn(society.id))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            service.changePassword(user.id!!, "wrong-password", "newSecret456")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            service.changePassword(user.id!!, "secret123", "secret123")
+        }
+
+        service.changePassword(user.id!!, "secret123", "newSecret456")
+        val hash = service.getById(user.id!!).passwordHash
+        assertTrue(BCryptPasswordEncoder().matches("newSecret456", hash))
+        assertFalse(BCryptPasswordEncoder().matches("secret123", hash))
     }
 
     @Test

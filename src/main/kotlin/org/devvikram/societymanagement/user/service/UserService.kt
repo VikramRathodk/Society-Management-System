@@ -121,6 +121,16 @@ class UserService(
         return userRepository.save(user)
     }
 
+    // Tokens already issued stay valid until they expire: JWTs are stateless and carry no password version.
+    @Transactional
+    fun changePassword(id: Long, currentPassword: String, newPassword: String) {
+        val user = getById(id)
+        require(passwordEncoder.matches(currentPassword, user.passwordHash)) { "Current password is incorrect" }
+        require(newPassword != currentPassword) { "New password must be different from the current one" }
+        user.passwordHash = passwordEncoder.encode(newPassword)!!
+        userRepository.save(user)
+    }
+
     @Transactional
     fun deactivate(id: Long): User {
         val user = getById(id)
