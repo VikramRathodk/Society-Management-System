@@ -43,6 +43,10 @@ data class ChangePasswordRequest(
     @field:NotBlank @field:Size(min = 8, max = 72) val newPassword: String,
 )
 
+data class ResetPasswordRequest(
+    @field:NotBlank @field:Size(min = 8, max = 72) val newPassword: String,
+)
+
 data class RoleAssignmentResponse(
     val id: Long,
     val role: String,

@@ -217,6 +217,30 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    fun `admin resets the password of a user below them in their society only`() {
+        fun reset(target: User, caller: User, password: String = "resetByAdmin1") = mockMvc.perform(
+            post("/api/users/${target.id}/password")
+                .header("Authorization", bearer(caller))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"newPassword":"$password"}""")
+        )
+
+        reset(otherResident, resident).andExpect(status().isForbidden) // no USER.ACCOUNT.UPDATE
+        reset(admin, secretary).andExpect(status().isForbidden) // target ranks higher
+        reset(outsider, admin).andExpect(status().isForbidden) // other society
+        reset(admin, admin).andExpect(status().isBadRequest) // own password needs the current one
+        reset(resident, admin, password = "short").andExpect(status().isBadRequest)
+
+        reset(resident, admin).andExpect(status().isNoContent)
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"phone": "${resident.phone}", "password": "resetByAdmin1"}""")
+        )
+            .andExpect(status().isOk)
+    }
+
+    @Test
     fun `secretary cannot deactivate a higher-ranked admin`() {
         mockMvc.perform(patch("/api/users/${admin.id}/deactivate").header("Authorization", bearer(secretary)))
             .andExpect(status().isForbidden)

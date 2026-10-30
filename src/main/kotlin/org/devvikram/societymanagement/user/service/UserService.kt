@@ -131,6 +131,14 @@ class UserService(
         userRepository.save(user)
     }
 
+    // For a user who forgot theirs: an admin sets a new one and tells them. Who may do it is the caller's check.
+    @Transactional
+    fun resetPassword(id: Long, newPassword: String) {
+        val user = getById(id)
+        user.passwordHash = passwordEncoder.encode(newPassword)!!
+        userRepository.save(user)
+    }
+
     @Transactional
     fun deactivate(id: Long): User {
         val user = getById(id)

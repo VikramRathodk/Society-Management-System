@@ -9,6 +9,7 @@ import org.devvikram.societymanagement.user.dto.AssignRoleRequest
 import org.devvikram.societymanagement.user.dto.ChangePasswordRequest
 import org.devvikram.societymanagement.user.dto.CreateUserRequest
 import org.devvikram.societymanagement.user.dto.MeResponse
+import org.devvikram.societymanagement.user.dto.ResetPasswordRequest
 import org.devvikram.societymanagement.user.dto.RoleAssignmentResponse
 import org.devvikram.societymanagement.user.dto.UpdateProfileRequest
 import org.devvikram.societymanagement.user.dto.UserResponse
@@ -105,6 +106,19 @@ class UserController(
     @RequiresPermission(Permissions.USER_PROFILE_UPDATE)
     fun changePassword(@Valid @RequestBody request: ChangePasswordRequest) {
         userService.changePassword(accessService.current().userId, request.currentPassword, request.newPassword)
+    }
+
+    // Someone else's password, without knowing the old one: USER.ACCOUNT.UPDATE plus a role above every
+    // role the target holds. One's own goes through /me/password, which asks for the current one.
+    @PostMapping("/{id}/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequiresPermission(Permissions.USER_ACCOUNT_UPDATE)
+    fun resetPassword(@PathVariable id: Long, @Valid @RequestBody request: ResetPasswordRequest) {
+        if (accessService.current().userId == id) {
+            throw IllegalArgumentException("Change your own password with your current one instead")
+        }
+        requireCanManage(id, Permissions.USER_ACCOUNT_UPDATE, "You cannot reset the password of a user at or above your level")
+        userService.resetPassword(id, request.newPassword)
     }
 
     @PatchMapping("/{id}/deactivate")

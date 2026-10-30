@@ -15,7 +15,7 @@ A package is created only when its module's first feature is built, and is then 
 |---|---|---|---|---|
 | 1 | Common | `common` | ✅ | Cross-cutting only: config, exceptions, photo storage, CSV export. No business logic. |
 | 2 | Auth & Authentication | `auth` | ✅ | Login, JWT, Spring Security wiring. |
-| 3 | User Management | `user` | ✅ | User identity, profile, change own password, activate/deactivate/delete, FCM token. Admin password reset and forgot-password not built. |
+| 3 | User Management | `user` | ✅ | User identity, profile, change own password, admin password reset, activate/deactivate/delete, FCM token. Self-service forgot-password not built (needs OTP). |
 | 4 | Authorization & Roles | `authorization` | ✅ | Dynamic roles, hierarchical permissions, `Access`, `@RequiresPermission`. |
 | 5 | Society Management | `society` | ✅ | Complex and society CRUD + settings. |
 | 6 | Society Structure | `society` | ✅ | Wings and flats; flat directory scoping. Shares the package with 5 for now; split only if it grows. |

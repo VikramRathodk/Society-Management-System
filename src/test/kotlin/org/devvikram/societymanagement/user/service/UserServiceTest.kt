@@ -297,6 +297,17 @@ class UserServiceTest {
     }
 
     @Test
+    fun `resets a password without the current one`() {
+        val user = create("9000000024", guardIn(society.id))
+
+        service.resetPassword(user.id!!, "resetByAdmin1")
+
+        val hash = service.getById(user.id!!).passwordHash
+        assertTrue(BCryptPasswordEncoder().matches("resetByAdmin1", hash))
+        assertFalse(BCryptPasswordEncoder().matches("secret123", hash))
+    }
+
+    @Test
     fun `a blank push token clears it and a missing one leaves it alone`() {
         val user = create("9000000020", guardIn(society.id))
         service.updateProfile(user.id!!, UpdateProfileCommand(fcmToken = "token-a"))
