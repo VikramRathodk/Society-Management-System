@@ -1,7 +1,14 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="SocietyManagementApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
-    <option name="SPRING_BOOT_MAIN_CLASS" value="org.devvikram.societymanagement.SocietyManagementApplicationKt" />
+    <envs>
+      <env name="PUSH_PROVIDER" value="fcm" />
+    </envs>
     <module name="societyManagement.main" />
+    <selectedOptions>
+      <option name="environmentVariables" />
+    </selectedOptions>
+    <option name="SHORTEN_COMMAND_LINE" value="MANIFEST" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="org.devvikram.societymanagement.SocietyManagementApplicationKt" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

@@ -18,6 +18,12 @@ class UserRepositoryImpl(
 
     override fun findByPhone(phone: String): User? = userJpaRepository.findByPhone(phone)
 
+    override fun clearFcmTokens(tokens: Collection<String>, exceptUserId: Long?): Int = when {
+        tokens.isEmpty() -> 0
+        exceptUserId == null -> userJpaRepository.clearFcmTokens(tokens)
+        else -> userJpaRepository.clearFcmTokensExcept(tokens, exceptUserId)
+    }
+
     override fun delete(user: User) {
         userJpaRepository.deleteDirectly(user.id!!)
     }

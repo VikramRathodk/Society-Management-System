@@ -109,10 +109,15 @@ class UserService(
 
     @Transactional
     fun updateProfile(id: Long, command: UpdateProfileCommand): User {
+        // A blank token clears it (logout). A token belongs to one device, so it is first taken off
+        // any other account, e.g. a shared phone that switched users. Done before loading the user:
+        // the bulk update clears the persistence context.
+        val token = command.fcmToken?.trim()
+        if (!token.isNullOrEmpty()) userRepository.clearFcmTokens(listOf(token), exceptUserId = id)
         val user = getById(id)
         command.name?.let { user.name = it }
         command.email?.let { user.email = it }
-        command.fcmToken?.let { user.fcmToken = it }
+        token?.let { user.fcmToken = it.ifEmpty { null } }
         return userRepository.save(user)
     }
 

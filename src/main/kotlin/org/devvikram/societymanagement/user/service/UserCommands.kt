@@ -23,5 +23,6 @@ data class CreateUserCommand(
 data class UpdateProfileCommand(
     val name: String? = null,
     val email: String? = null,
+    // null leaves the push token alone, blank clears it.
     val fcmToken: String? = null,
 )

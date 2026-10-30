@@ -665,7 +665,7 @@ org.devvikram.societymanagement
 | `common`, `notification` | — |
 | `authorization` | `common` |
 | `society` | `common`, `authorization` |
-| `user` | `common`, `authorization`, `society` |
+| `user` | `common`, `authorization`, `society`, `notification` |
 | `auth` | `common`, `authorization`, `user` |
 | `visitor` | `common`, `authorization`, `society`, `user`, `notification` |
 | `communication` | `common`, `authorization`, `society`, `user`, `notification` |

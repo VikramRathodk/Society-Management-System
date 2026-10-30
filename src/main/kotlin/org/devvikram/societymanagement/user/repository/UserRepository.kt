@@ -8,6 +8,8 @@ interface UserRepository {
     fun findAll(): List<User>
     fun findAllById(ids: Collection<Long>): List<User>
     fun findByPhone(phone: String): User?
+    // Forgets these push tokens on every user except exceptUserId; returns how many users changed.
+    fun clearFcmTokens(tokens: Collection<String>, exceptUserId: Long? = null): Int
     // Applied immediately in the database (its cascade removes role assignments), so a user that
     // history still references fails here, not at commit.
     fun delete(user: User)

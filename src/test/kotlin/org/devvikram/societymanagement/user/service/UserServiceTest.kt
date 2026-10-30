@@ -36,6 +36,8 @@ private class InMemoryUserRepository : UserRepository {
     override fun findAll(): List<User> = store.values.toList()
     override fun findAllById(ids: Collection<Long>): List<User> = ids.mapNotNull { store[it] }
     override fun findByPhone(phone: String): User? = store.values.find { it.phone == phone }
+    override fun clearFcmTokens(tokens: Collection<String>, exceptUserId: Long?): Int =
+        store.values.filter { it.fcmToken in tokens && it.id != exceptUserId }.onEach { it.fcmToken = null }.size
     override fun delete(user: User) {
         store.remove(user.id)
     }
@@ -274,5 +276,26 @@ class UserServiceTest {
 
         assertEquals("New Name", updated.name)
         assertEquals("new@example.com", updated.email)
+    }
+
+    @Test
+    fun `a blank push token clears it and a missing one leaves it alone`() {
+        val user = create("9000000020", guardIn(society.id))
+        service.updateProfile(user.id!!, UpdateProfileCommand(fcmToken = "token-a"))
+
+        assertEquals("token-a", service.updateProfile(user.id!!, UpdateProfileCommand(name = "Renamed")).fcmToken)
+        assertNull(service.updateProfile(user.id!!, UpdateProfileCommand(fcmToken = "  ")).fcmToken)
+    }
+
+    @Test
+    fun `a push token moves to the account that registers it last`() {
+        val first = create("9000000021", guardIn(society.id))
+        val second = create("9000000022", guardIn(society.id))
+        service.updateProfile(first.id!!, UpdateProfileCommand(fcmToken = "shared-phone"))
+
+        service.updateProfile(second.id!!, UpdateProfileCommand(fcmToken = " shared-phone "))
+
+        assertNull(service.getById(first.id!!).fcmToken)
+        assertEquals("shared-phone", service.getById(second.id!!).fcmToken)
     }
 }

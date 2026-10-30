@@ -131,4 +131,19 @@ class UserRepositoryTest {
 
         assertEquals(2, userRoleRepository.findWithDetailsByUserIds(listOf(admin.id!!)).size)
     }
+
+    @Test
+    fun `clears push tokens, optionally sparing one user`() {
+        val a = entityManager.persistAndFlush(User(name = "A", phone = "8100000091", passwordHash = "h", fcmToken = "t1"))
+        val b = entityManager.persistAndFlush(User(name = "B", phone = "8100000092", passwordHash = "h", fcmToken = "t1"))
+        val c = entityManager.persistAndFlush(User(name = "C", phone = "8100000093", passwordHash = "h", fcmToken = "t2"))
+
+        assertEquals(1, userRepository.clearFcmTokensExcept(listOf("t1"), a.id!!))
+        assertEquals("t1", userRepository.findById(a.id!!).get().fcmToken)
+        assertNull(userRepository.findById(b.id!!).get().fcmToken)
+
+        assertEquals(2, userRepository.clearFcmTokens(listOf("t1", "t2")))
+        assertNull(userRepository.findById(a.id!!).get().fcmToken)
+        assertNull(userRepository.findById(c.id!!).get().fcmToken)
+    }
 }

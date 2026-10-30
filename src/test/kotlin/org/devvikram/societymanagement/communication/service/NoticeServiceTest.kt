@@ -30,6 +30,8 @@ private class InMemoryUserRepository : UserRepository {
     override fun findAll(): List<User> = store.values.toList()
     override fun findAllById(ids: Collection<Long>): List<User> = ids.mapNotNull { store[it] }
     override fun findByPhone(phone: String): User? = store.values.find { it.phone == phone }
+    override fun clearFcmTokens(tokens: Collection<String>, exceptUserId: Long?): Int =
+        store.values.filter { it.fcmToken in tokens && it.id != exceptUserId }.onEach { it.fcmToken = null }.size
     override fun delete(user: User) {
         store.remove(user.id)
     }
