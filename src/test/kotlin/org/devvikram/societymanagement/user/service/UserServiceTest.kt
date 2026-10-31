@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.boot.DefaultApplicationArguments
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 
 private class InMemoryUserRepository : UserRepository {
@@ -326,5 +327,41 @@ class UserServiceTest {
 
         assertNull(service.getById(first.id!!).fcmToken)
         assertEquals("shared-phone", service.getById(second.id!!).fcmToken)
+    }
+
+    private fun bootstrap(phone: String = "9000000099", password: String = "bootstrap-pass") =
+        BootstrapAdmin(userRepository, service, name = "Platform Owner", phone = phone, password = password)
+            .run(DefaultApplicationArguments())
+
+    @Test
+    fun `bootstrap creates the first super admin on an empty database`() {
+        bootstrap()
+
+        val admin = service.getByPhone("9000000099")!!
+        assertEquals("Platform Owner", admin.name)
+        assertTrue(BCryptPasswordEncoder().matches("bootstrap-pass", admin.passwordHash))
+        assertEquals("SUPER_ADMIN", service.getRoles(admin.id!!).single().role.code)
+    }
+
+    @Test
+    fun `bootstrap does nothing once any user exists`() {
+        create("9000000030", guardIn(society.id))
+
+        bootstrap()
+
+        assertNull(service.getByPhone("9000000099"))
+    }
+
+    @Test
+    fun `bootstrap without credentials leaves the database empty`() {
+        bootstrap(phone = "", password = "")
+
+        assertTrue(service.getAll().isEmpty())
+    }
+
+    @Test
+    fun `bootstrap rejects a too-short password`() {
+        assertThrows(IllegalArgumentException::class.java) { bootstrap(password = "short") }
+        assertTrue(service.getAll().isEmpty())
     }
 }
