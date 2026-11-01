@@ -4,7 +4,6 @@ import org.devvikram.societymanagement.auth.security.JwtService
 import org.devvikram.societymanagement.maintenance.service.IssuedBill
 import org.devvikram.societymanagement.maintenance.service.MaintenanceBillsIssued
 import org.devvikram.societymanagement.maintenance.service.MaintenanceNotificationListener
-import org.devvikram.societymanagement.notification.PushNotifier
 import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.SocietyService
 import org.devvikram.societymanagement.society.service.WingService
@@ -21,11 +20,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
-import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActions
@@ -48,7 +44,7 @@ import java.time.LocalDate
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-@Import(MaintenanceIntegrationTest.RecordingPushConfig::class)
+@Import(RecordingPushConfig::class)
 class MaintenanceIntegrationTest {
 
     @Autowired lateinit var mockMvc: MockMvc
@@ -300,7 +296,7 @@ class MaintenanceIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(header().string("Content-Disposition", containsString("maintenance-bills-$societyId-2026-11-01")))
             .andExpect(content().string(startsWith("bill_number,wing,flat,period_start")))
-            .andExpect(content().string(containsString("202611-0001,A,101,2026-11-01,2026-11-30,2026-11-15,2625.00,UNPAID")))
+            .andExpect(content().string(containsString("202611-0001,A,101,2026-11-01,2026-11-30,2026-11-15,2625.00,0.00,2625.00,UNPAID")))
         getAs(resident, "/api/maintenance/cycles/$cycleId/export").andExpect(status().isForbidden)
     }
 
@@ -348,20 +344,4 @@ class MaintenanceIntegrationTest {
     private fun deviceOf(user: User, token: String): User =
         userService.updateProfile(user.id!!, UpdateProfileCommand(fcmToken = token))
 
-    @TestConfiguration
-    class RecordingPushConfig {
-        @Bean
-        @Primary
-        fun recordingPushNotifier() = RecordingPushNotifier()
-    }
-
-    class RecordingPushNotifier : PushNotifier {
-        data class Push(val tokens: Collection<String>, val title: String, val body: String, val data: Map<String, String>)
-
-        val sent = mutableListOf<Push>()
-
-        override fun send(tokens: Collection<String>, title: String, body: String, data: Map<String, String>) {
-            sent += Push(tokens, title, body, data)
-        }
-    }
 }

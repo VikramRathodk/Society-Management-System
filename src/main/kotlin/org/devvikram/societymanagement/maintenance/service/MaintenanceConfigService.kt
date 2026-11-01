@@ -3,6 +3,7 @@ package org.devvikram.societymanagement.maintenance.service
 import org.devvikram.societymanagement.maintenance.model.BillingFrequency
 import org.devvikram.societymanagement.maintenance.model.ChargeCalcType
 import org.devvikram.societymanagement.maintenance.model.ChargeHead
+import org.devvikram.societymanagement.maintenance.model.LateFeeType
 import org.devvikram.societymanagement.maintenance.model.MaintenanceSettings
 import org.devvikram.societymanagement.maintenance.repository.ChargeHeadRepository
 import org.devvikram.societymanagement.maintenance.repository.MaintenanceSettingsRepository
@@ -13,10 +14,15 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Instant
 
+// The late-fee fields are optional (null keeps the saved value), so clients written before late fees
+// existed keep working.
 data class UpdateSettingsCommand(
     val billingFrequency: BillingFrequency,
     val dueDays: Int,
     val roundToRupee: Boolean,
+    val lateFeeType: LateFeeType? = null,
+    val lateFeeValue: BigDecimal? = null,
+    val graceDays: Int? = null,
 )
 
 data class AddChargeHeadCommand(
@@ -55,9 +61,26 @@ class MaintenanceConfigService(
     fun updateSettings(societyId: Long, command: UpdateSettingsCommand, editorId: Long) {
         require(command.dueDays in 0..365) { "Due days must be between 0 and 365" }
         val settings = settingsOf(societyId)
+        val lateFeeType = command.lateFeeType ?: settings.lateFeeType
+        val lateFeeValue = command.lateFeeValue ?: settings.lateFeeValue
+        val graceDays = command.graceDays ?: settings.graceDays
+        require(graceDays in 0..365) { "Grace days must be between 0 and 365" }
+        require(lateFeeValue.signum() >= 0 && lateFeeValue.scale() <= 2) {
+            "Late fee value must not be negative and can have at most 2 decimal places"
+        }
+        when (lateFeeType) {
+            LateFeeType.NONE -> Unit
+            LateFeeType.FIXED -> require(lateFeeValue.signum() > 0) { "A fixed late fee must be more than zero" }
+            LateFeeType.SIMPLE_INTEREST -> require(lateFeeValue.signum() > 0 && lateFeeValue <= MAX_INTEREST) {
+                "Interest must be more than 0 and at most $MAX_INTEREST% a year"
+            }
+        }
         settings.billingFrequency = command.billingFrequency
         settings.dueDays = command.dueDays
         settings.roundToRupee = command.roundToRupee
+        settings.lateFeeType = lateFeeType
+        settings.lateFeeValue = lateFeeValue
+        settings.graceDays = graceDays
         settings.updatedAt = Instant.now()
         settings.updatedBy = userRepository.findById(editorId) ?: throw NoSuchElementException("User $editorId not found")
         settingsRepository.save(settings)
@@ -132,5 +155,10 @@ class MaintenanceConfigService(
     private fun requireValidAmount(amount: BigDecimal) {
         require(amount.signum() >= 0) { "Amount must not be negative" }
         require(amount.scale() <= 2) { "Amount can have at most 2 decimal places" }
+    }
+
+    private companion object {
+        // Annual simple interest above this is almost certainly a typo (e.g. 180 for 18).
+        val MAX_INTEREST = BigDecimal(100)
     }
 }

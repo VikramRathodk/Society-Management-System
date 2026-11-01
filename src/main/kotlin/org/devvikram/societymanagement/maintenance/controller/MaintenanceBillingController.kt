@@ -13,10 +13,12 @@ import org.devvikram.societymanagement.maintenance.dto.BillingPeriodResponse
 import org.devvikram.societymanagement.maintenance.dto.BillingPreviewResponse
 import org.devvikram.societymanagement.maintenance.dto.CancelRequest
 import org.devvikram.societymanagement.maintenance.dto.CycleResponse
+import org.devvikram.societymanagement.maintenance.dto.OpeningBalancesRequest
 import org.devvikram.societymanagement.maintenance.model.BillStatus
 import org.devvikram.societymanagement.maintenance.model.MaintenanceBill
 import org.devvikram.societymanagement.maintenance.repository.BillSearch
 import org.devvikram.societymanagement.maintenance.service.BillingService
+import org.devvikram.societymanagement.maintenance.service.PaymentService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -38,6 +40,7 @@ import java.time.ZoneId
 @RestController
 class MaintenanceBillingController(
     private val billingService: BillingService,
+    private val paymentService: PaymentService,
     private val accessService: AccessService,
     @Value("\${app.report.zone}") private val reportZone: ZoneId,
 ) {
@@ -65,6 +68,15 @@ class MaintenanceBillingController(
     fun issue(@PathVariable societyId: Long, @Valid @RequestBody request: BillingPeriodRequest): CycleResponse {
         val access = requireSocietyWide(Permissions.MAINTENANCE_BILL_CREATE, societyId)
         return cycleResponse(billingService.issue(societyId, request.toPeriod(), access.userId))
+    }
+
+    // Dues from before the app: one bill per listed flat, in a one-off OPENING_BALANCE cycle.
+    @PostMapping("/api/societies/{societyId}/maintenance/opening-balances")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequiresPermission(Permissions.MAINTENANCE_BILL_CREATE)
+    fun openingBalances(@PathVariable societyId: Long, @Valid @RequestBody request: OpeningBalancesRequest): CycleResponse {
+        val access = requireSocietyWide(Permissions.MAINTENANCE_BILL_CREATE, societyId)
+        return cycleResponse(billingService.issueOpeningBalances(societyId, request.toCommand(), access.userId))
     }
 
     // Newest period first.
@@ -102,11 +114,14 @@ class MaintenanceBillingController(
         val bills = billingService.searchBills(BillSearch(societyId = societyId, cycleId = id, size = ReportRange.MAX_ROWS + 1))
         ReportRange.requireWithinLimit(bills.size)
         val csv = Csv.write(
-            listOf("bill_number", "wing", "flat", "period_start", "period_end", "due_date", "total", "status", "status_reason"),
+            listOf(
+                "bill_number", "wing", "flat", "period_start", "period_end", "due_date", "total", "amount_paid",
+                "outstanding", "status", "status_reason",
+            ),
             bills.map {
                 listOf(
                     it.billNumber, it.flat.wing.name, it.flat.flatNumber, cycle.periodStart, cycle.periodEnd,
-                    cycle.dueDate, it.total, it.status, it.statusReason,
+                    cycle.dueDate, it.total, it.amountPaid, it.outstanding, it.status, it.statusReason,
                 )
             },
         )
@@ -146,14 +161,14 @@ class MaintenanceBillingController(
 
     @GetMapping("/api/maintenance/bills/{id}")
     @RequiresPermission(Permissions.MAINTENANCE_BILL_VIEW)
-    fun bill(@PathVariable id: Long): BillResponse = BillResponse.from(viewable(id), withLines = true)
+    fun bill(@PathVariable id: Long): BillResponse = withPayments(viewable(id))
 
     @PostMapping("/api/maintenance/bills/{id}/waive")
     @RequiresPermission(Permissions.MAINTENANCE_BILL_UPDATE)
     fun waive(@PathVariable id: Long, @Valid @RequestBody request: CancelRequest): BillResponse {
         val access = requireSocietyWide(Permissions.MAINTENANCE_BILL_UPDATE, billingService.getBill(id).society.id!!)
         billingService.waiveBill(id, access.userId, request.reason)
-        return BillResponse.from(billingService.getBill(id), withLines = true)
+        return withPayments(billingService.getBill(id))
     }
 
     private fun viewable(id: Long): MaintenanceBill {
@@ -163,6 +178,9 @@ class MaintenanceBillingController(
         }
         return bill
     }
+
+    private fun withPayments(bill: MaintenanceBill) =
+        BillResponse.from(bill, withLines = true, payments = paymentService.allocationsOfBill(bill.id!!))
 
     private fun cycleResponse(id: Long) = CycleResponse.from(billingService.getCycle(id), billingService.totalsByCycle(listOf(id)))
 

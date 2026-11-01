@@ -46,7 +46,10 @@ class MaintenanceConfigController(
         val access = requireSocietyWide(societyId)
         configService.updateSettings(
             societyId,
-            UpdateSettingsCommand(request.billingFrequency!!, request.dueDays!!, request.roundToRupee!!),
+            UpdateSettingsCommand(
+                request.billingFrequency!!, request.dueDays!!, request.roundToRupee!!,
+                request.lateFeeType, request.lateFeeValue, request.graceDays,
+            ),
             access.userId,
         )
         return SettingsResponse.from(configService.settingsOf(societyId))

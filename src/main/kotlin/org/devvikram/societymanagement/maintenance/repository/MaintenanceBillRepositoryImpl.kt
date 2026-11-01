@@ -6,6 +6,7 @@ import org.devvikram.societymanagement.maintenance.model.MaintenanceBill
 import org.devvikram.societymanagement.user.model.User
 import org.springframework.stereotype.Repository
 import java.time.Instant
+import java.time.LocalDate
 
 @Repository
 class MaintenanceBillRepositoryImpl(
@@ -37,6 +38,20 @@ class MaintenanceBillRepositoryImpl(
         search.status?.let { query.setParameter("status", it) }
         return query.setFirstResult(search.page * search.size).setMaxResults(search.size).resultList
     }
+
+    override fun findOpenByFlatId(flatId: Long): List<MaintenanceBill> =
+        billJpaRepository.findOpenByFlatId(flatId, BillStatus.OPEN)
+
+    override fun findOpenBySocietyId(societyId: Long): List<MaintenanceBill> =
+        billJpaRepository.findOpenBySocietyId(societyId, BillStatus.OPEN)
+
+    override fun lateChargeMarks(billIds: Collection<Long>): List<LateChargeMark> =
+        if (billIds.isEmpty()) emptyList() else billJpaRepository.lateChargeMarks(billIds, BillStatus.CANCELLED)
+
+    override fun countPaidInCycle(cycleId: Long): Long = billJpaRepository.countPaidInCycle(cycleId)
+
+    override fun dues(societyId: Long, overdueBefore: LocalDate): List<FlatDues> =
+        billJpaRepository.dues(societyId, BillStatus.OPEN, overdueBefore)
 
     override fun totalsByCycle(cycleIds: Collection<Long>): List<CycleBillTotals> =
         if (cycleIds.isEmpty()) emptyList() else billJpaRepository.totalsByCycle(cycleIds)

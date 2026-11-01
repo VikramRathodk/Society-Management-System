@@ -9,13 +9,16 @@ import java.time.LocalDate
 interface MaintenanceCycleRepository {
     fun save(cycle: MaintenanceCycle): MaintenanceCycle
     fun findById(id: Long): MaintenanceCycle?
-    // Newest period first.
+    // Newest period first, regular and opening-balance cycles alike.
     fun findBySocietyId(societyId: Long): List<MaintenanceCycle>
-    // Issued cycles of the society whose period shares at least one day with [start, end].
+    // Issued regular cycles of the society whose period shares at least one day with [start, end].
     fun findIssuedOverlapping(societyId: Long, start: LocalDate, end: LocalDate): List<MaintenanceCycle>
-    // The issued cycle with the latest period, if any.
+    // The issued regular cycle with the latest period, if any.
     fun findLatestIssued(societyId: Long): MaintenanceCycle?
-    // Row lock on the society until the transaction ends, so two cycles can't be issued for it at once.
+    // The society's issued opening-balance cycle, if any.
+    fun findIssuedOpening(societyId: Long): MaintenanceCycle?
+    // Row lock on the society until the transaction ends. Every change to a society's bills or payments
+    // takes it, so issuing, paying, waiving and cancelling never interleave.
     fun lockSociety(societyId: Long)
     // ISSUED → CANCELLED as one conditional statement; false if it was no longer issued.
     fun cancel(id: Long, by: User, at: Instant, reason: String): Boolean

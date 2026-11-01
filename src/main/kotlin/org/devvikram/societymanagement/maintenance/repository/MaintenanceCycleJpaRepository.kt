@@ -1,5 +1,6 @@
 package org.devvikram.societymanagement.maintenance.repository
 
+import org.devvikram.societymanagement.maintenance.model.CycleKind
 import org.devvikram.societymanagement.maintenance.model.CycleStatus
 import org.devvikram.societymanagement.maintenance.model.MaintenanceCycle
 import org.devvikram.societymanagement.user.model.User
@@ -26,22 +27,24 @@ interface MaintenanceCycleJpaRepository : JpaRepository<MaintenanceCycle, Long> 
 
     @Query(
         "select c from MaintenanceCycle c where c.society.id = :societyId and c.status = :status " +
-            "and c.periodStart <= :end and c.periodEnd >= :start"
+            "and c.kind = :kind and c.periodStart <= :end and c.periodEnd >= :start"
     )
     fun findOverlapping(
         @Param("societyId") societyId: Long,
         @Param("status") status: CycleStatus,
+        @Param("kind") kind: CycleKind,
         @Param("start") start: LocalDate,
         @Param("end") end: LocalDate,
     ): List<MaintenanceCycle>
 
     @Query(
         "select c from MaintenanceCycle c join fetch c.society s join fetch c.issuedBy " +
-            "where s.id = :societyId and c.status = :status order by c.periodEnd desc"
+            "where s.id = :societyId and c.status = :status and c.kind = :kind order by c.periodEnd desc"
     )
     fun findLatest(
         @Param("societyId") societyId: Long,
         @Param("status") status: CycleStatus,
+        @Param("kind") kind: CycleKind,
         pageable: Pageable,
     ): List<MaintenanceCycle>
 

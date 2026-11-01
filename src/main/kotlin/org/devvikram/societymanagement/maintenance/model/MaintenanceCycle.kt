@@ -21,6 +21,10 @@ import java.time.LocalDate
 // frees the period for a new cycle.
 enum class CycleStatus { ISSUED, CANCELLED }
 
+// OPENING_BALANCE: the one-off cycle holding dues from before the society used the app. It is ignored when
+// suggesting or checking regular periods.
+enum class CycleKind { REGULAR, OPENING_BALANCE }
+
 // One billing period of a society: every flat got a bill for it.
 @Entity
 @Table(name = "maintenance_cycle")
@@ -41,6 +45,10 @@ class MaintenanceCycle(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "issued_by", nullable = false)
     var issuedBy: User,
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    var kind: CycleKind = CycleKind.REGULAR,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

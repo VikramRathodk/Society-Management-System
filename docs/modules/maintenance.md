@@ -3,8 +3,8 @@
 Society maintenance dues: what each flat is charged, billing it per period, recording payments, and
 who hasn't paid. Module 14 in [MODULES.md](../MODULES.md).
 
-**Status:** 🟡 M7a (configuration + billing) built 2026-11-01 · M7b (payments, reports) and M7c (web
-screens) planned.
+**Status:** 🟡 Backend done: M7a (configuration + billing) and M7b (payments, late fees, opening balances,
+reports) built 2026-11-01 · M7c (web screens, Postman folder) planned.
 
 ## Scope
 
@@ -13,10 +13,10 @@ screens) planned.
 | Per-society settings and charge heads | Online payment gateway — Payment module (16) |
 | Billing cycles: preview, issue, cancel | Income/expense ledger — Finance module (15) |
 | Bills per flat with frozen line items; waive | GST on maintenance |
-| Recording offline payments, receipts (M7b) | Charges by flat type (1BHK/2BHK) |
-| Defaulters and collection reports, CSV (M7a: cycle CSV) | Non-occupancy charges for tenant flats |
-| Late fee / interest rules (M7b) | |
-| Opening balances for existing societies (M7b) | |
+| Recording offline payments, receipts, void | Charges by flat type (1BHK/2BHK) |
+| Dues, defaulters and collection reports, CSV | Non-occupancy charges for tenant flats |
+| Late fee / interest rules | Advance payments (credit carried to later bills) |
+| Opening balances for existing societies | |
 
 ## Configuration (dynamic, per society)
 
@@ -30,6 +30,11 @@ charges.
 | `billingFrequency` | `MONTHLY` | `MONTHLY`, `QUARTERLY`, `HALF_YEARLY`, `YEARLY`: length of the suggested next period |
 | `dueDays` | 15 | Suggested due date = period start + this many days (0–365) |
 | `roundToRupee` | true | Round each bill line to whole rupees (half up); false keeps paise |
+| `lateFeeType` | `NONE` | `NONE`, `FIXED` (`lateFeeValue` rupees, once per overdue bill), `SIMPLE_INTEREST` (`lateFeeValue` % a year, 0–100) |
+| `lateFeeValue` | 0 | Rupees for FIXED, annual % for SIMPLE_INTEREST; must be > 0 unless NONE |
+| `graceDays` | 0 | A bill is overdue only once this many days have passed after its due date (0–365) |
+
+The three late-fee fields are optional on `PUT`: leaving them out keeps the saved values.
 
 **Charge heads** (`maintenance_charge_head`): the items on every bill, e.g. Maintenance, Sinking fund,
 Parking. Each has `calcType` `FIXED` (amount per flat) or `PER_SQFT` (amount × the flat's `areaSqft`),
@@ -48,11 +53,62 @@ Deleting a head is always safe because issued bills copied it.
    flat number).
 5. Residents of each flat get a `MAINTENANCE_BILL_ISSUED` push with their amount and due date.
 
-**Bill statuses:** `UNPAID` → (`PARTIAL` → `PAID`, M7b). `WAIVED` (from UNPAID, with a reason) and
-`CANCELLED` (via cycle cancellation) are final.
+**Bill statuses:** `UNPAID` → `PARTIAL` → `PAID` follow the payments (voiding a payment moves them back).
+`WAIVED` (from UNPAID or PARTIAL, with a reason; money already paid stays on the bill, the rest is written
+off) and `CANCELLED` (via cycle cancellation) are final. Each bill reports `amountPaid` and `outstanding`.
 
 **Cancelling a cycle** (with a reason) cancels its unpaid and waived bills and frees the period for a
-new cycle. Once payments exist (M7b) a cycle with paid bills will be refused instead.
+new cycle. It is refused (409) while any of its bills received money: void those payments first.
+
+**Late charges.** When a cycle is previewed or issued, every UNPAID / PARTIAL bill that is overdue on
+the new period's start date (due date + `graceDays` has passed) gets a `LATE_FEE` line on the same flat's
+new bill, named "Late charges", with a note saying which bill and how it was worked out:
+
+- `FIXED`: `lateFeeValue` once per overdue bill (quantity 1).
+- `SIMPLE_INTEREST`: outstanding × `lateFeeValue`% × days / 365, rounded like other lines. Days run from
+  the due date (grace decides *whether* to charge, not from when) or, after the first charge, from where
+  the last charge stopped (quantity = days).
+
+Each late line remembers its source bill and the day it covers up to. Lines on a cancelled bill don't
+count, so cancelling and re-issuing a cycle charges the same late fees again rather than skipping them.
+Cancelling an *older* cycle does not remove late charges already added to later bills; waive those if
+needed.
+
+## Opening balances
+
+`POST .../opening-balances` takes `{asOf, dueDate, entries: [{flatId, amount, note?}]}` and creates a
+one-off cycle of kind `OPENING_BALANCE` (period = `asOf`) with one `OB-nnnn` bill per listed flat and a
+single "Opening balance" line. It is ignored when suggesting or overlap-checking regular periods. Only
+one can be issued per society (409 otherwise); cancel it to enter the balances again. Opening-balance
+bills are paid, waived, reported and late-charged like any other bill.
+
+## Payments
+
+Payments are offline (`CASH`, `CHEQUE`, `UPI`, `BANK_TRANSFER`) and recorded by the society with a paid-on
+date (not in the future), an optional reference (cheque number, UPI id) and note.
+
+- Each gets the society's next receipt number, `R-000001`, `R-000002` … (void payments keep theirs).
+- The amount is applied to the flat's open bills oldest due date first; `billId` names one bill to fill
+  first, the rest still goes oldest first. Amounts above what the flat owes are refused (400): there is
+  no advance credit yet.
+- Voiding (with a reason) takes the payment back off its bills and keeps it, and its allocations, as
+  history. It is refused when one of its bills was waived since, as the write-off would silently grow.
+- The flat's residents get a `MAINTENANCE_PAYMENT_RECORDED` push.
+
+Every write to bills or payments (issue, opening balances, pay, void, waive, cancel) takes a row lock on
+the society first, so they never interleave and receipt numbers have no gaps or duplicates.
+
+## Reports
+
+- **Dues** — one row per flat that owes something: open bills, outstanding, overdue (past due date +
+  `graceDays`), oldest due date. `overdueOnly=true` lists the defaulters. Residents get their own flat's
+  row only ("my dues"); a flat that owes nothing has no row.
+- **Reminders** — a push to the residents of every defaulting flat, or of the listed `flatIds`
+  (`MAINTENANCE_DUES_REMINDER`). Returns how many flats and how much is overdue.
+- **Collection per cycle** — `CycleResponse` has `totalPaid` and `totalOutstanding` next to `totalBilled`
+  and the counts by status.
+- **CSV** — dues, payments by paid-on date range (void ones included and marked), and the cycle's bills
+  (now with `amount_paid` and `outstanding`).
 
 ## Permissions
 
@@ -61,13 +117,13 @@ new cycle. Once payments exist (M7b) a cycle with paid bills will be refused ins
 | `MAINTENANCE.CHARGE.VIEW` | ✅ | — | ✅ | ✅ |
 | `MAINTENANCE.CHARGE.UPDATE` | — | — | — | ✅ |
 | `MAINTENANCE.BILL.VIEW` | own flat | — | ✅ | ✅ |
-| `MAINTENANCE.BILL.CREATE` | — | — | — | ✅ |
-| `MAINTENANCE.BILL.UPDATE` (waive, cancel cycle) | — | — | — | ✅ |
-| `MAINTENANCE.BILL.EXPORT` | — | — | ✅ | ✅ |
-| `MAINTENANCE.PAYMENT.VIEW` (M7b) | own flat | — | ✅ | ✅ |
-| `MAINTENANCE.PAYMENT.CREATE` (M7b) | — | — | — | ✅ |
-| `MAINTENANCE.PAYMENT.UPDATE` (M7b, void) | — | — | — | ✅ |
-| `MAINTENANCE.PAYMENT.EXPORT` (M7b) | — | — | ✅ | ✅ |
+| `MAINTENANCE.BILL.CREATE` (cycles, opening balances) | — | — | — | ✅ |
+| `MAINTENANCE.BILL.UPDATE` (waive, cancel cycle, send reminders) | — | — | — | ✅ |
+| `MAINTENANCE.BILL.EXPORT` (cycle and dues CSV) | — | — | ✅ | ✅ |
+| `MAINTENANCE.PAYMENT.VIEW` | own flat | — | ✅ | ✅ |
+| `MAINTENANCE.PAYMENT.CREATE` | — | — | — | ✅ |
+| `MAINTENANCE.PAYMENT.UPDATE` (void) | — | — | — | ✅ |
+| `MAINTENANCE.PAYMENT.EXPORT` | — | — | ✅ | ✅ |
 
 The view codes are granted to RESIDENT; COMMITTEE inherits them society-wide. Writes always need a
 society-wide role. A treasurer can be a custom role with `MAINTENANCE.PAYMENT.CREATE` plus the view and
@@ -94,6 +150,23 @@ export codes.
 | GET | `/api/maintenance/bills/{id}` | `BILL.VIEW` (own flat or society-wide) | With lines |
 | POST | `/api/maintenance/bills/{id}/waive` | `BILL.UPDATE` | `{reason}`; UNPAID only |
 
+`GET /api/maintenance/bills/{id}` and the waive response also list the bill's `payments` (receipt, paid-on,
+method, the part that went to this bill; void payments left out).
+
+## Endpoints (M7b)
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| POST | `/api/societies/{societyId}/maintenance/opening-balances` | `BILL.CREATE` | `{asOf, dueDate, entries:[{flatId, amount, note?}]}` → 201 cycle |
+| POST | `/api/societies/{societyId}/maintenance/payments` | `PAYMENT.CREATE` | `{flatId, amount, paidOn, method, reference?, note?, billId?}` → 201 with allocations |
+| GET | `/api/maintenance/payments?societyId=&flatId=&from=&to=&includeVoid=&page=&size=` | `PAYMENT.VIEW` | Newest first; residents: own flats only |
+| GET | `/api/maintenance/payments/{id}` | `PAYMENT.VIEW` (own flat or society-wide) | The receipt, with allocations |
+| POST | `/api/maintenance/payments/{id}/void` | `PAYMENT.UPDATE` | `{reason}`; 409 if already void or a paid bill was waived |
+| GET | `/api/societies/{societyId}/maintenance/payments/export?from=&to=` | `PAYMENT.EXPORT` | CSV by paid-on date, at most 366 days |
+| GET | `/api/societies/{societyId}/maintenance/dues?overdueOnly=` | `BILL.VIEW` | Residents: own flat's row only |
+| GET | `/api/societies/{societyId}/maintenance/dues/export?overdueOnly=` | `BILL.EXPORT` | CSV |
+| POST | `/api/societies/{societyId}/maintenance/dues/remind` | `BILL.UPDATE` | Optional `{flatIds}` → `{flatCount, totalOverdue}` |
+
 Flats: `POST /api/wings/{wingId}/flats` and `PATCH /api/flats/{id}` accept an optional `areaSqft`
 (omitted on PATCH leaves it unchanged); `FlatResponse` includes it.
 
@@ -108,33 +181,39 @@ Flats: `POST /api/wings/{wingId}/flats` and `PATCH /api/flats/{id}` accept an op
 | `maintenance_bill` | Unique per `(cycle, flat)` and `(cycle, bill_number)`; status + reason/by/at |
 | `maintenance_bill_line` | Copy of each charge at issue time: name, type, rate, quantity, amount |
 
-Money is `NUMERIC(12,2)` / `BigDecimal`. Cycles and bills don't cascade, so a society or flat with billing
-history can't be deleted (409).
+`V14__maintenance_payments.sql` (M7b):
+
+| Change | Notes |
+|---|---|
+| `maintenance_settings` + `late_fee_type`, `late_fee_value`, `grace_days` | Defaults NONE / 0 / 0 |
+| `maintenance_cycle.kind` | `REGULAR` / `OPENING_BALANCE`; the period index now covers regular cycles only, plus one issued opening cycle per society |
+| `maintenance_bill.amount_paid` | 0 ≤ amount_paid ≤ total |
+| `maintenance_bill_line` + `note`, `source_bill_id`, `charged_through` | Line types gain `LATE_FEE`, `OPENING_BALANCE` |
+| `maintenance_payment` | Flat, amount > 0, paid on, method, reference, note, `RECORDED`/`VOID`, recorded/voided by and at; unique receipt number per society |
+| `maintenance_payment_allocation` | Payment → bill → amount; kept after a void |
+
+Money is `NUMERIC(12,2)` / `BigDecimal`. Cycles, bills and payments don't cascade, so a society or flat
+with billing history can't be deleted (409).
 
 ## Code
 
-`maintenance/` — `controller/` (`MaintenanceConfigController`, `MaintenanceBillingController`),
-`service/` (`MaintenanceConfigService`, `BillingService`, pure `BillCalculator` and `BillingPeriods`,
-`MaintenanceNotificationListener`), `model/`, `repository/`, `dto/`. Uses `common`, `authorization`,
-`society`, `user`, `notification` (see `ModuleDependencyTest`).
+`maintenance/` — `controller/` (`MaintenanceConfigController`, `MaintenanceBillingController`,
+`MaintenancePaymentController`, `MaintenanceReportController`), `service/` (`MaintenanceConfigService`,
+`BillingService`, `PaymentService`, `MaintenanceReportService`, pure `BillCalculator`, `BillingPeriods`,
+`LateFees` and `PaymentAllocator`, `MaintenanceNotificationListener`), `model/`, `repository/`, `dto/`.
+Uses `common`, `authorization`, `society`, `user`, `notification` (see `ModuleDependencyTest`).
 
-Tests: `BillCalculatorTest`, `BillingPeriodsTest` (pure), `MaintenanceIntegrationTest` (access, issue,
-overlap, frozen lines, waive, cancel, export, push).
+Tests: `BillCalculatorTest`, `BillingPeriodsTest`, `LateFeesTest`, `PaymentAllocatorTest` (pure);
+`MaintenanceIntegrationTest` (access, issue, overlap, frozen lines, waive, cancel, export, push) and
+`MaintenancePaymentIntegrationTest` (allocation, named bill, overpayment, void, waive after payment, late
+fees across cancel/re-issue, settings, opening balances, dues/defaulters/reminders, payments CSV, pushes).
+Both import the top-level `RecordingPushConfig`, so they share one Spring context.
 
-## M7b plan — payments and reports
+## Follow-ups
 
-- `maintenance_payment` (flat, amount, paid on, method CASH/CHEQUE/UPI/BANK_TRANSFER, reference,
-  receipt number per society, recorded by, void fields) and `maintenance_payment_allocation`
-  (payment → bill → amount).
-- Recording a payment applies it to the flat's oldest unpaid bills first; the form can name one bill
-  instead. Bill status becomes PARTIAL / PAID from its allocations. Voiding a payment (with a reason)
-  removes its allocations.
-- Cancelling a cycle with paid bills is refused; waiving a PARTIAL bill writes off the remainder.
-- Settings gain late payment: `lateFeeType` NONE / FIXED / SIMPLE_INTEREST, `lateFeeValue`,
-  `graceDays`; applied as a "Late charges" line on the next cycle's bill.
-- Opening balances: a one-off bill per flat for dues from before the app.
-- Reports: dues per flat (outstanding), defaulters list with a reminder push, collection summary per
-  cycle, payments CSV. Push `MAINTENANCE_PAYMENT_RECORDED` to the flat.
+- Advance payments: today a payment above the flat's outstanding is refused. Carrying credit to the next
+  bill would need a credit balance per flat applied at issue time.
+- Receipt numbers run per society for ever (`R-000001` …); a financial-year prefix could be a setting.
 
 ## M7c plan — web app
 

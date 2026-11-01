@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.maintenance.repository
 
 import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
+import org.devvikram.societymanagement.maintenance.model.CycleKind
 import org.devvikram.societymanagement.maintenance.model.CycleStatus
 import org.devvikram.societymanagement.maintenance.model.MaintenanceCycle
 import org.devvikram.societymanagement.society.model.Society
@@ -23,10 +24,14 @@ class MaintenanceCycleRepositoryImpl(
     override fun findBySocietyId(societyId: Long): List<MaintenanceCycle> = cycleJpaRepository.findBySocietyId(societyId)
 
     override fun findIssuedOverlapping(societyId: Long, start: LocalDate, end: LocalDate): List<MaintenanceCycle> =
-        cycleJpaRepository.findOverlapping(societyId, CycleStatus.ISSUED, start, end)
+        cycleJpaRepository.findOverlapping(societyId, CycleStatus.ISSUED, CycleKind.REGULAR, start, end)
 
     override fun findLatestIssued(societyId: Long): MaintenanceCycle? =
-        cycleJpaRepository.findLatest(societyId, CycleStatus.ISSUED, PageRequest.of(0, 1)).firstOrNull()
+        cycleJpaRepository.findLatest(societyId, CycleStatus.ISSUED, CycleKind.REGULAR, PageRequest.of(0, 1)).firstOrNull()
+
+    override fun findIssuedOpening(societyId: Long): MaintenanceCycle? =
+        cycleJpaRepository.findLatest(societyId, CycleStatus.ISSUED, CycleKind.OPENING_BALANCE, PageRequest.of(0, 1))
+            .firstOrNull()
 
     override fun lockSociety(societyId: Long) {
         entityManager.find(Society::class.java, societyId, LockModeType.PESSIMISTIC_WRITE)
