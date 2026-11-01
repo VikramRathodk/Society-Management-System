@@ -21,6 +21,7 @@ class ModuleDependencyTest {
         "visitor" to setOf("common", "authorization", "society", "user", "notification"),
         "notice" to setOf("common", "authorization", "society", "user", "notification"),
         "complaint" to setOf("common", "authorization", "society", "user", "notification"),
+        "maintenance" to setOf("common", "authorization", "society", "user", "notification"),
     )
 
     private val root = "org.devvikram.societymanagement"

@@ -5,6 +5,7 @@ import org.devvikram.societymanagement.society.repository.FlatRepository
 import org.devvikram.societymanagement.society.repository.WingRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 
 @Service
 class FlatService(
@@ -12,13 +13,13 @@ class FlatService(
     private val wingRepository: WingRepository,
 ) {
     @Transactional
-    fun addFlat(wingId: Long, flatNumber: String): Flat {
+    fun addFlat(wingId: Long, flatNumber: String, areaSqft: BigDecimal? = null): Flat {
         val wing = wingRepository.findById(wingId)
             ?: throw NoSuchElementException("Wing $wingId not found")
         require(flatRepository.findByWingId(wingId).none { it.flatNumber == flatNumber }) {
             "Flat $flatNumber already exists in this wing"
         }
-        return flatRepository.save(Flat(wing = wing, flatNumber = flatNumber))
+        return flatRepository.save(Flat(wing = wing, flatNumber = flatNumber, areaSqft = areaSqft))
     }
 
     fun getById(id: Long): Flat =
@@ -30,13 +31,15 @@ class FlatService(
 
     fun listByWing(wingId: Long): List<Flat> = flatRepository.findByWingId(wingId)
 
+    // A null areaSqft leaves the area unchanged.
     @Transactional
-    fun updateFlatNumber(id: Long, flatNumber: String): Flat {
+    fun updateFlat(id: Long, flatNumber: String, areaSqft: BigDecimal? = null): Flat {
         val flat = getById(id)
         require(flatRepository.findByWingId(flat.wing.id!!).none { it.id != flat.id && it.flatNumber == flatNumber }) {
             "Flat $flatNumber already exists in this wing"
         }
         flat.flatNumber = flatNumber
+        areaSqft?.let { flat.areaSqft = it }
         return flatRepository.save(flat)
     }
 

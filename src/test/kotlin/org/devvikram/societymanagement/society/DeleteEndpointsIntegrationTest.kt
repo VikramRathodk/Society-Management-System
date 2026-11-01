@@ -93,7 +93,7 @@ class DeleteEndpointsIntegrationTest {
         mockMvc.perform(delete("/api/societies/$societyId").header("Authorization", bearer(superAdmin)))
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.message").value(
-                "Society Delete Test Society still has visitors, notices, complaints, staff or parking slots and cannot be deleted"
+                "Society Delete Test Society still has visitors, notices, complaints, maintenance bills, staff or parking slots and cannot be deleted"
             ))
     }
 

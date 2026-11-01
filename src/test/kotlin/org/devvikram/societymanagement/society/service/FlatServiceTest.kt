@@ -54,7 +54,7 @@ class FlatServiceTest {
     fun `updates a flat number`() {
         val flat = service.addFlat(wing.id!!, "101")
 
-        val updated = service.updateFlatNumber(flat.id!!, "101A")
+        val updated = service.updateFlat(flat.id!!, "101A")
 
         assertEquals("101A", updated.flatNumber)
     }
@@ -64,7 +64,7 @@ class FlatServiceTest {
         service.addFlat(wing.id!!, "101")
         val flat2 = service.addFlat(wing.id!!, "102")
 
-        assertThrows(IllegalArgumentException::class.java) { service.updateFlatNumber(flat2.id!!, "101") }
+        assertThrows(IllegalArgumentException::class.java) { service.updateFlat(flat2.id!!, "101") }
     }
 
     @Test

@@ -81,4 +81,7 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// Spring caches one context per distinct test configuration, each with its own connection pool; small
+	// pools keep the whole suite under the local Postgres connection limit.
+	systemProperty("spring.datasource.hikari.maximum-pool-size", "3")
 }

@@ -7,5 +7,6 @@ interface FlatRepository {
     fun findById(id: Long): Flat?
     fun findAll(): List<Flat>
     fun findByWingId(wingId: Long): List<Flat>
+    fun findBySocietyId(societyId: Long): List<Flat>
     fun deleteById(id: Long)
 }

@@ -34,7 +34,7 @@ class FlatController(
     @RequiresPermission(Permissions.FLAT_STRUCTURE_CREATE)
     fun addFlat(@PathVariable wingId: Long, @Valid @RequestBody request: CreateFlatRequest): FlatResponse {
         accessService.current().requireIn(Permissions.FLAT_STRUCTURE_CREATE, wingService.societyIdOf(wingId))
-        return FlatResponse.from(flatService.addFlat(wingId, request.flatNumber))
+        return FlatResponse.from(flatService.addFlat(wingId, request.flatNumber, request.areaSqft))
     }
 
     @GetMapping("/api/wings/{wingId}/flats")
@@ -65,7 +65,7 @@ class FlatController(
     @RequiresPermission(Permissions.FLAT_STRUCTURE_UPDATE)
     fun update(@PathVariable id: Long, @Valid @RequestBody request: UpdateFlatRequest): FlatResponse {
         accessService.current().requireIn(Permissions.FLAT_STRUCTURE_UPDATE, flatService.societyIdOf(id))
-        return FlatResponse.from(flatService.updateFlatNumber(id, request.flatNumber))
+        return FlatResponse.from(flatService.updateFlat(id, request.flatNumber, request.areaSqft))
     }
 
     @DeleteMapping("/api/flats/{id}")

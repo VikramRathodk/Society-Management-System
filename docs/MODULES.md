@@ -9,6 +9,11 @@ allowed dependencies between modules enforced by `ModuleDependencyTest` (see "Mo
 A package is created only when its module's first feature is built, and is then added to
 `ModuleDependencyTest`. Package names in *italics* are proposed, not created yet.
 
+Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints, permissions, tables):
+[auth](modules/auth.md) · [authorization](modules/authorization.md) · [user](modules/user.md) ·
+[society](modules/society.md) · [visitor](modules/visitor.md) · [notice](modules/notice.md) ·
+[complaint](modules/complaint.md) · [maintenance](modules/maintenance.md) · [notification](modules/notification.md).
+
 **Status:** ✅ built · 🟡 partly built / folded into another module · ⏳ planned (blocked or deferred) · — not started
 
 | # | Module | Package | Status | Notes |
@@ -26,7 +31,7 @@ A package is created only when its module's first feature is built, and is then 
 | 11 | Staff Management | *`staff`* | 🟡 | `StaffMember` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |
 | 12 | Vendor Management | *`vendor`* | — | |
 | 13 | Complaint Management | `complaint` | ✅ | M5. Flat-owned tickets, status workflow, activity timeline, CSV export, push. |
-| 14 | Maintenance Management | *`maintenance`* | — | Phase 2 (maintenance billing). |
+| 14 | Maintenance Management | `maintenance` | 🟡 | M7a built: per-society settings and charge heads, billing cycles (preview, issue, cancel), bills with frozen lines, waive, cycle CSV, push. Payments and reports are M7b. See [maintenance.md](modules/maintenance.md). |
 | 15 | Finance & Accounting | *`finance`* | — | Phase 2 (income/expense ledger). |
 | 16 | Payment Management | *`payment`* | — | Phase 2. |
 | 17 | Parking Management | *`parking`* | 🟡 | `ParkingSlot` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |

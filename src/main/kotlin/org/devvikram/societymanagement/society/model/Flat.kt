@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import java.math.BigDecimal
 
 @Entity
 @Table(name = "flat", uniqueConstraints = [UniqueConstraint(columnNames = ["wing_id", "flat_number"])])
@@ -20,6 +21,9 @@ class Flat(
 
     @Column(name = "flat_number", nullable = false)
     var flatNumber: String,
+
+    @Column(name = "area_sqft", precision = 8, scale = 2)
+    var areaSqft: BigDecimal? = null,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

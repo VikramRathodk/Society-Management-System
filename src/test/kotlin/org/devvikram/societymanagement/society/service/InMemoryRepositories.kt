@@ -77,6 +77,8 @@ class InMemoryFlatRepository : FlatRepository {
     override fun findById(id: Long): Flat? = store[id]
     override fun findAll(): List<Flat> = store.values.toList()
     override fun findByWingId(wingId: Long): List<Flat> = store.values.filter { it.wing.id == wingId }
+    override fun findBySocietyId(societyId: Long): List<Flat> =
+        store.values.filter { it.wing.society.id == societyId }.sortedWith(compareBy({ it.wing.name }, { it.flatNumber }))
     override fun deleteById(id: Long) {
         store.remove(id)
     }
