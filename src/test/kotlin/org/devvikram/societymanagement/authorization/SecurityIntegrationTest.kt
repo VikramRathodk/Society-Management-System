@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -88,6 +89,30 @@ class SecurityIntegrationTest {
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.status").value(401))
             .andExpect(jsonPath("$.path").value("/api/users"))
+    }
+
+    @Test
+    fun `unreadable request bodies return 400 naming the field`() {
+        fun login(body: String) = mockMvc.perform(
+            post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(body)
+        ).andExpect(status().isBadRequest).andExpect(jsonPath("$.path").value("/api/auth/login"))
+
+        login("""{"password":"secret123"}""").andExpect(jsonPath("$.message").value("phone: is required"))
+        login("""{"phone":null,"password":"secret123"}""").andExpect(jsonPath("$.message").value("phone: is required"))
+        login("""{"phone":""").andExpect(jsonPath("$.message").value("Request body is missing or is not valid JSON"))
+        login("").andExpect(jsonPath("$.message").value("Request body is missing or is not valid JSON"))
+
+        fun settings(body: String) = mockMvc.perform(
+            put("/api/societies/$societyId/maintenance/settings")
+                .header("Authorization", bearer(secretary))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+        ).andExpect(status().isBadRequest)
+
+        settings("""{"billingFrequency":"WEEKLY","dueDays":15,"roundToRupee":true}""")
+            .andExpect(jsonPath("$.message").value("billingFrequency: must be one of MONTHLY, QUARTERLY, HALF_YEARLY, YEARLY"))
+        settings("""{"billingFrequency":"MONTHLY","dueDays":"ten","roundToRupee":true}""")
+            .andExpect(jsonPath("$.message").value("dueDays: has the wrong type (expected a number)"))
     }
 
     @Test

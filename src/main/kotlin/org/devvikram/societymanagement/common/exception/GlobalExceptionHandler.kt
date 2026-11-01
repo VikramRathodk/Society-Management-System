@@ -1,9 +1,14 @@
 package org.devvikram.societymanagement.common.exception
 
 import jakarta.servlet.http.HttpServletRequest
+import java.time.LocalDate
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.exc.MismatchedInputException
+import tools.jackson.module.kotlin.KotlinInvalidNullException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.authentication.BadCredentialsException
 import org.springframework.security.authentication.DisabledException
@@ -44,6 +49,12 @@ class GlobalExceptionHandler {
         return respond(HttpStatus.BAD_REQUEST, message, request)
     }
 
+    // A body Jackson can't turn into the request DTO: not JSON, a required field missing or null (Kotlin
+    // non-null parameters fail here, before @Valid runs), or a value of the wrong type. Names the field.
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleUnreadable(ex: HttpMessageNotReadableException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
+        respond(HttpStatus.BAD_REQUEST, unreadableMessage(ex), request)
+
     @ExceptionHandler(BadCredentialsException::class)
     fun handleBadCredentials(ex: BadCredentialsException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.UNAUTHORIZED, "Invalid phone or password", request)
@@ -61,6 +72,35 @@ class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException::class)
     fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.FORBIDDEN, ex.message, request)
+
+    private fun unreadableMessage(ex: HttpMessageNotReadableException): String {
+        val cause = ex.cause as? JacksonException
+        val field = cause?.path.orEmpty().joinToString("") { ref ->
+            if (ref.propertyName != null) ".${ref.propertyName}" else "[${ref.index}]"
+        }.removePrefix(".")
+        if (cause == null || field.isEmpty()) return "Request body is missing or is not valid JSON"
+        return when (cause) {
+            is KotlinInvalidNullException -> "$field: is required"
+            is MismatchedInputException -> {
+                val type = cause.targetType
+                if (type != null && type.isEnum) {
+                    "$field: must be one of ${type.enumConstants.joinToString(", ")}"
+                } else {
+                    "$field: has the wrong type" + (type?.let { " (expected ${typeName(it)})" } ?: "")
+                }
+            }
+            else -> "$field: is not valid"
+        }
+    }
+
+    private fun typeName(type: Class<*>): String = when {
+        type == String::class.java -> "text"
+        Number::class.java.isAssignableFrom(type) || type.isPrimitive && type != Boolean::class.javaPrimitiveType -> "a number"
+        type == Boolean::class.javaObjectType || type == Boolean::class.javaPrimitiveType -> "true or false"
+        type == LocalDate::class.java -> "a date, yyyy-mm-dd"
+        Collection::class.java.isAssignableFrom(type) -> "a list"
+        else -> "an object"
+    }
 
     private fun respond(status: HttpStatus, message: String?, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(status).body(
