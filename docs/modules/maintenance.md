@@ -3,8 +3,8 @@
 Society maintenance dues: what each flat is charged, billing it per period, recording payments, and
 who hasn't paid. Module 14 in [MODULES.md](../MODULES.md).
 
-**Status:** 🟡 Backend done: M7a (configuration + billing) and M7b (payments, late fees, opening balances,
-reports) built 2026-11-01 · M7c (web screens, Postman folder) planned.
+**Status:** ✅ M7a (configuration + billing), M7b (payments, late fees, opening balances, reports) and M7c
+(web screens, Postman folder) built 2026-11-01. Open decision: advance payments (see Follow-ups).
 
 ## Scope
 
@@ -33,8 +33,17 @@ charges.
 | `lateFeeType` | `NONE` | `NONE`, `FIXED` (`lateFeeValue` rupees, once per overdue bill), `SIMPLE_INTEREST` (`lateFeeValue` % a year, 0–100) |
 | `lateFeeValue` | 0 | Rupees for FIXED, annual % for SIMPLE_INTEREST; must be > 0 unless NONE |
 | `graceDays` | 0 | A bill is overdue only once this many days have passed after its due date (0–365) |
+| `upiId` | none | The society's UPI ID (`handle@provider`). When set, unpaid bills show a pay-by-UPI QR code (V15) |
+| `upiPayeeName` | none | Name UPI apps show the payer (≤ 100); the web app falls back to the society name |
 
-The three late-fee fields are optional on `PUT`: leaving them out keeps the saved values.
+The late-fee and UPI fields are optional on `PUT`: leaving them out keeps the saved values; for the UPI
+fields an empty string removes the saved value.
+
+**Pay by UPI.** The web app turns the UPI ID into a standard `upi://pay` QR code (payee, amount still
+owed, note "Maintenance <bill no.> <flat>") on the bill page and the printed bill; on a phone, "Open UPI
+app" opens it directly. The QR is drawn in the browser (`qrcode` package), nothing is sent to a third
+party. This is not a payment gateway: the app isn't told about the payment, so the resident shares the
+UPI transaction ID and the committee records it as before (method UPI, reference = transaction ID).
 
 **Charge heads** (`maintenance_charge_head`): the items on every bill, e.g. Maintenance, Sinking fund,
 Parking. Each has `calcType` `FIXED` (amount per flat) or `PER_SQFT` (amount × the flat's `areaSqft`),
@@ -215,8 +224,31 @@ Both import the top-level `RecordingPushConfig`, so they share one Spring contex
   bill would need a credit balance per flat applied at issue time.
 - Receipt numbers run per society for ever (`R-000001` …); a financial-year prefix could be a setting.
 
-## M7c plan — web app
+- Web: a flat's area can only be set from the billing preview ("Set area" on a flat it flags), not yet in
+  the structure screen's flat editor; no outstanding-dues tile on the dashboard yet.
 
-Maintenance settings and charge heads; area in the flat editor; billing cycles (list, preview → issue,
-detail with collection progress); bill detail with waive; record-payment dialog and printable receipt;
-defaulters report; "My dues" for residents; outstanding tile on the dashboard. Plus a Postman folder.
+## Web app (M7c)
+
+Angular app (`Society Management - Web`), `src/app/features/maintenance/`, one **Maintenance** nav entry
+(`MAINTENANCE.BILL.VIEW`) with tabs:
+
+| Route | Screen |
+|---|---|
+| `/maintenance` | Dues per flat: outstanding / overdue totals, overdue-only toggle, record payment and remind per flat, remind all defaulters, dues CSV. Residents see their own flat. |
+| `/maintenance/bills`, `/bills/:id` | Bills with status / cycle / flat filters (kept in the URL); bill with its lines, the payments that paid it, record payment (that bill first), waive, and **Print bill** (a clean bill document: society, bill no., flat, period, due date, particulars, paid, amount due). |
+| `/maintenance/payments`, `/payments/:id` | Payments with date range and show-void filters, CSV export; printable receipt with the bills it paid, void with reason. |
+| `/maintenance/cycles`, `/cycles/new`, `/cycles/:id` | Cycles with collection progress; new cycle = suggested period → preview (problems block issuing; flats missing an area get a "Set area" button) → issue; cycle with billed / collected / outstanding, its bills, CSV, cancel. |
+| `/maintenance/opening-balances` | One amount (and note) per flat, entered once. |
+| `/maintenance/settings` | Charge heads (add, edit, turn off, delete) and billing rules incl. late fee and grace days. |
+
+The screens hide actions by permission; "society-wide" (committee views, write actions) is approximated as
+holding the permission through a role assigned without a flat, and the backend has the final say. The
+command palette gets "Record maintenance payment" and "Issue maintenance bills".
+
+Tests: `maintenance.api.spec.ts`, `maintenance-ui.spec.ts` (unit); `e2e/maintenance.spec.ts` (Playwright:
+charge → preview/issue → part payment → resident sees dues, receipt and printed bill → void → cancel, cleaned up after; assumes society 1 has no other maintenance data).
+
+Postman: folder **14. Maintenance** (40 requests: settings and late fees, charge heads, next period →
+preview → issue, bills, payments and receipt, dues and reminders, exports, void / waive / cancel, opening
+balances). The bills it creates are history, so the cleanup folder's flat, wing, society and secretary
+deletes now accept 409.

@@ -40,6 +40,9 @@ data class UpdateSettingsRequest(
     val lateFeeType: LateFeeType? = null,
     @field:DecimalMin("0") @field:Digits(integer = 10, fraction = 2) val lateFeeValue: BigDecimal? = null,
     @field:Min(0) @field:Max(365) val graceDays: Int? = null,
+    // Optional too; a blank string removes the saved value.
+    @field:Size(max = 255) val upiId: String? = null,
+    @field:Size(max = 100) val upiPayeeName: String? = null,
 )
 
 data class SettingsResponse(
@@ -50,6 +53,8 @@ data class SettingsResponse(
     val lateFeeType: LateFeeType,
     val lateFeeValue: BigDecimal,
     val graceDays: Int,
+    val upiId: String?,
+    val upiPayeeName: String?,
     // null until the society first saves its settings.
     val updatedAt: Instant?,
     val updatedByName: String?,
@@ -63,6 +68,8 @@ data class SettingsResponse(
             lateFeeType = settings.lateFeeType,
             lateFeeValue = settings.lateFeeValue,
             graceDays = settings.graceDays,
+            upiId = settings.upiId,
+            upiPayeeName = settings.upiPayeeName,
             updatedAt = settings.updatedAt,
             updatedByName = settings.updatedBy?.name,
         )

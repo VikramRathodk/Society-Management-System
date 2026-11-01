@@ -48,7 +48,7 @@ class MaintenanceConfigController(
             societyId,
             UpdateSettingsCommand(
                 request.billingFrequency!!, request.dueDays!!, request.roundToRupee!!,
-                request.lateFeeType, request.lateFeeValue, request.graceDays,
+                request.lateFeeType, request.lateFeeValue, request.graceDays, request.upiId, request.upiPayeeName,
             ),
             access.userId,
         )

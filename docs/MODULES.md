@@ -31,7 +31,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 11 | Staff Management | *`staff`* | 🟡 | `StaffMember` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |
 | 12 | Vendor Management | *`vendor`* | — | |
 | 13 | Complaint Management | `complaint` | ✅ | M5. Flat-owned tickets, status workflow, activity timeline, CSV export, push. |
-| 14 | Maintenance Management | `maintenance` | 🟡 | Backend done (M7a + M7b): settings and charge heads, billing cycles, bills with frozen lines, waive, offline payments with receipts and void, late fees, opening balances, dues/defaulters reports and reminders, CSV exports, push. Web screens are M7c. See [maintenance.md](modules/maintenance.md). |
+| 14 | Maintenance Management | `maintenance` | ✅ | M7a–M7c: settings and charge heads, billing cycles, bills with frozen lines, waive, offline payments with receipts and void, late fees, opening balances, dues/defaulters reports and reminders, CSV exports, push. Web screens (dues, bills, payments and receipts, cycles, opening balances, settings) and a Postman folder. See [maintenance.md](modules/maintenance.md). |
 | 15 | Finance & Accounting | *`finance`* | — | Phase 2 (income/expense ledger). |
 | 16 | Payment Management | *`payment`* | — | Phase 2. |
 | 17 | Parking Management | *`parking`* | 🟡 | `ParkingSlot` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |

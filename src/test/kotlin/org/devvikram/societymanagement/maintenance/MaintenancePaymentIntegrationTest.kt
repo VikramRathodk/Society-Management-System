@@ -264,6 +264,24 @@ class MaintenancePaymentIntegrationTest {
     }
 
     @Test
+    fun `the society UPI ID is validated, kept when left out and removed when blank`() {
+        val settings = "/api/societies/$societyId/maintenance/settings"
+        val base = """"billingFrequency":"MONTHLY","dueDays":15,"roundToRupee":true"""
+        sendAs(secretary, settings, """{$base,"upiId":"not a upi id"}""", method = "PUT")
+            .andExpect(status().isBadRequest)
+        sendAs(secretary, settings, """{$base,"upiId":" stark.tower@okhdfc ","upiPayeeName":"Stark Tower CHS"}""", method = "PUT")
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.upiId").value("stark.tower@okhdfc"))
+        sendAs(secretary, settings, """{$base}""", method = "PUT")
+            .andExpect(jsonPath("$.upiId").value("stark.tower@okhdfc"))
+            .andExpect(jsonPath("$.upiPayeeName").value("Stark Tower CHS"))
+        // Residents read it to show the QR code on their bills.
+        getAs(resident, settings).andExpect(jsonPath("$.upiId").value("stark.tower@okhdfc"))
+        sendAs(secretary, settings, """{$base,"upiId":"","upiPayeeName":""}""", method = "PUT")
+            .andExpect(jsonPath("$.upiId").doesNotExist())
+    }
+
+    @Test
     fun `opening balances are one-off bills that payments clear first`() {
         openingBalance(flatId, "5000").andExpect(status().isCreated)
             .andExpect(jsonPath("$.kind").value("OPENING_BALANCE"))

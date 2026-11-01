@@ -49,6 +49,14 @@ class MaintenanceSettings(
     // A bill is overdue only once this many days have passed after its due date.
     @Column(name = "grace_days", nullable = false)
     var graceDays: Int = 0,
+
+    // Where residents can pay by UPI (e.g. "stark.tower@okhdfc"); null hides the QR code on bills.
+    @Column(name = "upi_id")
+    var upiId: String? = null,
+
+    // The name UPI apps show the payer; null falls back to the society's name on the client.
+    @Column(name = "upi_payee_name")
+    var upiPayeeName: String? = null,
 ) {
     @Column(name = "updated_at")
     var updatedAt: Instant? = null

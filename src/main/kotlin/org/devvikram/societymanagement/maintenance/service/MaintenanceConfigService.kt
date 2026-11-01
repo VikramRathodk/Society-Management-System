@@ -23,6 +23,9 @@ data class UpdateSettingsCommand(
     val lateFeeType: LateFeeType? = null,
     val lateFeeValue: BigDecimal? = null,
     val graceDays: Int? = null,
+    // Same for UPI: null keeps the saved value, a blank string removes it.
+    val upiId: String? = null,
+    val upiPayeeName: String? = null,
 )
 
 data class AddChargeHeadCommand(
@@ -75,12 +78,19 @@ class MaintenanceConfigService(
                 "Interest must be more than 0 and at most $MAX_INTEREST% a year"
             }
         }
+        val upiId = if (command.upiId == null) settings.upiId else command.upiId.trim().ifEmpty { null }
+        val upiPayeeName =
+            if (command.upiPayeeName == null) settings.upiPayeeName else command.upiPayeeName.trim().ifEmpty { null }
+        upiId?.let { require(UPI_ID.matches(it)) { "UPI ID must look like name@bank, e.g. society@okhdfc" } }
+        upiPayeeName?.let { require(it.length <= 100) { "UPI payee name can be at most 100 characters" } }
         settings.billingFrequency = command.billingFrequency
         settings.dueDays = command.dueDays
         settings.roundToRupee = command.roundToRupee
         settings.lateFeeType = lateFeeType
         settings.lateFeeValue = lateFeeValue
         settings.graceDays = graceDays
+        settings.upiId = upiId
+        settings.upiPayeeName = upiPayeeName
         settings.updatedAt = Instant.now()
         settings.updatedBy = userRepository.findById(editorId) ?: throw NoSuchElementException("User $editorId not found")
         settingsRepository.save(settings)
@@ -160,5 +170,8 @@ class MaintenanceConfigService(
     private companion object {
         // Annual simple interest above this is almost certainly a typo (e.g. 180 for 18).
         val MAX_INTEREST = BigDecimal(100)
+
+        // A UPI virtual payment address: handle@provider.
+        val UPI_ID = Regex("^[A-Za-z0-9._-]{2,200}@[A-Za-z][A-Za-z0-9]{1,50}$")
     }
 }
