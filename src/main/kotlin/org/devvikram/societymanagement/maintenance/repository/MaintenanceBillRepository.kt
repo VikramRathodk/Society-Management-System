@@ -30,14 +30,17 @@ data class CycleBillTotals(
 data class LateChargeMark(val billId: Long, val chargedThrough: LocalDate)
 
 // What one flat owes across its open bills. `overdue` counts bills due before the cutoff the caller gave.
-data class FlatDues(
+// `credit` is its unused advance (filled in by the report service); a flat with only credit has no open
+// bills and no oldest due date.
+data class FlatDues @JvmOverloads constructor(
     val flatId: Long,
     val wingName: String,
     val flatNumber: String,
     val openBills: Long,
     val outstanding: BigDecimal,
     val overdue: BigDecimal,
-    val oldestDueDate: LocalDate,
+    val oldestDueDate: LocalDate?,
+    val credit: BigDecimal = BigDecimal.ZERO.setScale(2),
 )
 
 // Reads return bills with cycle, society, flat (and its wing) and statusChangedBy loaded; only findById

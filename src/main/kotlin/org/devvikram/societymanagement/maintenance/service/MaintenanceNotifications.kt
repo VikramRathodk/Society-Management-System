@@ -1,5 +1,7 @@
 package org.devvikram.societymanagement.maintenance.service
 
+import org.devvikram.societymanagement.authorization.AccessService
+import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.notification.PushNotifier
 import org.devvikram.societymanagement.user.repository.UserRepository
 import org.devvikram.societymanagement.user.repository.UserRoleRepository
@@ -37,6 +39,33 @@ data class OverdueFlat(val flatId: Long, val flatNumber: String, val overdue: Bi
 
 data class MaintenanceDuesReminder(val societyId: Long, val flats: List<OverdueFlat>)
 
+// Flats' credit paid bills when a cycle was issued (published inside the issuing transaction).
+data class MaintenanceCreditApplied(
+    val cycleId: Long,
+    val societyId: Long,
+    val appliedOn: LocalDate,
+    val flats: List<CreditApplied>,
+)
+
+// A refund is waiting for a second person.
+data class MaintenanceRefundNeedsApproval(
+    val refundId: Long,
+    val societyId: Long,
+    val refundNumber: String,
+    val flatNumber: String,
+    val amount: BigDecimal,
+    val makerId: Long,
+    val makerName: String,
+)
+
+data class MaintenanceRefundDecided(
+    val refundId: Long,
+    val makerId: Long,
+    val refundNumber: String,
+    val approved: Boolean,
+    val reason: String?,
+)
+
 // Runs only after the transaction commits, so nobody hears about something that was rolled back.
 // Best-effort: a failure is logged, never surfaced to the person who acted.
 @Component
@@ -45,6 +74,7 @@ class MaintenanceNotificationListener(
     private val userRepository: UserRepository,
     private val pushNotifier: PushNotifier,
     private val audience: MaintenanceAudience,
+    private val accessService: AccessService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -108,6 +138,49 @@ class MaintenanceNotificationListener(
 
     // Device tokens of each flat's active residents who see its maintenance (anyone holding a role tied to
     // the flat, minus tenants unless the society includes them), for the flats that have any.
+    // To everyone who may approve refunds in the society (society-wide), except the refund's maker.
+    @TransactionalEventListener
+    fun onRefundNeedsApproval(event: MaintenanceRefundNeedsApproval) {
+        try {
+            val approverIds = userRoleRepository.findByUserIds(userRoleRepository.findUserIdsBySocietyIds(listOf(event.societyId)))
+                .groupBy { it.user.id!! }
+                .filter { (userId, roles) ->
+                    userId != event.makerId && accessService.accessFor(userId, roles.map { it.toGrant() })
+                        .canSocietyWide(Permissions.MAINTENANCE_REFUND_APPROVE, event.societyId)
+                }
+                .keys
+            val tokens = userRepository.findAllById(approverIds).filter { it.isActive }.mapNotNull { it.fcmToken }.distinct()
+            if (tokens.isEmpty()) return
+            pushNotifier.send(
+                tokens,
+                title = "Refund to approve",
+                body = "${event.makerName} recorded refund ${event.refundNumber} of ${rupees(event.amount)} to flat ${event.flatNumber}",
+                data = mapOf("type" to "MAINTENANCE_REFUND_NEEDS_APPROVAL", "refundId" to event.refundId.toString()),
+            )
+        } catch (e: Exception) {
+            log.warn("Push notification failed for refund {} awaiting approval", event.refundId, e)
+        }
+    }
+
+    @TransactionalEventListener
+    fun onRefundDecided(event: MaintenanceRefundDecided) {
+        try {
+            val token = userRepository.findById(event.makerId)?.takeIf { it.isActive }?.fcmToken ?: return
+            pushNotifier.send(
+                listOf(token),
+                title = if (event.approved) "Refund approved" else "Refund not approved",
+                body = if (event.approved) "Refund ${event.refundNumber} is approved"
+                else "Refund ${event.refundNumber} was rejected" + (event.reason?.let { ": $it" } ?: ""),
+                data = mapOf(
+                    "type" to if (event.approved) "MAINTENANCE_REFUND_APPROVED" else "MAINTENANCE_REFUND_REJECTED",
+                    "refundId" to event.refundId.toString(),
+                ),
+            )
+        } catch (e: Exception) {
+            log.warn("Push notification failed for decided refund {}", event.refundId, e)
+        }
+    }
+
     private fun tokensByFlat(societyId: Long, flatIds: Set<Long>): Map<Long, List<String>> {
         val tenants = audience.tenantsIncluded(societyId)
         val userIdsByFlat = userRoleRepository.findByUserIds(userRoleRepository.findUserIdsBySocietyIds(listOf(societyId)))

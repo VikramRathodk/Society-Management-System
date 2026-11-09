@@ -12,6 +12,8 @@ import org.devvikram.societymanagement.maintenance.repository.MaintenancePayment
 import org.devvikram.societymanagement.maintenance.repository.PaymentSearch
 import org.devvikram.societymanagement.society.repository.FlatRepository
 import org.devvikram.societymanagement.society.repository.SocietyRepository
+import org.devvikram.societymanagement.society.service.SocietySettingKeys
+import org.devvikram.societymanagement.society.service.SocietySettingsService
 import org.devvikram.societymanagement.user.model.User
 import org.devvikram.societymanagement.user.repository.UserRepository
 import org.springframework.context.ApplicationEventPublisher
@@ -30,6 +32,8 @@ data class RecordPaymentCommand(
     val note: String? = null,
     // Pay this bill first; the rest (if any) goes to the oldest bills.
     val billId: Long? = null,
+    // The finance cash/bank ledger the money went into (checked by finance when the books are kept).
+    val depositAccountId: Long? = null,
 )
 
 // Offline payments against a flat's bills. *Who* may act is decided by the caller
@@ -43,6 +47,7 @@ class PaymentService(
     private val flatRepository: FlatRepository,
     private val societyRepository: SocietyRepository,
     private val userRepository: UserRepository,
+    private val settings: SocietySettingsService,
     private val events: ApplicationEventPublisher,
 ) {
     // Records the payment with a new receipt number and applies it to the flat's bills, oldest due first
@@ -61,7 +66,9 @@ class PaymentService(
             require(open.any { it.id == command.billId }) { "Bill ${command.billId} is not an open bill of this flat" }
         }
         val amount = command.amount.setScale(2)
-        val split = PaymentAllocator.allocate(amount, open.map { OpenBill(it.id!!, it.outstanding) }, command.billId)
+        val acceptAdvance = settings.boolean(societyId, SocietySettingKeys.ACCEPT_ADVANCE_PAYMENTS)
+        // With advance payments on, what the bills don't take stays on the payment as the flat's credit.
+        val split = PaymentAllocator.allocate(amount, open.map { OpenBill(it.id!!, it.outstanding) }, command.billId, acceptAdvance)
 
         val society = societyRepository.findById(societyId) ?: throw NoSuchElementException("Society $societyId not found")
         val payment = MaintenancePayment(
@@ -74,7 +81,7 @@ class PaymentService(
             reference = command.reference?.trim()?.takeIf { it.isNotEmpty() },
             note = command.note?.trim()?.takeIf { it.isNotEmpty() },
             recordedBy = user(recorderId),
-        )
+        ).also { it.depositAccountId = command.depositAccountId }
         val billsById = open.associateBy { it.id!! }
         for ((billId, part) in split) {
             val bill = billsById.getValue(billId)
@@ -95,8 +102,9 @@ class PaymentService(
         return saved.id!!
     }
 
-    // Takes the payment back off its bills (they become UNPAID / PARTIAL again). The payment and its
-    // allocations stay as history. Refused when a bill it paid was waived since: the write-off would grow.
+    // Takes the payment back off its bills (they become UNPAID / PARTIAL again), including bills its credit
+    // paid later. The payment and its allocations stay as history. Refused when a bill it paid was waived
+    // since (the write-off would grow), or while a refund holds part of its credit.
     @Transactional
     fun void(id: Long, actorId: Long, reason: String) {
         require(reason.isNotBlank()) { "A reason is required" }
@@ -104,6 +112,10 @@ class PaymentService(
         cycleRepository.lockSociety(societyId)
         val payment = get(id)
         if (payment.status != PaymentStatus.RECORDED) throw ConflictException("Payment is already void")
+        // Its credit paid out as a refund can't silently come back: undo the refund first.
+        if (paymentRepository.refundedFrom(id).signum() > 0) {
+            throw ConflictException("Part of this payment's credit is in a refund; void or reject the refund first")
+        }
         payment.allocations.firstOrNull { it.bill.status !in BillStatus.OPEN && it.bill.status != BillStatus.PAID }?.let {
             throw ConflictException("Bill ${it.bill.billNumber} is ${it.bill.status}; a payment on it cannot be voided")
         }
@@ -115,6 +127,13 @@ class PaymentService(
         payment.voidedAt = Instant.now()
         payment.voidReason = reason.trim()
         paymentRepository.save(payment)
+    }
+
+    // What of the payment isn't on any bill or in a refund (only meaningful while it is RECORDED).
+    fun creditLeft(payment: MaintenancePayment): BigDecimal {
+        if (payment.status != PaymentStatus.RECORDED) return BigDecimal.ZERO.setScale(2)
+        val allocated = payment.allocations.fold(BigDecimal.ZERO) { sum, it -> sum + it.amount }
+        return (payment.amount - allocated - paymentRepository.refundedFrom(payment.id!!)).setScale(2)
     }
 
     fun get(id: Long): MaintenancePayment =

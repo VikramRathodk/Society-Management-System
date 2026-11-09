@@ -30,14 +30,23 @@ data class RecordPaymentRequest(
     @field:Size(max = 2000) val note: String? = null,
     // Pay this bill first instead of the oldest.
     val billId: Long? = null,
+    // The finance cash/bank ledger the money went into; the books' default for the method when left out.
+    val depositAccountId: Long? = null,
 ) {
-    fun toCommand() = RecordPaymentCommand(flatId!!, amount!!, paidOn!!, method!!, reference, note, billId)
+    fun toCommand() = RecordPaymentCommand(flatId!!, amount!!, paidOn!!, method!!, reference, note, billId, depositAccountId)
 }
 
-data class AllocationResponse(val billId: Long, val billNumber: String, val amount: BigDecimal) {
+// fromCredit: paid later from the payment's unused credit, on appliedOn.
+data class AllocationResponse(
+    val billId: Long,
+    val billNumber: String,
+    val amount: BigDecimal,
+    val fromCredit: Boolean,
+    val appliedOn: LocalDate?,
+) {
     companion object {
         fun from(allocation: PaymentAllocation) =
-            AllocationResponse(allocation.bill.id!!, allocation.bill.billNumber, allocation.amount)
+            AllocationResponse(allocation.bill.id!!, allocation.bill.billNumber, allocation.amount, allocation.fromCredit, allocation.appliedOn)
     }
 }
 
@@ -59,11 +68,14 @@ data class PaymentResponse(
     val voidedAt: Instant?,
     val voidedByName: String?,
     val voidReason: String?,
-    // Which bills it paid; only on the single-payment endpoint (the receipt), null in lists.
+    val depositAccountId: Long?,
+    // Which bills it paid, and what is left of it as the flat's credit; only on the single-payment
+    // endpoint (the receipt), null in lists.
     val allocations: List<AllocationResponse>?,
+    val creditLeft: BigDecimal?,
 ) {
     companion object {
-        fun from(payment: MaintenancePayment, withAllocations: Boolean = false) = PaymentResponse(
+        fun from(payment: MaintenancePayment, withAllocations: Boolean = false, creditLeft: BigDecimal? = null) = PaymentResponse(
             id = payment.id!!,
             receiptNumber = payment.receiptNumber,
             societyId = payment.society.id!!,
@@ -81,7 +93,9 @@ data class PaymentResponse(
             voidedAt = payment.voidedAt,
             voidedByName = payment.voidedBy?.name,
             voidReason = payment.voidReason,
+            depositAccountId = payment.depositAccountId,
             allocations = if (withAllocations) payment.allocations.map(AllocationResponse::from) else null,
+            creditLeft = creditLeft,
         )
     }
 }
@@ -92,8 +106,10 @@ data class BillPaymentResponse(
     val receiptNumber: String,
     val paidOn: LocalDate,
     val method: PaymentMethod,
-    // The part of the payment that went to this bill.
+    // The part of the payment that went to this bill; fromCredit if it came from the payment's credit later.
     val amount: BigDecimal,
+    val fromCredit: Boolean,
+    val appliedOn: LocalDate?,
 ) {
     companion object {
         fun from(allocation: PaymentAllocation) = BillPaymentResponse(
@@ -102,6 +118,8 @@ data class BillPaymentResponse(
             paidOn = allocation.payment.paidOn,
             method = allocation.payment.method,
             amount = allocation.amount,
+            fromCredit = allocation.fromCredit,
+            appliedOn = allocation.appliedOn,
         )
     }
 }
@@ -132,12 +150,14 @@ data class FlatDuesResponse(
     val outstanding: BigDecimal,
     // Past the due date plus the society's grace days.
     val overdue: BigDecimal,
-    val oldestDueDate: LocalDate,
+    val oldestDueDate: LocalDate?,
+    // Unused advance; a flat with only credit has no open bills.
+    val credit: BigDecimal,
 ) {
     companion object {
         fun from(dues: FlatDues) = FlatDuesResponse(
             dues.flatId, dues.wingName, dues.flatNumber, dues.openBills,
-            dues.outstanding.setScale(2), dues.overdue.setScale(2), dues.oldestDueDate,
+            dues.outstanding.setScale(2), dues.overdue.setScale(2), dues.oldestDueDate, dues.credit.setScale(2),
         )
     }
 }

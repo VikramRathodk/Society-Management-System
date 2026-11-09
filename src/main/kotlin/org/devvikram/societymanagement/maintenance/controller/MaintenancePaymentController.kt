@@ -47,7 +47,7 @@ class MaintenancePaymentController(
     fun record(@PathVariable societyId: Long, @Valid @RequestBody request: RecordPaymentRequest): PaymentResponse {
         val access = requireSocietyWide(Permissions.MAINTENANCE_PAYMENT_CREATE, societyId)
         val id = paymentService.record(societyId, request.toCommand(), access.userId, LocalDate.now(reportZone))
-        return PaymentResponse.from(paymentService.get(id), withAllocations = true)
+        return receipt(paymentService.get(id))
     }
 
     // Newest first. Residents get their own flat(s) only; flatId narrows it; from/to are paid-on days.
@@ -86,14 +86,14 @@ class MaintenancePaymentController(
     // The receipt: the payment with the bills it paid.
     @GetMapping("/api/maintenance/payments/{id}")
     @RequiresPermission(Permissions.MAINTENANCE_PAYMENT_VIEW)
-    fun payment(@PathVariable id: Long): PaymentResponse = PaymentResponse.from(viewable(id), withAllocations = true)
+    fun payment(@PathVariable id: Long): PaymentResponse = receipt(viewable(id))
 
     @PostMapping("/api/maintenance/payments/{id}/void")
     @RequiresPermission(Permissions.MAINTENANCE_PAYMENT_UPDATE)
     fun void(@PathVariable id: Long, @Valid @RequestBody request: CancelRequest): PaymentResponse {
         val access = requireSocietyWide(Permissions.MAINTENANCE_PAYMENT_UPDATE, paymentService.get(id).society.id!!)
         paymentService.void(id, access.userId, request.reason)
-        return PaymentResponse.from(paymentService.get(id), withAllocations = true)
+        return receipt(paymentService.get(id))
     }
 
     // Payments paid within [from, to] (void ones included, marked) as a CSV download.
@@ -124,6 +124,9 @@ class MaintenancePaymentController(
         )
         return Csv.download("maintenance-payments-$societyId-$from-to-$to.csv", csv)
     }
+
+    private fun receipt(payment: MaintenancePayment): PaymentResponse =
+        PaymentResponse.from(payment, withAllocations = true, creditLeft = paymentService.creditLeft(payment))
 
     private fun viewable(id: Long): MaintenancePayment {
         val payment = paymentService.get(id)

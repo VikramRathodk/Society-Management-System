@@ -73,6 +73,7 @@ data class SettingDefinition(
 
 object SocietySettingKeys {
     const val TENANTS_SEE_MAINTENANCE = "tenantsSeeMaintenance"
+    const val ACCEPT_ADVANCE_PAYMENTS = "acceptAdvancePayments"
     const val INVITE_EXPIRY_DAYS = "inviteExpiryDays"
     const val RESIDENTS_CAN_INVITE = "residentsCanInvite"
     const val RESIDENT_INVITES_NEED_APPROVAL = "residentInvitesNeedApproval"
@@ -94,6 +95,15 @@ object SocietySettingCatalog {
                 "notifications. On: tenants do too. Committee members and above always see every flat.",
             type = SettingType.BOOLEAN,
             defaultValue = "false",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.ACCEPT_ADVANCE_PAYMENTS,
+            group = SettingGroup.MAINTENANCE,
+            label = "Accept advance payments",
+            description = "On: a payment can be more than the flat owes; the rest is kept as the flat's credit " +
+                "and pays its next bills when they are issued. Off: payments above what is owed are refused.",
+            type = SettingType.BOOLEAN,
+            defaultValue = "true",
         ),
         SettingDefinition(
             key = SocietySettingKeys.INVITE_EXPIRY_DAYS,

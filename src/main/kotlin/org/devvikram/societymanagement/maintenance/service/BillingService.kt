@@ -4,6 +4,7 @@ import org.devvikram.societymanagement.common.exception.ConflictException
 import org.devvikram.societymanagement.maintenance.model.BillLineType
 import org.devvikram.societymanagement.maintenance.model.BillStatus
 import org.devvikram.societymanagement.maintenance.model.CycleKind
+import org.devvikram.societymanagement.maintenance.model.CycleStatus
 import org.devvikram.societymanagement.maintenance.model.MaintenanceBill
 import org.devvikram.societymanagement.maintenance.model.MaintenanceBillLine
 import org.devvikram.societymanagement.maintenance.model.MaintenanceCycle
@@ -36,6 +37,7 @@ class BillingService(
     private val configService: MaintenanceConfigService,
     private val cycleRepository: MaintenanceCycleRepository,
     private val billRepository: MaintenanceBillRepository,
+    private val creditService: CreditService,
     private val flatRepository: FlatRepository,
     private val societyRepository: SocietyRepository,
     private val userRepository: UserRepository,
@@ -92,7 +94,16 @@ class BillingService(
                 bills = saved.map { IssuedBill(it.id!!, it.flat.id!!, it.flat.flatNumber, it.total) },
             )
         )
+        spendCredit(cycle)
         return cycle.id!!
+    }
+
+    // Flats with unused credit pay their open bills from it, the new ones included, on the cycle's start.
+    private fun spendCredit(cycle: MaintenanceCycle) {
+        val applied = creditService.applyCredit(cycle.society.id!!, cycle.periodStart)
+        if (applied.isNotEmpty()) {
+            events.publishEvent(MaintenanceCreditApplied(cycle.id!!, cycle.society.id!!, cycle.periodStart, applied))
+        }
     }
 
     // One bill per listed flat for what it owed before the app, in a one-off OPENING_BALANCE cycle. Only one
@@ -136,16 +147,19 @@ class BillingService(
             newBill(cycle, BillDraft(flat, listOf(line)), "OB-%04d".format(index + 1))
         }
         billRepository.saveAll(bills)
+        spendCredit(cycle)
         return cycle.id!!
     }
 
-    // Cancels the cycle and every bill in it, and frees its period for a new cycle. Refused once any of
-    // its bills received money: void those payments first.
+    // Cancels the cycle and every bill in it, and frees its period for a new cycle. Credit that paid its
+    // bills goes back to the payments it came from. Refused once any of its bills received money directly:
+    // void those payments first (the credit release is then rolled back with the refusal).
     @Transactional
     fun cancelCycle(id: Long, actorId: Long, reason: String) {
         val cleanReason = requireReason(reason)
         val cycle = getCycle(id)
         cycleRepository.lockSociety(cycle.society.id!!)
+        if (cycle.status == CycleStatus.ISSUED) creditService.releaseCredit(id)
         val paid = billRepository.countPaidInCycle(id)
         if (paid > 0) {
             throw ConflictException("$paid bill(s) in this cycle have payments; void those payments first")

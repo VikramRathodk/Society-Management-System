@@ -58,9 +58,9 @@ class MaintenanceReportController(
         requireSocietyWide(Permissions.MAINTENANCE_BILL_EXPORT, societyId)
         val today = today()
         val csv = Csv.write(
-            listOf("wing", "flat", "open_bills", "outstanding", "overdue", "oldest_due_date"),
+            listOf("wing", "flat", "open_bills", "outstanding", "overdue", "oldest_due_date", "credit"),
             reportService.dues(societyId, today, overdueOnly = overdueOnly).map {
-                listOf(it.wingName, it.flatNumber, it.openBills, it.outstanding.setScale(2), it.overdue.setScale(2), it.oldestDueDate)
+                listOf(it.wingName, it.flatNumber, it.openBills, it.outstanding.setScale(2), it.overdue.setScale(2), it.oldestDueDate, it.credit)
             },
         )
         return Csv.download("maintenance-dues-$societyId-$today.csv", csv)

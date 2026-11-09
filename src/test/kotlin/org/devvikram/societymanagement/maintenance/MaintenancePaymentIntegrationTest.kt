@@ -54,6 +54,7 @@ class MaintenancePaymentIntegrationTest {
     @Autowired lateinit var societyService: SocietyService
     @Autowired lateinit var wingService: WingService
     @Autowired lateinit var flatService: FlatService
+    @Autowired lateinit var settingsService: org.devvikram.societymanagement.society.service.SocietySettingsService
 
     private var societyId = 0L
     private var flatId = 0L
@@ -165,7 +166,7 @@ class MaintenancePaymentIntegrationTest {
     }
 
     @Test
-    fun `a payment can be aimed at one bill, and more than the outstanding is refused`() {
+    fun `a payment can be aimed at one bill, and more than the outstanding is refused when advances are off`() {
         val nov = issue()
         val dec = issue(december)
 
@@ -174,6 +175,7 @@ class MaintenancePaymentIntegrationTest {
         getAs(secretary, "/api/maintenance/bills/${billOf(dec)}").andExpect(jsonPath("$.status").value("PARTIAL"))
         getAs(secretary, "/api/maintenance/bills/${billOf(nov)}").andExpect(jsonPath("$.status").value("UNPAID"))
 
+        settingsService.update(societyId, mapOf("acceptAdvancePayments" to false), secretary.id!!)
         pay("4250.01").andExpect(status().isBadRequest).andExpect(jsonPath("$.message", containsString("outstanding 4250.00")))
         pay("100", extra = ""","billId":${billOf(nov, otherFlatId)}""").andExpect(status().isBadRequest)
         pay("100", by = committee).andExpect(status().isForbidden)
@@ -218,7 +220,8 @@ class MaintenancePaymentIntegrationTest {
             .andExpect(jsonPath("$.amountPaid").value(1000.00))
             .andExpect(jsonPath("$.outstanding").value(0))
         sendAs(secretary, "/api/maintenance/payments/$payment/void", """{"reason":"Oops"}""").andExpect(status().isConflict)
-        pay("1").andExpect(status().isBadRequest).andExpect(jsonPath("$.message", containsString("nothing outstanding")))
+        // Nothing is owed any more, so a new payment is all credit (advances are on by default).
+        pay("1").andExpect(status().isCreated).andExpect(jsonPath("$.allocations", hasSize<Any>(0))).andExpect(jsonPath("$.creditLeft").value(1))
     }
 
     @Test

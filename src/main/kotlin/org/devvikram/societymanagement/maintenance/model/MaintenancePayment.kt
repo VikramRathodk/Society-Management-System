@@ -81,6 +81,10 @@ class MaintenancePayment(
     @Column(name = "void_reason")
     var voidReason: String? = null
 
+    // The finance cash/bank ledger the money went into; finance checks it when it posts the payment.
+    @Column(name = "deposit_account_id")
+    var depositAccountId: Long? = null
+
     @OneToMany(mappedBy = "payment", cascade = [CascadeType.PERSIST], fetch = FetchType.LAZY)
     @OrderBy("id")
     var allocations: MutableList<PaymentAllocation> = mutableListOf()
@@ -104,6 +108,13 @@ class PaymentAllocation(
 
     @Column(nullable = false, precision = 12, scale = 2)
     var amount: BigDecimal,
+
+    // Made later from the payment's unused credit, on `appliedOn` (the start of the cycle it paid).
+    @Column(name = "from_credit", nullable = false)
+    var fromCredit: Boolean = false,
+
+    @Column(name = "applied_on")
+    var appliedOn: LocalDate? = null,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

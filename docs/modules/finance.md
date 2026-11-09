@@ -3,7 +3,7 @@
 The society's books: what came in, what went out, where the money sits, and the statements an annual
 audit asks for. Module 15 in [MODULES.md](../MODULES.md).
 
-**Status:** 🟡 being built. Steps 1 (books and chart) and 2 (vouchers) done 2026-11-10; steps 3–6 to come. Builds on Maintenance (module 14). Revised
+**Status:** 🟡 being built. Steps 1 (books and chart), 2 (vouchers) and 3 (maintenance credit and refunds) done 2026-11-10; steps 4–6 to come. Builds on Maintenance (module 14). Revised
 after the review in [finance-upgrades.md](finance-upgrades.md); its "Review outcome" table says what
 was adopted and why.
 
@@ -396,6 +396,28 @@ Rules as built:
   `common/storage` adds PDF to the image formats, while visitor photos still accept images only.
 
 Tests: `FinanceVoucherIntegrationTest` (15), `DocumentFormatTest`.
+
+### Step 3: maintenance credit and refunds (2026-11-10)
+
+Built in `maintenance` (V21); the rules and endpoints are in [maintenance.md](maintenance.md) under
+"Credit and refunds". Beyond the plan:
+- `PaymentCredit`, `CreditAllocator` (pure) and `CreditService` work out and spend credit; credit is a
+  query over payments, allocations and refund allocations, never a column.
+- Cancelling a cycle gives back the credit its bills used (the credit allocations are removed), instead of
+  being blocked by them; bills paid directly still block it.
+- A payment can now reach the same bill twice (directly, then from credit after a void reopened the
+  bill), so the one-allocation-per-bill constraint was dropped.
+- Withdrawn refunds become `REJECTED` (like vouchers); `RF-` numbers never have gaps.
+- Events for step 4, published inside the transaction: `MaintenanceCreditApplied`,
+  `MaintenanceRefundCompleted`, `MaintenanceRefundVoided`. `depositAccountId` / `paidFromAccountId` are
+  stored but not yet checked: that is step 4's job, when finance posts.
+- The dues response gains `credit`, and `oldestDueDate` can now be null (credit-only rows): the web app
+  must handle that in step 6.
+- Postman folder 14: advance payments off/on around the "above what is owed" check, then advance, credit,
+  dues with credit, refund (400/403/201), void blocked by refund (409), void refund, void advance.
+
+Tests: `MaintenanceCreditIntegrationTest` (10), `CreditAllocatorTest`, `PaymentAllocatorExcessTest`; two
+existing payment tests updated for advances being on by default.
 
 ## Build steps
 

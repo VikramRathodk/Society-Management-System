@@ -55,6 +55,7 @@ Per-society rules that a society can change, so behaviour isn't hard-coded (SECR
 | Key | Group | Type | Default | Effect |
 |---|---|---|---|---|
 | `tenantsSeeMaintenance` | Maintenance | BOOLEAN | false | Off: only a flat's OWNER / FAMILY residents see its bills, payments and dues and get maintenance pushes. On: TENANTs too. See [maintenance](maintenance.md). |
+| `acceptAdvancePayments` | Maintenance | BOOLEAN | true | A payment may be more than the flat owes; the rest is the flat's credit and pays its next bills. Off: refused. |
 | `inviteExpiryDays` | Membership & invitations | INTEGER (1–30) | 7 | How long an invitation link works; resending starts it again. See [invitation](invitation.md). |
 | `residentsCanInvite` | Membership & invitations | BOOLEAN | true | Owners invite family and tenants, tenants invite tenants, onto their own flat. |
 | `residentInvitesNeedApproval` | Membership & invitations | BOOLEAN | true | A resident's invitation works only after a committee member approves it. |

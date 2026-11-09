@@ -4,7 +4,8 @@ Society maintenance dues: what each flat is charged, billing it per period, reco
 who hasn't paid. Module 14 in [MODULES.md](../MODULES.md).
 
 **Status:** ✅ M7a (configuration + billing), M7b (payments, late fees, opening balances, reports) and M7c
-(web screens, Postman folder) built 2026-11-01. Open decision: advance payments (see Follow-ups).
+(web screens, Postman folder) built 2026-11-01. Advance payments (credit) and refunds added 2026-11-10 (V21,
+finance plan step 3; see "Credit and refunds").
 
 ## Scope
 
@@ -15,7 +16,8 @@ who hasn't paid. Module 14 in [MODULES.md](../MODULES.md).
 | Bills per flat with frozen line items; waive | GST on maintenance |
 | Recording offline payments, receipts, void | Charges by flat type (1BHK/2BHK) |
 | Dues, defaulters and collection reports, CSV | Non-occupancy charges for tenant flats |
-| Late fee / interest rules | Advance payments (credit carried to later bills) |
+| Late fee / interest rules | Postings to the books — Finance module (15), its step 4 |
+| Advance payments as credit, refunds of credit (V21) | |
 | Opening balances for existing societies | |
 
 ## Configuration (dynamic, per society)
@@ -98,20 +100,62 @@ date (not in the future), an optional reference (cheque number, UPI id) and note
 
 - Each gets the society's next receipt number, `R-000001`, `R-000002` … (void payments keep theirs).
 - The amount is applied to the flat's open bills oldest due date first; `billId` names one bill to fill
-  first, the rest still goes oldest first. Amounts above what the flat owes are refused (400): there is
-  no advance credit yet.
+  first, the rest still goes oldest first. What the bills don't take stays on the payment as the flat's
+  credit (see "Credit and refunds"); with `acceptAdvancePayments` off it is refused (400) instead.
 - Voiding (with a reason) takes the payment back off its bills and keeps it, and its allocations, as
-  history. It is refused when one of its bills was waived since, as the write-off would silently grow.
+  history, including bills its credit paid later. It is refused when one of its bills was waived since,
+  as the write-off would silently grow, and while a refund holds part of its credit.
 - The flat's residents get a `MAINTENANCE_PAYMENT_RECORDED` push.
 
 Every write to bills or payments (issue, opening balances, pay, void, waive, cancel) takes a row lock on
 the society first, so they never interleave and receipt numbers have no gaps or duplicates.
 
+## Credit and refunds (V21)
+
+Added with the finance module (plan step 3, [finance.md](finance.md)).
+
+- **Credit is derived, never stored:** a flat's credit = its RECORDED payments' amounts − their
+  allocations − refunds that wait or are completed. Every number comes from those rows, so it can't drift.
+- **Overpayment.** With `acceptAdvancePayments` (society setting, Maintenance group, default on) a payment
+  can be more than the flat owes, or arrive when it owes nothing; the rest stays on the payment. The
+  receipt shows `creditLeft`.
+- **Spending credit.** Issuing a cycle (regular or opening balances) spends every flat's credit on its open
+  bills, oldest due first and the new ones included, as allocations of the original payments (oldest
+  payment first) with `fromCredit = true` and `appliedOn` = the cycle's start. Bills list them among
+  their payments. `MaintenanceCreditApplied` is published inside the transaction (finance posts it in
+  step 4).
+- **Cancelling a cycle** first gives back the credit its bills used (those allocations are removed);
+  bills paid directly still block the cancel (409).
+- **Refunds** pay unused credit back: flat, amount (≤ credit), paid-on (not future), method, reason,
+  optional reference and `paidFromAccountId`. Numbered `RF-000001` per society. It takes credit from the
+  flat's oldest payments first and records which (`maintenance_refund_allocation`), so nothing is refunded
+  twice and a waiting refund's credit isn't spent on bills meanwhile.
+  - Above `financeApprovalAbove` it waits (`PENDING_APPROVAL`) for a `MAINTENANCE.REFUND.APPROVE` holder
+    who isn't its maker: approve (`COMPLETED`), reject with a reason, or the maker withdraws it (both
+    `REJECTED`, credit freed). Otherwise it is `COMPLETED` at once. Approvers and the maker get pushes
+    (`MAINTENANCE_REFUND_NEEDS_APPROVAL`, `…_APPROVED`, `…_REJECTED`).
+  - A completed refund can be voided with a reason (`VOID`, credit back). A payment can't be voided while a
+    refund holds part of its credit (409): void or reject the refund first.
+- **Deposit account.** A payment may carry `depositAccountId`, a refund `paidFromAccountId`: the finance
+  cash/bank ledger involved. Maintenance stores the number only; finance checks it when it posts (step 4).
+- **Cheque bounce** until cheque tracking exists: void the payment with a reason.
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| POST | `/api/societies/{societyId}/maintenance/refunds` | `REFUND.CREATE` | `{flatId, amount, paidOn, method, reason, reference?, paidFromAccountId?}` |
+| GET | `/api/maintenance/refunds?societyId=&flatId=&status=` | `PAYMENT.VIEW` | Newest first; residents: own flats only |
+| GET | `/api/maintenance/refunds/{id}` | `PAYMENT.VIEW` (own flat or society-wide) | With the payments it used |
+| POST | `/api/maintenance/refunds/{id}/approve` · `/reject` | `REFUND.APPROVE` (not the maker) | Reject needs `{reason}` |
+| POST | `/api/maintenance/refunds/{id}/withdraw` | `REFUND.CREATE` (maker only) | |
+| POST | `/api/maintenance/refunds/{id}/void` | `REFUND.CREATE` | `{reason}`; completed refunds only |
+| GET | `/api/societies/{societyId}/maintenance/flats/{flatId}/credit` | `PAYMENT.VIEW` (own flat or society-wide) | `{flatId, credit}` |
+
 ## Reports
 
 - **Dues** — one row per flat that owes something: open bills, outstanding, overdue (past due date +
   `graceDays`), oldest due date. `overdueOnly=true` lists the defaulters. Residents get their own flat's
-  row only ("my dues"); a flat that owes nothing has no row.
+  row only ("my dues"). Each row has the flat's `credit`; a flat with credit but no open bills gets a row
+  with 0 outstanding and no oldest due date; a flat with neither has no row. The CSV has a `credit` column.
 - **Reminders** — a push to the residents of every defaulting flat, or of the listed `flatIds`
   (`MAINTENANCE_DUES_REMINDER`). Returns how many flats and how much is overdue.
 - **Collection per cycle** — `CycleResponse` has `totalPaid` and `totalOutstanding` next to `totalBilled`
@@ -133,6 +177,8 @@ the society first, so they never interleave and receipt numbers have no gaps or 
 | `MAINTENANCE.PAYMENT.CREATE` | — | — | — | ✅ |
 | `MAINTENANCE.PAYMENT.UPDATE` (void) | — | — | — | ✅ |
 | `MAINTENANCE.PAYMENT.EXPORT` | — | — | ✅ | ✅ |
+| `MAINTENANCE.REFUND.CREATE` (record, void) | — | — | — | ✅ |
+| `MAINTENANCE.REFUND.APPROVE` | — | — | ✅ | ✅ |
 
 The view codes are granted to RESIDENT; COMMITTEE inherits them society-wide. Writes always need a
 society-wide role. A treasurer can be a custom role with `MAINTENANCE.PAYMENT.CREATE` plus the view and
@@ -174,7 +220,7 @@ method, the part that went to this bill; void payments left out).
 | Method | Path | Permission | Notes |
 |---|---|---|---|
 | POST | `/api/societies/{societyId}/maintenance/opening-balances` | `BILL.CREATE` | `{asOf, dueDate, entries:[{flatId, amount, note?}]}` → 201 cycle |
-| POST | `/api/societies/{societyId}/maintenance/payments` | `PAYMENT.CREATE` | `{flatId, amount, paidOn, method, reference?, note?, billId?}` → 201 with allocations |
+| POST | `/api/societies/{societyId}/maintenance/payments` | `PAYMENT.CREATE` | `{flatId, amount, paidOn, method, reference?, note?, billId?, depositAccountId?}` → 201 with allocations and `creditLeft` |
 | GET | `/api/maintenance/payments?societyId=&flatId=&from=&to=&includeVoid=&page=&size=` | `PAYMENT.VIEW` | Newest first; residents: own flats only |
 | GET | `/api/maintenance/payments/{id}` | `PAYMENT.VIEW` (own flat or society-wide) | The receipt, with allocations |
 | POST | `/api/maintenance/payments/{id}/void` | `PAYMENT.UPDATE` | `{reason}`; 409 if already void or a paid bill was waived |
@@ -227,8 +273,6 @@ Both import the top-level `RecordingPushConfig`, so they share one Spring contex
 
 ## Follow-ups
 
-- Advance payments: today a payment above the flat's outstanding is refused. Carrying credit to the next
-  bill would need a credit balance per flat applied at issue time.
 - Receipt numbers run per society for ever (`R-000001` …); a financial-year prefix could be a setting.
 - A flat's area can be changed but not cleared: `PATCH /api/flats/{id}` treats a missing `areaSqft` as
   "keep the saved area".
