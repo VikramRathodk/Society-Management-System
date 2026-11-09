@@ -230,9 +230,8 @@ Both import the top-level `RecordingPushConfig`, so they share one Spring contex
 - Advance payments: today a payment above the flat's outstanding is refused. Carrying credit to the next
   bill would need a credit balance per flat applied at issue time.
 - Receipt numbers run per society for ever (`R-000001` …); a financial-year prefix could be a setting.
-
-- Web: a flat's area can only be set from the billing preview ("Set area" on a flat it flags), not yet in
-  the structure screen's flat editor; no outstanding-dues tile on the dashboard yet.
+- A flat's area can be changed but not cleared: `PATCH /api/flats/{id}` treats a missing `areaSqft` as
+  "keep the saved area".
 
 ## Web app (M7c)
 
