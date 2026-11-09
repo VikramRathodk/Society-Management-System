@@ -12,8 +12,8 @@ every step. Backend branch `feature/finance` (cut from `master` 039a21c); nothin
 | 2 | Vouchers: receipt/payment/contra/journal, approval, void by reversal, lock date, documents, day book, cash & bank (V20) | ✅ | 06cce05 | 296 |
 | 3 | Maintenance credit and refunds (V21) | ✅ | 0010beb | 310 |
 | 4 | Maintenance posts to the books automatically; maintenance check | ✅ | 5ea4734 | 322 |
-| 5 | Statements: trial balance, I&E, R&P, balance sheet, resident summary, CSV; Postman folder 17 | ✅ | see git log | 328 |
-| 6 | Web: Finance section in the Angular app | ⏳ | | |
+| 5 | Statements: trial balance, I&E, R&P, balance sheet, resident summary, CSV; Postman folder 17 | ✅ | e5d520f | 328 |
+| 6 | Web: Finance section in the Angular app (web branch `feature/finance`) | ✅ (smoke-checked) | web  | web 137 |
 
 ## Decisions taken without the product owner (2026-11-10)
 
@@ -43,3 +43,27 @@ The product owner asked me to decide on my own and record it. Each can be revisi
 - Postman full run (step 3, test server on 8081): 211 requests, 292 assertions, 1 failure that predates
   finance: cleanup can't delete the test resident because the resident sent an invitation
   (`invitation_invited_by_fkey`).
+
+## Step 6 (web), as executed
+
+- Web branch `feature/finance` (from web `master` eb71a0d). Pages under `/finance`: Overview (setup wizard
+  before the books start), Entries + detail, Accounts + ledger, Reports, Settings, Audit log. Nav item
+  "Finance" (FINANCE.ACCOUNT.VIEW); palette: Record income, Record expense, Financial statements.
+- Maintenance: dues show credit and a Refund action; Refunds tab (approve/reject/withdraw/void);
+  payment dialog offers the books' cash/bank account; bills and receipts mark "from advance".
+- Residents: dashboard "Society finances" card, only when the society shares the summary.
+- Checks: 137/137 unit tests, production build clean (initial 338 kB). Smoke check in headless Chrome
+  on a throwaway society (test servers 8081/4300): setup, income, void, accounts, ledger, payment with
+  overpayment to credit, refund, settings check, audit log and resident summary all worked, with no
+  console errors. Three steps failed only because of my test selectors (Material toggles are radios,
+  the account dropdown had no accessible name), not app errors; the waiting-payment approval flow
+  was therefore not clicked through in the browser (it is covered by backend tests).
+- The smoke test left a society "Finance Smoke <timestamp>" in the local dev database (books started,
+  so it can't be deleted).
+
+## Left to do
+
+- Push both branches (`feature/finance` in backend and web) and merge to `master` when happy.
+- Give the account dropdowns in the entry dialog an accessible label; add a Playwright e2e for finance.
+- V1.1 items in `modules/finance.md` (reconciliation, year closing, recurring expenses, cheques, petty cash).
+- Accounting questions for a society accountant ("Needs an accountant" in `modules/finance.md`).
