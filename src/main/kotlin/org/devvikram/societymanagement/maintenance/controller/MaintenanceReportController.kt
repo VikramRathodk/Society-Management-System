@@ -8,6 +8,7 @@ import org.devvikram.societymanagement.common.export.Csv
 import org.devvikram.societymanagement.maintenance.dto.FlatDuesResponse
 import org.devvikram.societymanagement.maintenance.dto.ReminderResponse
 import org.devvikram.societymanagement.maintenance.dto.RemindRequest
+import org.devvikram.societymanagement.maintenance.service.MaintenanceAudience
 import org.devvikram.societymanagement.maintenance.service.MaintenanceReportService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.ResponseEntity
@@ -27,6 +28,7 @@ import java.time.ZoneId
 class MaintenanceReportController(
     private val reportService: MaintenanceReportService,
     private val accessService: AccessService,
+    private val audience: MaintenanceAudience,
     @Value("\${app.report.zone}") private val reportZone: ZoneId,
 ) {
 
@@ -42,7 +44,7 @@ class MaintenanceReportController(
         val flatIds = if (access.canSocietyWide(Permissions.MAINTENANCE_BILL_VIEW, societyId)) {
             null
         } else {
-            access.flatsWith(Permissions.MAINTENANCE_BILL_VIEW)
+            audience.ownFlats(access, Permissions.MAINTENANCE_BILL_VIEW, societyId)
         }
         return reportService.dues(societyId, today(), flatIds, overdueOnly).map(FlatDuesResponse::from)
     }

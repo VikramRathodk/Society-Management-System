@@ -61,5 +61,6 @@ class UserRole(
         roleCode = role.code,
         societyId = society?.id,
         flatId = flat?.id,
+        residentType = residentType?.name,
     )
 }

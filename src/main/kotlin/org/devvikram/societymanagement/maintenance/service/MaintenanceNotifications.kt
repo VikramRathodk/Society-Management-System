@@ -44,10 +44,11 @@ class MaintenanceNotificationListener(
     private val userRoleRepository: UserRoleRepository,
     private val userRepository: UserRepository,
     private val pushNotifier: PushNotifier,
+    private val audience: MaintenanceAudience,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    // One message per flat, to every active resident of it.
+    // One message per flat, to every active resident of it who sees its maintenance (see MaintenanceAudience).
     @TransactionalEventListener
     fun onIssued(event: MaintenanceBillsIssued) {
         try {
@@ -105,10 +106,13 @@ class MaintenanceNotificationListener(
         }
     }
 
-    // Device tokens of the active residents (anyone holding a role tied to the flat) of each flat that has any.
+    // Device tokens of each flat's active residents who see its maintenance (anyone holding a role tied to
+    // the flat, minus tenants unless the society includes them), for the flats that have any.
     private fun tokensByFlat(societyId: Long, flatIds: Set<Long>): Map<Long, List<String>> {
+        val tenants = audience.tenantsIncluded(societyId)
         val userIdsByFlat = userRoleRepository.findByUserIds(userRoleRepository.findUserIdsBySocietyIds(listOf(societyId)))
             .filter { it.society?.id == societyId && it.flat?.id in flatIds }
+            .filter { audience.includes(it.residentType?.name, tenants) }
             .groupBy({ it.flat!!.id!! }, { it.user.id!! })
         val users = userRepository.findAllById(userIdsByFlat.values.flatten().toSet())
             .filter { it.isActive }

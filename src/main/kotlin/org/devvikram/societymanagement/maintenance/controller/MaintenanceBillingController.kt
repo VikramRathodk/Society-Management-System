@@ -18,6 +18,7 @@ import org.devvikram.societymanagement.maintenance.model.BillStatus
 import org.devvikram.societymanagement.maintenance.model.MaintenanceBill
 import org.devvikram.societymanagement.maintenance.repository.BillSearch
 import org.devvikram.societymanagement.maintenance.service.BillingService
+import org.devvikram.societymanagement.maintenance.service.MaintenanceAudience
 import org.devvikram.societymanagement.maintenance.service.PaymentService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
@@ -34,7 +35,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 // Who sees and does what (all within one society):
-//  - residents see their own flat's bills (with lines);
+//  - residents see their own flat's bills (with lines); tenants only if the society allows (MaintenanceAudience);
 //  - society-wide roles see every cycle and bill; COMMITTEE and above export;
 //  - SECRETARY and above preview and issue cycles, cancel a cycle, and waive a bill.
 @RestController
@@ -42,6 +43,7 @@ class MaintenanceBillingController(
     private val billingService: BillingService,
     private val paymentService: PaymentService,
     private val accessService: AccessService,
+    private val audience: MaintenanceAudience,
     @Value("\${app.report.zone}") private val reportZone: ZoneId,
 ) {
 
@@ -144,7 +146,7 @@ class MaintenanceBillingController(
         val flatIds = if (access.canSocietyWide(Permissions.MAINTENANCE_BILL_VIEW, societyId)) {
             flatId?.let { setOf(it) }
         } else {
-            val own = access.flatsWith(Permissions.MAINTENANCE_BILL_VIEW)
+            val own = audience.ownFlats(access, Permissions.MAINTENANCE_BILL_VIEW, societyId)
             if (flatId != null && flatId !in own) throw AccessDeniedException("You can only see bills of your own flat")
             flatId?.let { setOf(it) } ?: own
         }
@@ -173,7 +175,7 @@ class MaintenanceBillingController(
 
     private fun viewable(id: Long): MaintenanceBill {
         val bill = billingService.getBill(id)
-        if (!accessService.current().canOnFlat(Permissions.MAINTENANCE_BILL_VIEW, bill.society.id!!, bill.flat.id!!)) {
+        if (!audience.canSee(accessService.current(), Permissions.MAINTENANCE_BILL_VIEW, bill.society.id!!, bill.flat.id!!)) {
             throw AccessDeniedException("You cannot see this bill")
         }
         return bill

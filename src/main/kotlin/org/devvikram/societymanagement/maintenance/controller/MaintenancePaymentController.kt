@@ -12,6 +12,7 @@ import org.devvikram.societymanagement.maintenance.dto.PaymentResponse
 import org.devvikram.societymanagement.maintenance.dto.RecordPaymentRequest
 import org.devvikram.societymanagement.maintenance.model.MaintenancePayment
 import org.devvikram.societymanagement.maintenance.repository.PaymentSearch
+import org.devvikram.societymanagement.maintenance.service.MaintenanceAudience
 import org.devvikram.societymanagement.maintenance.service.PaymentService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.format.annotation.DateTimeFormat
@@ -29,13 +30,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 // Who sees and does what (all within one society):
-//  - residents see their own flat's payments and receipts;
+//  - residents see their own flat's payments and receipts; tenants only if the society allows (MaintenanceAudience);
 //  - society-wide roles see every payment; COMMITTEE and above export;
 //  - SECRETARY and above (or a custom treasurer role) record and void payments.
 @RestController
 class MaintenancePaymentController(
     private val paymentService: PaymentService,
     private val accessService: AccessService,
+    private val audience: MaintenanceAudience,
     @Value("\${app.report.zone}") private val reportZone: ZoneId,
 ) {
 
@@ -65,7 +67,7 @@ class MaintenancePaymentController(
         val flatIds = if (access.canSocietyWide(Permissions.MAINTENANCE_PAYMENT_VIEW, societyId)) {
             flatId?.let { setOf(it) }
         } else {
-            val own = access.flatsWith(Permissions.MAINTENANCE_PAYMENT_VIEW)
+            val own = audience.ownFlats(access, Permissions.MAINTENANCE_PAYMENT_VIEW, societyId)
             if (flatId != null && flatId !in own) throw AccessDeniedException("You can only see payments of your own flat")
             flatId?.let { setOf(it) } ?: own
         }
@@ -125,7 +127,7 @@ class MaintenancePaymentController(
 
     private fun viewable(id: Long): MaintenancePayment {
         val payment = paymentService.get(id)
-        if (!accessService.current().canOnFlat(Permissions.MAINTENANCE_PAYMENT_VIEW, payment.society.id!!, payment.flat.id!!)) {
+        if (!audience.canSee(accessService.current(), Permissions.MAINTENANCE_PAYMENT_VIEW, payment.society.id!!, payment.flat.id!!)) {
             throw AccessDeniedException("You cannot see this payment")
         }
         return payment

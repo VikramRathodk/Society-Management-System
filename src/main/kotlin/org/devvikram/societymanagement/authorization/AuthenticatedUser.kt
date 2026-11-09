@@ -4,11 +4,14 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.User
 
 // One role assignment as the security layer sees it. societyId == null means platform-wide.
+// residentType (OWNER / FAMILY / TENANT) is set only on some flat-tied assignments; authorization
+// itself ignores it, modules use it for rules like who sees a flat's maintenance bills.
 data class RoleGrant(
     val assignmentId: Long,
     val roleCode: String,
     val societyId: Long?,
     val flatId: Long?,
+    val residentType: String? = null,
 )
 
 // The request's principal: the usual UserDetails plus the user's id and role assignments,

@@ -138,6 +138,13 @@ The view codes are granted to RESIDENT; COMMITTEE inherits them society-wide. Wr
 society-wide role. A treasurer can be a custom role with `MAINTENANCE.PAYMENT.CREATE` plus the view and
 export codes.
 
+**Tenants (V16):** "own flat" means the owner side. A flat's OWNER and FAMILY residents (and flat roles
+with no resident type) see its bills, payments and dues and get its maintenance pushes. TENANT residents
+see and get them only when the society turns on the `tenantsSeeMaintenance`
+[society setting](society.md#society-settings) (off by default). Lists return nothing for a tenant;
+detail endpoints return 403. `MaintenanceAudience` applies the rule in the controllers and the push
+listener.
+
 ## Endpoints (M7a)
 
 | Method | Path | Permission | Notes |
