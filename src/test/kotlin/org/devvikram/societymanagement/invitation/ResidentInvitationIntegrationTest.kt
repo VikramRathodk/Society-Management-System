@@ -231,6 +231,14 @@ class ResidentInvitationIntegrationTest {
             .andExpect(jsonPath("$.status").value("REVOKED"))
     }
 
+    @Test
+    fun `a resident sees their society by name without permission to view its settings`() {
+        call("GET", "/api/societies/$societyId", by = owner).andExpect(status().isForbidden)
+        call("GET", "/api/users/me", by = owner)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.user.roles[0].societyName").value("Resident Invite Society"))
+    }
+
     // Listeners run after commit, which a rolled-back test never reaches, so they're called directly.
     @Test
     fun `approval pushes go to the committee, decisions back to the resident`() {

@@ -19,7 +19,7 @@ User identity, role assignments, profile and passwords. Status: ✅ built (M1).
 
 | Method | Path | Permission | Notes |
 |---|---|---|---|
-| GET | `/api/users/me` | authenticated | Own profile, roles and effective permissions |
+| GET | `/api/users/me` | authenticated | Own profile, roles (each with its `societyName`) and effective permissions |
 | POST | `/api/users` | `USER.ACCOUNT.CREATE` + rank | Create with first role |
 | GET | `/api/users` | `USER.ACCOUNT.VIEW` | Users in caller's societies; `?societyId=` narrows |
 | GET | `/api/users/{id}` | `USER.ACCOUNT.VIEW` | |

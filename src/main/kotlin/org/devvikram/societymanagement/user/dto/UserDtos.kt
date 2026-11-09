@@ -52,6 +52,8 @@ data class RoleAssignmentResponse(
     val role: String,
     val roleName: String,
     val societyId: Long?,
+    // So members can show their society by name without needing permission to view its settings.
+    val societyName: String?,
     val flatId: Long?,
     val residentType: ResidentType?,
 ) {
@@ -61,6 +63,7 @@ data class RoleAssignmentResponse(
             role = userRole.role.code,
             roleName = userRole.role.name,
             societyId = userRole.society?.id,
+            societyName = userRole.society?.name,
             flatId = userRole.flat?.id,
             residentType = userRole.residentType,
         )
