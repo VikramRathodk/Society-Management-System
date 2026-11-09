@@ -1,5 +1,6 @@
 package org.devvikram.societymanagement.finance.repository
 
+import jakarta.persistence.EntityManager
 import org.devvikram.societymanagement.finance.model.Voucher
 import org.devvikram.societymanagement.finance.model.VoucherStatus
 import org.devvikram.societymanagement.finance.model.VoucherType
@@ -41,11 +42,54 @@ interface VoucherRepository {
     fun totalsBefore(accountId: Long, flatId: Long?, before: LocalDate): AccountTotals
     // Lines of one account (one flat's, if given) dated within [from, to], oldest first.
     fun ledger(accountId: Long, flatId: Long?, from: LocalDate, to: LocalDate): List<LedgerRow>
+
+    // Totals per account of the vouchers in the books dated within [from, to].
+    fun totalsByAccountBetween(societyId: Long, from: LocalDate, to: LocalDate): List<AccountTotals>
+    // Newest first (date, then id), with lines.
+    fun search(search: VoucherSearch): List<Voucher>
+    // The voucher that reverses this one, if it was voided.
+    fun findReversalOf(voucherId: Long): Voucher?
 }
+
+// Every filter is optional except the society. `accountId` matches vouchers with a line on that account.
+data class VoucherSearch(
+    val societyId: Long,
+    val types: Collection<VoucherType>? = null,
+    val statuses: Collection<VoucherStatus>? = null,
+    val from: LocalDate? = null,
+    val to: LocalDate? = null,
+    val accountId: Long? = null,
+    val flatId: Long? = null,
+    // Matched against number, payee, narration and reference, ignoring case.
+    val text: String? = null,
+    val oldestFirst: Boolean = false,
+    val page: Int = 0,
+    val size: Int = 50,
+)
 
 interface VoucherJpaRepository : JpaRepository<Voucher, Long> {
     @Query("select distinct v from Voucher v left join fetch v.lines where v.id = :id")
     fun findWithLinesById(@Param("id") id: Long): Voucher?
+
+    @Query("select distinct v from Voucher v left join fetch v.lines where v.id in :ids")
+    fun findWithLinesByIds(@Param("ids") ids: Collection<Long>): List<Voucher>
+
+    fun findByReversesVoucherId(voucherId: Long): Voucher?
+
+    @Query(
+        """
+        select new org.devvikram.societymanagement.finance.repository.AccountTotals(l.accountId, sum(l.debit), sum(l.credit))
+        from VoucherLine l join l.voucher v
+        where v.societyId = :s and v.status in :statuses and v.voucherDate between :from and :to
+        group by l.accountId
+        """
+    )
+    fun totalsByAccountBetween(
+        @Param("s") societyId: Long,
+        @Param("statuses") statuses: Collection<VoucherStatus>,
+        @Param("from") from: LocalDate,
+        @Param("to") to: LocalDate,
+    ): List<AccountTotals>
 
     @Query("select max(v.seq) from Voucher v where v.societyId = :s and v.type = :type and v.financialYear = :fy")
     fun maxSeq(@Param("s") societyId: Long, @Param("type") type: VoucherType, @Param("fy") financialYear: String): Int?
@@ -134,7 +178,42 @@ interface VoucherJpaRepository : JpaRepository<Voucher, Long> {
 @Repository
 class VoucherRepositoryImpl(
     private val voucherJpaRepository: VoucherJpaRepository,
+    private val entityManager: EntityManager,
 ) : VoucherRepository {
+    override fun totalsByAccountBetween(societyId: Long, from: LocalDate, to: LocalDate): List<AccountTotals> =
+        voucherJpaRepository.totalsByAccountBetween(societyId, VoucherStatus.IN_BOOKS, from, to)
+
+    override fun findReversalOf(voucherId: Long): Voucher? = voucherJpaRepository.findByReversesVoucherId(voucherId)
+
+    // Two steps: the page of ids (filters, order, paging), then those vouchers with their lines.
+    override fun search(search: VoucherSearch): List<Voucher> {
+        val where = mutableListOf("v.societyId = :s")
+        val params = mutableMapOf<String, Any>("s" to search.societyId)
+        search.types?.let { where += "v.type in :types"; params["types"] = it }
+        search.statuses?.let { where += "v.status in :statuses"; params["statuses"] = it }
+        search.from?.let { where += "v.voucherDate >= :from"; params["from"] = it }
+        search.to?.let { where += "v.voucherDate <= :to"; params["to"] = it }
+        search.flatId?.let { where += "v.flatId = :flat"; params["flat"] = it }
+        search.accountId?.let {
+            where += "exists (select 1 from VoucherLine l where l.voucher = v and l.accountId = :account)"
+            params["account"] = it
+        }
+        search.text?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            where += "(lower(v.number) like :text or lower(coalesce(v.payee, '')) like :text " +
+                "or lower(coalesce(v.narration, '')) like :text or lower(coalesce(v.reference, '')) like :text)"
+            params["text"] = "%" + it.lowercase().replace("%", "\\%").replace("_", "\\_") + "%"
+        }
+        val order = if (search.oldestFirst) "v.voucherDate asc, v.id asc" else "v.voucherDate desc, v.id desc"
+        val query = entityManager.createQuery(
+            "select v.id from Voucher v where ${where.joinToString(" and ")} order by $order", Long::class.javaObjectType,
+        )
+        params.forEach { (name, value) -> query.setParameter(name, value) }
+        val ids = query.setFirstResult(search.page * search.size).setMaxResults(search.size).resultList
+        if (ids.isEmpty()) return emptyList()
+        val byId = voucherJpaRepository.findWithLinesByIds(ids).associateBy { it.id }
+        return ids.mapNotNull { byId[it] }
+    }
+
     override fun save(voucher: Voucher): Voucher = voucherJpaRepository.save(voucher)
 
     override fun findById(id: Long): Voucher? = voucherJpaRepository.findWithLinesById(id)

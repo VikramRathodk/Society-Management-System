@@ -28,6 +28,17 @@ data class LedgerView(
     val closing: BigDecimal,
 )
 
+// One cash or bank ledger over a period: what it held, what came in and went out, what it holds.
+data class MoneyAccountSummary(
+    val account: FinanceAccount,
+    val opening: BigDecimal,
+    val received: BigDecimal,
+    val paid: BigDecimal,
+    val closing: BigDecimal,
+)
+
+data class Period(val from: LocalDate, val to: LocalDate)
+
 @Service
 class LedgerService(
     private val voucherRepository: VoucherRepository,
@@ -65,5 +76,34 @@ class LedgerService(
             LedgerLine(row, row.flatId?.let(flats::get), running)
         }
         return LedgerView(account, flatId, flatId?.let(flats::get), start, end, opening, lines, debit, credit, running)
+    }
+
+    // The same default period as the ledger.
+    fun period(societyId: Long, from: LocalDate?, to: LocalDate?, today: LocalDate): Period {
+        val books = booksService.requireBooks(societyId)
+        val startMonth = settings.integer(societyId, SocietySettingKeys.FINANCIAL_YEAR_START_MONTH).toInt()
+        val end = to ?: today
+        val start = from ?: maxOf(FinancialYears.startOf(end, startMonth), books.startDate)
+        require(!start.isAfter(end)) { "'from' must not be after 'to'" }
+        return Period(start, end)
+    }
+
+    // Every cash and bank ledger (active or not) over the period, by code. Opening = everything before
+    // `from`; received = debits; paid = credits.
+    @Transactional(readOnly = true)
+    fun cashAndBank(societyId: Long, period: Period): List<MoneyAccountSummary> {
+        val money = chartService.moneyAccountIds(societyId)
+        val accounts = chartService.accounts(societyId).filter { it.id in money }
+        val before = voucherRepository.totalsByAccount(societyId, period.from.minusDays(1)).associateBy { it.accountId }
+        val within = voucherRepository.totalsByAccountBetween(societyId, period.from, period.to).associateBy { it.accountId }
+        val zero = BigDecimal.ZERO.setScale(2)
+        return accounts.map { account ->
+            val b = before[account.id]
+            val w = within[account.id]
+            val opening = b?.let { account.type.natural(it.debit, it.credit) } ?: zero
+            val received = w?.debit ?: zero
+            val paid = w?.credit ?: zero
+            MoneyAccountSummary(account, opening.setScale(2), received.setScale(2), paid.setScale(2), (opening + received - paid).setScale(2))
+        }
     }
 }

@@ -3,7 +3,7 @@
 The society's books: what came in, what went out, where the money sits, and the statements an annual
 audit asks for. Module 15 in [MODULES.md](../MODULES.md).
 
-**Status:** 🟡 being built. Step 1 (books and chart) done 2026-11-10; steps 2–6 to come. Builds on Maintenance (module 14). Revised
+**Status:** 🟡 being built. Steps 1 (books and chart) and 2 (vouchers) done 2026-11-10; steps 3–6 to come. Builds on Maintenance (module 14). Revised
 after the review in [finance-upgrades.md](finance-upgrades.md); its "Review outcome" table says what
 was adopted and why.
 
@@ -124,7 +124,7 @@ non-opening voucher exists. This is also how a society's old books are brought i
 - **Statuses:** `PENDING_APPROVAL → POSTED | REJECTED`, `POSTED → VOID`. `POSTED` and `VOID` vouchers are in the books (a void one stays, and its reversal cancels it out); pending and rejected ones never count.
 - **Approval:** a `PAYMENT` or `JOURNAL` above `financeApprovalAbove` is created `PENDING_APPROVAL`. A
   `FINANCE.VOUCHER.APPROVE` holder who is **not** its maker approves (posts it) or rejects it with a
-  reason. The maker can edit or delete it while it waits. Approvers get a push when one is waiting; the
+  reason. The maker can edit or withdraw it while it waits (withdrawn ones stay as REJECTED, so no number is lost). Approvers get a push when one is waiting; the
   maker gets one when it's approved or rejected.
 - **Posted vouchers are never edited or deleted.** Voiding (reason required) keeps the voucher and books
   a linked reversal on the void date, so earlier reports don't change. `SYSTEM` vouchers can't be voided
@@ -283,7 +283,9 @@ existing `Access` checks; residents only ever see the summary and their own flat
   (account, date), (account, flat).
 - Permission rows and role grants.
 
-**V20 (maintenance):** payment `deposit_account_id`; allocation `from_credit`, `applied_on`;
+**V20 (finance):** `finance_voucher.flat_id` (the flat a receipt came from or a payment went to).
+
+**V21 (maintenance):** payment `deposit_account_id`; allocation `from_credit`, `applied_on`;
 `maintenance_refund`, `maintenance_refund_allocation`; refund permissions.
 
 ## Tests (checklist, from the review §6)
@@ -347,7 +349,53 @@ Rules as built, beyond the plan:
   name a flat exactly on `MEMBER_DUES` / `MEMBER_ADVANCE`; the audit log refuses UPDATE and DELETE. A
   society with books can't be deleted.
 
-Tests: `FinanceBooksIntegrationTest` (16), `FinancialYearsTest`, `DefaultChartTest`.
+Tests: `FinanceBooksIntegrationTest` (15), `FinancialYearsTest`, `DefaultChartTest`.
+
+### Step 2: vouchers (2026-11-10)
+
+| Endpoint | Permission | What it does |
+|---|---|---|
+| `POST /api/societies/{id}/finance/receipts` | VOUCHER.CREATE | `{date, depositAccountId, lines:[{accountId, amount}], payee?, flatId?, reference?, narration?}`: Dr cash/bank, Cr each line |
+| `POST /api/societies/{id}/finance/payments` | VOUCHER.CREATE | `{date, payingAccountId, lines, payee, flatId?, reference?, narration?}`: Dr each line, Cr cash/bank |
+| `POST /api/societies/{id}/finance/contras` | VOUCHER.CREATE | `{date, fromAccountId, toAccountId, amount, …}` between two cash/bank ledgers |
+| `POST /api/societies/{id}/finance/journals` | JOURNAL.CREATE | `{date, narration, lines:[{accountId, debit or credit}], reference?}`, at least two lines |
+| `PUT /api/finance/payments/{id}`, `PUT /api/finance/journals/{id}` | CREATE (maker only) | Edit while waiting; the date must stay in the same financial year |
+| `POST /api/finance/vouchers/{id}/withdraw` | VOUCHER.CREATE (maker only) | `{reason?}`: a waiting voucher becomes REJECTED ("Withdrawn by the maker") |
+| `POST /api/finance/vouchers/{id}/approve` · `/reject` | VOUCHER.APPROVE (not the maker) | Reject needs `{reason}` |
+| `POST /api/finance/vouchers/{id}/void` | VOUCHER.UPDATE | `{reason}`: linked reversal dated today; the original becomes VOID |
+| `GET /api/finance/vouchers/{id}` | VOUCHER.VIEW | Lines with account names, flat, documents, who made/decided/voided it, reversal links |
+| `GET /api/societies/{id}/finance/vouchers?type=&status=&from=&to=&accountId=&flatId=&q=` | VOUCHER.VIEW | Newest first; `status=PENDING_APPROVAL` is the approvals queue |
+| `GET /api/societies/{id}/finance/day-book?from=&to=` | VOUCHER.VIEW | Everything in the books over the period, oldest first |
+| `GET /api/societies/{id}/finance/cash-bank?from=&to=` | VOUCHER.VIEW | Opening, received, paid, closing per cash/bank ledger, with totals |
+| `POST /api/finance/vouchers/{id}/documents` (multipart `file`, `documentType`) | VOUCHER.CREATE | JPEG/PNG/WebP/PDF ≤ 5 MB, type read from the bytes |
+| `GET` · `DELETE /api/finance/documents/{id}` | VIEW · CREATE | Download (inline, `no-store`); delete only while the voucher waits |
+| `PUT /api/societies/{id}/finance/lock` | ACCOUNT.UPDATE | `{lockedUntil?, reason?}`; moving it back or clearing it needs a reason (UNLOCK) |
+| `PUT /api/societies/{id}/finance/defaults` | ACCOUNT.UPDATE | The five default cash/bank ledgers (deposit per payment method, paying account) |
+
+The cash book and each bank book are the ledger of that account (`GET /api/finance/accounts/{id}/ledger`).
+
+Rules as built:
+- **Cash & bank ledgers** are the ledgers under the "Cash & bank" group (cash, any petty cash, banks).
+  Receipts and payments need one of them on the money side and none on the other side (use a transfer).
+  Member sub-ledgers can't appear in any hand-made voucher: they belong to maintenance.
+- **Dates:** not before the books start (the start day itself is fine), not in the future, and after the
+  lock date. Approving re-checks the date, so a waiting voucher inside a newly locked period can't be
+  approved until the period is reopened.
+- **Approval:** payments and journals strictly above `financeApprovalAbove` wait. Approving re-checks the
+  lines (e.g. an account deactivated meanwhile). The maker can't approve or reject their own (403), even
+  through a higher role; they withdraw it instead. Approvers (society-wide `FINANCE.VOUCHER.APPROVE`,
+  except the maker) get `FINANCE_VOUCHER_NEEDS_APPROVAL`; the maker gets `FINANCE_VOUCHER_APPROVED` or
+  `…_REJECTED`. Pushes are after commit and best-effort.
+- **Void:** only POSTED receipts, payments, contras and journals that aren't reversals themselves. Opening
+  balances are corrected instead (400); maintenance entries are undone in maintenance (400). The reversal
+  is the same type, numbered in its own series, may post to accounts deactivated since, and needs today
+  to be after the lock date.
+- **Numbers** come from the society lock, per type and financial year. Withdrawn and rejected vouchers keep
+  theirs, so the series never has gaps.
+- **Documents** can be added to waiting and posted vouchers (not rejected ones); `DocumentFormat` in
+  `common/storage` adds PDF to the image formats, while visitor photos still accept images only.
+
+Tests: `FinanceVoucherIntegrationTest` (15), `DocumentFormatTest`.
 
 ## Build steps
 
@@ -356,7 +404,7 @@ Tests: `FinanceBooksIntegrationTest` (16), `FinancialYearsTest`, `DefaultChartTe
    accounts, start books with openings, audit trail, account ledger.
 2. **Vouchers:** receipt/payment/contra/journal, numbering, approval with pushes, void by reversal, lock
    date, attachments (PDF detection in `common/storage`), day/cash/bank book.
-3. **Maintenance credit and refunds:** V20, overpayment as credit, credit use at issue, refunds with
+3. **Maintenance credit and refunds:** V21, overpayment as credit, credit use at issue, refunds with
    approval, deposit account, dues/receipt changes; update maintenance.md and the Postman maintenance
    folder.
 4. **Maintenance postings:** events, idempotent same-transaction listeners, mappings, per-flat openings,

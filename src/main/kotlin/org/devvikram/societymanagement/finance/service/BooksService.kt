@@ -27,6 +27,31 @@ data class StartBooksCommand(val startDate: LocalDate, val openings: List<Openin
 
 data class CorrectOpeningsCommand(val startDate: LocalDate?, val openings: List<OpeningEntry>, val reason: String)
 
+data class BookDefaults(
+    val cashDepositAccountId: Long?,
+    val chequeDepositAccountId: Long?,
+    val upiDepositAccountId: Long?,
+    val transferDepositAccountId: Long?,
+    val defaultPayingAccountId: Long?,
+) {
+    fun all() = listOf(cashDepositAccountId, chequeDepositAccountId, upiDepositAccountId, transferDepositAccountId, defaultPayingAccountId)
+
+    fun toMap(): Map<String, Any?> = mapOf(
+        "cashDepositAccountId" to cashDepositAccountId,
+        "chequeDepositAccountId" to chequeDepositAccountId,
+        "upiDepositAccountId" to upiDepositAccountId,
+        "transferDepositAccountId" to transferDepositAccountId,
+        "defaultPayingAccountId" to defaultPayingAccountId,
+    )
+
+    companion object {
+        fun of(books: FinanceBooks) = BookDefaults(
+            books.cashDepositAccountId, books.chequeDepositAccountId, books.upiDepositAccountId,
+            books.transferDepositAccountId, books.defaultPayingAccountId,
+        )
+    }
+}
+
 data class BooksState(
     val societyId: Long,
     val books: FinanceBooks?,
@@ -140,6 +165,51 @@ class BooksService(
         booksRepository.save(books)
         audit.record(societyId, AuditEntityType.BOOKS, societyId, AuditAction.UPDATE, userId,
             oldValues = before, newValues = mapOf("startDate" to startDate) + linesSnapshot(lines), reason = reason)
+    }
+
+    // Locks the books up to a day (null unlocks). Moving the lock back, or removing it, needs a reason:
+    // it reopens a period that may have been audited.
+    @Transactional
+    fun setLock(societyId: Long, lockedUntil: LocalDate?, reason: String?, userId: Long, today: LocalDate) {
+        val books = requireBooks(societyId)
+        booksRepository.lockSociety(societyId)
+        val current = books.lockedUntil
+        if (lockedUntil == current) return
+        lockedUntil?.let {
+            require(!it.isBefore(books.startDate)) { "The lock date can't be before the books start (${books.startDate})" }
+            require(!it.isAfter(today)) { "The books can only be locked up to today" }
+        }
+        val unlocking = current != null && (lockedUntil == null || lockedUntil.isBefore(current))
+        val why = reason?.trim()?.ifEmpty { null }
+        require(!unlocking || why != null) { "Give a reason for reopening a locked period" }
+        require(why == null || why.length <= 500) { "The reason can be at most 500 characters" }
+        books.lockedUntil = lockedUntil
+        booksRepository.save(books)
+        audit.record(societyId, AuditEntityType.BOOKS, societyId, if (unlocking) AuditAction.UNLOCK else AuditAction.LOCK, userId,
+            oldValues = mapOf("lockedUntil" to current), newValues = mapOf("lockedUntil" to lockedUntil), reason = why)
+    }
+
+    // Where maintenance payments go per method, and the usual paying account. Each is a cash/bank ledger
+    // or null (no default). Replaces all five.
+    @Transactional
+    fun setDefaults(societyId: Long, defaults: BookDefaults, userId: Long) {
+        val books = requireBooks(societyId)
+        booksRepository.lockSociety(societyId)
+        val money = chartService.moneyAccountIds(societyId)
+        defaults.all().filterNotNull().forEach { id ->
+            val account = chartService.requirePostable(societyId, id)
+            require(id in money) { "${account.name} is not a cash or bank account" }
+        }
+        val before = BookDefaults.of(books)
+        if (before == defaults) return
+        books.cashDepositAccountId = defaults.cashDepositAccountId
+        books.chequeDepositAccountId = defaults.chequeDepositAccountId
+        books.upiDepositAccountId = defaults.upiDepositAccountId
+        books.transferDepositAccountId = defaults.transferDepositAccountId
+        books.defaultPayingAccountId = defaults.defaultPayingAccountId
+        booksRepository.save(books)
+        audit.record(societyId, AuditEntityType.MAPPING, societyId, AuditAction.UPDATE, userId,
+            oldValues = before.toMap(), newValues = defaults.toMap())
     }
 
     // Debit/credit lines for the entries, plus a General fund line for the difference.

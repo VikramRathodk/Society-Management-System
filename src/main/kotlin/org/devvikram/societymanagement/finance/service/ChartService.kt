@@ -92,13 +92,21 @@ class ChartService(
         accountRepository.findBySystemKey(societyId, systemKey)
             ?: throw IllegalStateException("The books have no $systemKey account")
 
-    // An account lines can be written to: a ledger of this society that is active.
-    fun requirePostable(societyId: Long, accountId: Long): FinanceAccount {
+    // An account lines can be written to: a ledger of this society that is active. A reversal may still
+    // post to a ledger deactivated since (`mustBeActive = false`), so old entries can always be undone.
+    fun requirePostable(societyId: Long, accountId: Long, mustBeActive: Boolean = true): FinanceAccount {
         val account = accountRepository.findById(accountId)
         if (account == null || account.societyId != societyId) throw IllegalArgumentException("Account $accountId is not in this society's books")
         require(!account.isGroup) { "${account.name} is a group; choose one of the accounts under it" }
-        require(account.active) { "${account.name} is inactive" }
+        require(account.active || !mustBeActive) { "${account.name} is inactive" }
         return account
+    }
+
+    // Ledgers where money actually sits: everything under "Cash & bank" (cash, petty cash, banks).
+    fun moneyAccountIds(societyId: Long): Set<Long> {
+        val chart = accountRepository.findBySocietyId(societyId)
+        val root = chart.firstOrNull { it.systemKey == SystemAccounts.CASH_AND_BANK } ?: return emptySet()
+        return descendantsOf(root, chart).filterNot { it.isGroup }.map { it.id!! }.toSet()
     }
 
     // Seeds the default chart. Refused once the society has any account.

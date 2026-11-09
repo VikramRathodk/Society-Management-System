@@ -81,6 +81,10 @@ class Voucher(
 
     @Column
     var reference: String? = null,
+
+    // The flat a receipt came from or a payment went to, when there is one.
+    @Column(name = "flat_id")
+    var flatId: Long? = null,
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

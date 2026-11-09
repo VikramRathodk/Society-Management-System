@@ -26,3 +26,14 @@ object ImageFormat {
     private fun ByteArray.startsWith(vararg prefix: Int): Boolean =
         size >= prefix.size && prefix.indices.all { this[it] == prefix[it].toByte() }
 }
+
+// Supporting documents (bills, receipts, bank proofs): the image formats above, or a PDF. Also recognised
+// from the leading bytes. Photos of people (visitors) stay images only and use ImageFormat.
+object DocumentFormat {
+    const val MAX_BYTES = ImageFormat.MAX_BYTES
+
+    fun detect(data: ByteArray): String? = ImageFormat.detect(data) ?: when {
+        data.size >= 5 && String(data, 0, 5, Charsets.US_ASCII) == "%PDF-" -> "application/pdf"
+        else -> null
+    }
+}
