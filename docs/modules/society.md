@@ -47,6 +47,10 @@ Per-society rules that a society can change, so behaviour isn't hard-coded (SECR
   cached per society (`societySettings`, Caffeine); a change evicts the cache now and again after commit.
 - **To add a setting:** add a definition (and a `SocietySettingKeys` constant if code reads it). No
   migration, no web change.
+- **Change event:** a `PATCH` that changes any effective value publishes `SocietySettingsChanged`
+  (society, user, old and new value per key) inside its transaction. Listeners run in that transaction:
+  finance audits its settings there, and refuses (400, whole change rolled back) to move the financial
+  year once the books are started.
 
 | Key | Group | Type | Default | Effect |
 |---|---|---|---|---|
@@ -55,6 +59,9 @@ Per-society rules that a society can change, so behaviour isn't hard-coded (SECR
 | `residentsCanInvite` | Membership & invitations | BOOLEAN | true | Owners invite family and tenants, tenants invite tenants, onto their own flat. |
 | `residentInvitesNeedApproval` | Membership & invitations | BOOLEAN | true | A resident's invitation works only after a committee member approves it. |
 | `maxResidentsPerFlat` | Membership & invitations | INTEGER (0–100) | 10 | Residents plus open invitations per flat, for any invitation; 0 = no limit. |
+| `financialYearStartMonth` | Finance & accounts | INTEGER (1–12) | 4 | Month the financial year starts; fixed once the books are started. See [finance](finance.md). |
+| `financeApprovalAbove` | Finance & accounts | INTEGER (≥ 0) | 0 | Rupees; expenses, journals and refunds above it need a second person's approval; 0 = never. |
+| `residentsSeeFinanceSummary` | Finance & accounts | BOOLEAN | false | Residents see the monthly income/expense summary, never individual entries. |
 
 ## Tables
 `complex`, `society`, `wing`, `flat`, `society_setting` (V16). `parking_slot` and `staff_member` exist

@@ -8,6 +8,7 @@ enum class SettingType { BOOLEAN, INTEGER, TEXT, CHOICE }
 enum class SettingGroup(val label: String) {
     MAINTENANCE("Maintenance"),
     MEMBERSHIP("Membership & invitations"),
+    FINANCE("Finance & accounts"),
 }
 
 // What one setting is. Values are stored as text: "true"/"false", a whole number, or the string itself.
@@ -76,6 +77,9 @@ object SocietySettingKeys {
     const val RESIDENTS_CAN_INVITE = "residentsCanInvite"
     const val RESIDENT_INVITES_NEED_APPROVAL = "residentInvitesNeedApproval"
     const val MAX_RESIDENTS_PER_FLAT = "maxResidentsPerFlat"
+    const val FINANCIAL_YEAR_START_MONTH = "financialYearStartMonth"
+    const val FINANCE_APPROVAL_ABOVE = "financeApprovalAbove"
+    const val RESIDENTS_SEE_FINANCE_SUMMARY = "residentsSeeFinanceSummary"
 }
 
 // Every society setting. To add one: add a definition here (and a key constant if code reads it).
@@ -130,6 +134,37 @@ object SocietySettingCatalog {
             defaultValue = "10",
             min = 0,
             max = 100,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.FINANCIAL_YEAR_START_MONTH,
+            group = SettingGroup.FINANCE,
+            label = "Financial year starts in month",
+            description = "1 = January … 12 = December. 4 (April) gives the usual April–March year. " +
+                "Voucher numbers restart every financial year.",
+            type = SettingType.INTEGER,
+            defaultValue = "4",
+            min = 1,
+            max = 12,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.FINANCE_APPROVAL_ABOVE,
+            group = SettingGroup.FINANCE,
+            label = "Approval needed above (rupees)",
+            description = "Expenses, journal entries and refunds above this amount count only after a second " +
+                "person approves them. 0 means no approval is needed.",
+            type = SettingType.INTEGER,
+            defaultValue = "0",
+            min = 0,
+            max = 1_000_000_000,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.RESIDENTS_SEE_FINANCE_SUMMARY,
+            group = SettingGroup.FINANCE,
+            label = "Residents see the finance summary",
+            description = "On: residents see monthly income and expense totals and the cash and bank balance. " +
+                "They never see individual entries.",
+            type = SettingType.BOOLEAN,
+            defaultValue = "false",
         ),
     )
 

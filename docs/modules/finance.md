@@ -3,7 +3,7 @@
 The society's books: what came in, what went out, where the money sits, and the statements an annual
 audit asks for. Module 15 in [MODULES.md](../MODULES.md).
 
-**Status:** 📝 planned (2026-11-09), not built. Builds on Maintenance (module 14). Revised the same day
+**Status:** 🟡 being built. Step 1 (books and chart) done 2026-11-10; steps 2–6 to come. Builds on Maintenance (module 14). Revised
 after the review in [finance-upgrades.md](finance-upgrades.md); its "Review outcome" table says what
 was adopted and why.
 
@@ -121,7 +121,7 @@ non-opening voucher exists. This is also how a society's old books are brought i
   BANK_PROOF / OTHER, original filename, content type, size, uploaded by/at). JPEG, PNG, WebP or PDF, ≤ 5
   MB each, type detected from the bytes (PDF detection added to `common/storage`). Downloads follow the
   voucher's permissions. Attachments can be added to a posted voucher (audited) but not removed from it.
-- **Statuses:** `PENDING_APPROVAL → POSTED | REJECTED`, `POSTED → VOID`. Only `POSTED` counts in reports.
+- **Statuses:** `PENDING_APPROVAL → POSTED | REJECTED`, `POSTED → VOID`. `POSTED` and `VOID` vouchers are in the books (a void one stays, and its reversal cancels it out); pending and rejected ones never count.
 - **Approval:** a `PAYMENT` or `JOURNAL` above `financeApprovalAbove` is created `PENDING_APPROVAL`. A
   `FINANCE.VOUCHER.APPROVE` holder who is **not** its maker approves (posts it) or rejects it with a
   reason. The maker can edit or delete it while it waits. Approvers get a push when one is waiting; the
@@ -197,7 +197,7 @@ timing differences only: balances still match.
 
 ## Reports
 
-All by date range or "as of", `POSTED` vouchers only, with CSV export; the web app prints them. Dates are
+All by date range or "as of", vouchers in the books only (`POSTED` and `VOID`, with their reversals), with CSV export; the web app prints them. Dates are
 the society's calendar dates (vouchers carry a date, not a time). Each report is computed from the
 ledger lines, so totals always reconcile to them.
 
@@ -306,6 +306,48 @@ existing `Access` checks; residents only ever see the summary and their own flat
   pending/rejected excluded; reversals land in the void date's period; reports for a locked period don't
   change.
 - **Reliability:** a failing posting rolls back the maintenance action.
+
+## Built so far
+
+### Step 1: books and chart (2026-11-10)
+
+| Endpoint | Permission | What it does |
+|---|---|---|
+| `GET /api/societies/{id}/finance/books` | ACCOUNT.VIEW | Started?, chart present?, start/lock dates, opening voucher, default accounts |
+| `POST /api/societies/{id}/finance/chart` | ACCOUNT.UPDATE | Seeds the default chart (409 once any account exists) |
+| `POST /api/societies/{id}/finance/start` | ACCOUNT.UPDATE | `{startDate, openings:[{accountId, amount}]}`; seeds the chart if missing |
+| `GET/PUT /api/societies/{id}/finance/openings` | VIEW / UPDATE | Read the openings; correct them (`startDate?`, `openings`, `reason`) while no other voucher exists |
+| `GET /api/societies/{id}/finance/accounts?asOf=` | ACCOUNT.VIEW | Whole chart by code with balances (groups total their children) and bank details |
+| `POST /api/societies/{id}/finance/accounts` | ACCOUNT.UPDATE | `{code, name, parentId, group}`; type comes from the parent |
+| `PATCH / DELETE /api/finance/accounts/{id}` | ACCOUNT.UPDATE | Rename, recode, move, group ↔ ledger, (de)activate; delete |
+| `POST /api/societies/{id}/finance/bank-accounts` | ACCOUNT.UPDATE | `{name, bankName, accountType, last4?, ifsc?, code?}` under "Bank accounts"; code picked after the group's (1121, 1122 …) |
+| `PATCH /api/finance/bank-accounts/{id}` | ACCOUNT.UPDATE | Bank details and name/active; `""` clears last4 / IFSC |
+| `GET /api/finance/accounts/{id}/ledger?flatId=&from=&to=` | VOUCHER.VIEW | Opening, lines with running balance, totals, closing; default period = current financial year (not before the start) to today |
+| `GET /api/societies/{id}/finance/audit?entityType=&entityId=` | AUDIT.VIEW | Audit log, newest first |
+
+Every endpoint needs the permission from a society-wide role (`FinanceGuard`): a flat-tied role never
+counts, even a custom one holding a finance code.
+
+Rules as built, beyond the plan:
+- **Openings** are in the account's natural sign (negative = the other side, e.g. an overdrawn bank). The
+  General fund can't be entered: it is always what balances the rest. Member dues and advances can't be
+  entered either; they come from maintenance in step 4. Zero amounts are dropped; an account appears once.
+- The opening voucher keeps number `OB/<year>/0001`; correcting the start date renumbers it only if the
+  financial year changes.
+- **The financial year is fixed once the books start:** changing `financialYearStartMonth` afterwards is
+  refused (400), because numbers and report periods depend on it. Finance hears about settings changes
+  through the `SocietySettingsChanged` event the `society` module now publishes inside its transaction,
+  and audits changes to the three finance settings the same way.
+- **Chart:** a group can be deactivated only once everything under it is inactive; an account can be
+  reactivated only under an active parent. Deleting is refused for system accounts and roots (400), for
+  accounts with entries, children, a charge-head mapping, or that are a default of the books (409).
+  Names are unique per society ignoring case; codes are 1–20 letters, digits, `.`, `-`, `/`.
+- **Database invariants** (hold even if the app is bypassed): every voucher balances (deferred constraint
+  trigger, checked at commit); a line posts to a ledger of its voucher's society, never a group; lines
+  name a flat exactly on `MEMBER_DUES` / `MEMBER_ADVANCE`; the audit log refuses UPDATE and DELETE. A
+  society with books can't be deleted.
+
+Tests: `FinanceBooksIntegrationTest` (16), `FinancialYearsTest`, `DefaultChartTest`.
 
 ## Build steps
 

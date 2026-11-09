@@ -3,6 +3,7 @@ package org.devvikram.societymanagement.society.service
 import org.devvikram.societymanagement.society.model.SocietySetting
 import org.devvikram.societymanagement.society.repository.SocietySettingRepository
 import org.springframework.cache.CacheManager
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
@@ -18,6 +19,13 @@ data class SettingValue(
     val updatedBy: Long?,
 )
 
+// One setting whose effective value changed (stored values; a default counts as the value).
+data class SettingChange(val key: String, val oldValue: String, val newValue: String)
+
+// Published inside the changing transaction, so a listener (e.g. finance's audit log) commits or rolls
+// back with the change.
+data class SocietySettingsChanged(val societyId: Long, val userId: Long, val changes: List<SettingChange>)
+
 // Reads and changes per-society settings. Other modules read single values through boolean()/integer()/
 // text(), which are cached per society, since they run on hot paths like listing bills.
 @Service
@@ -25,6 +33,7 @@ class SocietySettingsService(
     private val repository: SocietySettingRepository,
     private val societyService: SocietyService,
     cacheManager: CacheManager,
+    private val events: ApplicationEventPublisher,
 ) {
     private val cache = cacheManager.getCache(CACHE) ?: error("Cache '$CACHE' is not configured")
 
@@ -57,8 +66,12 @@ class SocietySettingsService(
 
         val stored = repository.findBySociety(societyId).associateBy { it.key }
         val now = Instant.now()
+        val changed = mutableListOf<SettingChange>()
         for ((key, value) in values) {
             val existing = stored[key]
+            val default = SocietySettingCatalog.get(key).defaultValue
+            val before = existing?.value ?: default
+            if (before != (value ?: default)) changed += SettingChange(key, before, value ?: default)
             when {
                 value == null -> if (existing != null) repository.delete(societyId, key)
                 existing == null -> repository.save(SocietySetting(societyId, key, value, now, userId))
@@ -71,6 +84,7 @@ class SocietySettingsService(
             }
         }
         evict(societyId)
+        if (changed.isNotEmpty()) events.publishEvent(SocietySettingsChanged(societyId, userId, changed))
     }
 
     private fun valueOf(societyId: Long, key: String, vararg types: SettingType): String {

@@ -43,7 +43,7 @@ class SocietyService(
             societyRepository.delete(society)
         } catch (e: DataIntegrityViolationException) {
             throw ConflictException(
-                "Society ${society.name} still has visitors, notices, complaints, maintenance bills, staff or parking slots and cannot be deleted"
+                "Society ${society.name} still has visitors, notices, complaints, maintenance bills, finance books, staff or parking slots and cannot be deleted"
             )
         }
     }

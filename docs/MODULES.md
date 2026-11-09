@@ -12,7 +12,7 @@ A package is created only when its module's first feature is built, and is then 
 Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints, permissions, tables):
 [auth](modules/auth.md) · [authorization](modules/authorization.md) · [user](modules/user.md) ·
 [society](modules/society.md) · [visitor](modules/visitor.md) · [notice](modules/notice.md) ·
-[complaint](modules/complaint.md) · [maintenance](modules/maintenance.md) · [notification](modules/notification.md).
+[complaint](modules/complaint.md) · [maintenance](modules/maintenance.md) · [finance](modules/finance.md) · [notification](modules/notification.md).
 
 **Status:** ✅ built · 🟡 partly built / folded into another module · ⏳ planned (blocked or deferred) · — not started
 
@@ -32,7 +32,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 12 | Vendor Management | *`vendor`* | — | |
 | 13 | Complaint Management | `complaint` | ✅ | M5. Flat-owned tickets, status workflow, activity timeline, CSV export, push. |
 | 14 | Maintenance Management | `maintenance` | ✅ | M7a–M7c: settings and charge heads, billing cycles, bills with frozen lines, waive, offline payments with receipts and void, late fees, opening balances, dues/defaulters reports and reminders, CSV exports, push. Web screens (dues, bills, payments and receipts, cycles, opening balances, settings) and a Postman folder. See [maintenance.md](modules/maintenance.md). |
-| 15 | Finance & Accounting | *`finance`* | — | Phase 2 (income/expense ledger). |
+| 15 | Finance & Accounting | `finance` | 🟡 | Being built (plan: [finance](modules/finance.md), 6 steps). Step 1 done: chart of accounts with groups, bank accounts, starting the books with openings, account ledgers, audit log (V19). |
 | 16 | Payment Management | *`payment`* | — | Phase 2. |
 | 17 | Parking Management | *`parking`* | 🟡 | `ParkingSlot` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |
 | 18 | Facility & Amenities | *`facility`* | — | Phase 2 (amenity/clubhouse booking). |
