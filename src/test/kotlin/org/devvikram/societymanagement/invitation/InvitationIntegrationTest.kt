@@ -164,6 +164,19 @@ class InvitationIntegrationTest {
     }
 
     @Test
+    fun `the role picker offers only the roles you may invite to`() {
+        call("GET", "/api/societies/$societyId/invitations/roles", by = committee)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[*].code").value(org.hamcrest.Matchers.contains("RESIDENT")))
+            .andExpect(jsonPath("$[0].requiresFlat").value(true))
+        call("GET", "/api/societies/$societyId/invitations/roles", by = secretary)
+            .andExpect(jsonPath("$[*].code").value(org.hamcrest.Matchers.containsInAnyOrder("COMMITTEE", "GUARD", "RESIDENT")))
+        call("GET", "/api/societies/$societyId/invitations/roles", by = otherSecretary)
+            .andExpect(jsonPath("$", hasSize<Any>(0)))
+        call("GET", "/api/societies/$societyId/invitations/roles", by = resident).andExpect(status().isForbidden)
+    }
+
+    @Test
     fun `only roles below your own, in your own society`() {
         invite(committee, residentInvite(randomPhone())).andExpect(status().isCreated)
         invite(committee, roleInvite(randomPhone(), "GUARD")).andExpect(status().isForbidden)
@@ -286,6 +299,24 @@ class InvitationIntegrationTest {
         val resent = call("POST", "/api/invitations/$id/resend", by = secretary).andExpect(status().isOk)
         call("GET", "/api/invitations/token/${JsonPath.read<String>(json(resent), "$.token")}")
             .andExpect(jsonPath("$.status").value("PENDING"))
+    }
+
+    @Test
+    fun `an expired invitation is renewed unless the person was invited again`() {
+        val phone = randomPhone()
+        val (_, oldId) = issued(invite(secretary, residentInvite(phone)))
+        entityManager.find(Invitation::class.java, oldId).expiresAt = Instant.now().minus(Duration.ofHours(1))
+        entityManager.flush()
+        entityManager.clear()
+
+        val (_, newId) = issued(invite(secretary, residentInvite(phone)))
+        call("POST", "/api/invitations/$oldId/resend", by = secretary).andExpect(status().isConflict)
+
+        call("POST", "/api/invitations/$newId/revoke", by = secretary).andExpect(status().isOk)
+        call("POST", "/api/invitations/$oldId/resend", by = secretary)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.invitation.status").value("PENDING"))
+            .andExpect(jsonPath("$.invitation.closedAt").doesNotExist())
     }
 
     @Test

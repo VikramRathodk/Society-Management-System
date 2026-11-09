@@ -59,9 +59,9 @@ Statuses: `PENDING → ACCEPTED | DECLINED | REVOKED | EXPIRED`, plus
   must log in and accept (by link or from `/mine`); the logged-in phone must match (403 otherwise).
 - **The inviter's rights are checked again at accept time.** If they lost the role or were
   deactivated, accepting fails (409) and the society has to send a new invitation.
-- **Revoke:** the inviter, or anyone who could have sent it. **Resend:** anyone who could have sent it;
-  only while `PENDING` (also after it ran out). It gives a new token and a fresh expiry; the old link
-  stops working.
+- **Revoke:** the inviter, or anyone who could have sent it. **Resend:** anyone who could have sent it,
+  while `PENDING` or `EXPIRED` ("Renew link"), unless the person has a newer open invitation for the
+  same role and flat (409). It gives a new token and a fresh expiry; the old link stops working.
 - **Expiry:** `inviteExpiryDays` society setting (1–30, default 7). A `PENDING` invitation past its expiry
   counts as `EXPIRED` everywhere (preview, lists, accept) even before its row changes.
 - **Tokens:** 32 random bytes (URL-safe base64). Only the SHA-256 is stored, so the link can't be shown
@@ -125,6 +125,7 @@ Society-wide viewers (COMMITTEE+) are unaffected.
 | Method | Path | Who | Notes |
 |---|---|---|---|
 | POST | `/api/societies/{societyId}/invitations` | `USER.INVITE.CREATE` + rank | `{phone, name, role, flatId?, residentType?}` → 201 `{invitation, token, inviteUrl}` |
+| GET | `/api/societies/{societyId}/invitations/roles` | `USER.INVITE.CREATE` | Roles the caller may invite to there (the invite dialog's role picker) |
 | GET | `/api/societies/{societyId}/invitations?status=&page=&size=` | `USER.INVITE.VIEW` society-wide | Newest first |
 | GET | `/api/invitations/{id}` | `USER.INVITE.VIEW` society-wide | |
 | POST | `/api/invitations/{id}/resend` | could have sent it | → `{invitation, token, inviteUrl}` |
@@ -152,7 +153,7 @@ Config: `app.web-base-url` (`WEB_BASE_URL`, required in prod) builds `inviteUrl`
   updated_by. Cascades with the society.
 
 Code: `InvitationService` (rules), `InvitationTokens` (token, hash, phone mask), `InvitationController`,
-`InvitationNotificationListener`. Tests: `InvitationIntegrationTest` (10).
+`InvitationNotificationListener`. Tests: `InvitationIntegrationTest` (12).
 
 ## Web screens (planned)
 - **Invite** dialog (members page / flat page): role list from `/api/roles/assignable`, flat + type
@@ -170,5 +171,10 @@ Code: `InvitationService` (rules), `InvitationTokens` (token, hash, phone mask),
 2. Invitation core: create, preview, accept (new + existing user), revoke, resend, `inviteUrl`.
    **Backend ✅ 2026-11-09** (V17, `inviteExpiryDays`).
 3. Web: invite dialog with QR / share / download / print, accept page, invitations page.
+   **✅ 2026-11-09** (web `feature/invitations`): Invitations page (status filters, Show QR = resend,
+   Renew link for expired, cancel), invite dialog (role picker from `/invitations/roles`, then QR with
+   Copy link / WhatsApp / Share / Download QR / Print card), public `/invite/:token` page (sign up, or
+   sign in and accept, or decline), a pending-invitations banner over every page for signed-in users,
+   "Invite someone" in the command palette, push routes for `INVITATION_RECEIVED` / `INVITATION_ACCEPTED`.
 4. Resident invites + approval (uses the membership settings).
 5. Postman folder, docs.

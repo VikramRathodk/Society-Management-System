@@ -4,6 +4,7 @@ import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
 import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
+import org.devvikram.societymanagement.authorization.dto.AssignableRoleResponse
 import org.devvikram.societymanagement.invitation.dto.AcceptInvitationRequest
 import org.devvikram.societymanagement.invitation.dto.CreateInvitationRequest
 import org.devvikram.societymanagement.invitation.dto.InvitationPreviewResponse
@@ -43,6 +44,13 @@ class InvitationController(
             invitationService.create(request.toCommand(societyId), accessService.current()),
             webBaseUrl,
         )
+
+    // The roles the caller may invite people to in this society (drives the invite dialog's role picker).
+    @GetMapping("/api/societies/{societyId}/invitations/roles")
+    @RequiresPermission(Permissions.USER_INVITE_CREATE)
+    fun invitableRoles(@PathVariable societyId: Long): List<AssignableRoleResponse> =
+        invitationService.invitableRoles(societyId, accessService.current())
+            .map { AssignableRoleResponse(it.code, it.name, it.scopeLevel, it.requiresFlat) }
 
     // Newest first; status=PENDING / EXPIRED reflect expiry even before the row is updated.
     @GetMapping("/api/societies/{societyId}/invitations")

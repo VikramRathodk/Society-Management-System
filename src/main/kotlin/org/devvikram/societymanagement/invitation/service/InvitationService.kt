@@ -3,6 +3,7 @@ package org.devvikram.societymanagement.invitation.service
 import org.devvikram.societymanagement.authorization.Access
 import org.devvikram.societymanagement.authorization.AccessService
 import org.devvikram.societymanagement.authorization.Permissions
+import org.devvikram.societymanagement.authorization.model.Role
 import org.devvikram.societymanagement.authorization.model.RoleScope
 import org.devvikram.societymanagement.authorization.repository.RoleRepository
 import org.devvikram.societymanagement.common.exception.ConflictException
@@ -101,6 +102,14 @@ class InvitationService(
         return IssuedInvitation(InvitationView.of(invitation, now), token)
     }
 
+    // Society roles the actor could invite someone to here, by name.
+    fun invitableRoles(societyId: Long, actor: Access): List<Role> {
+        societyService.getById(societyId)
+        return roleRepository.findAll()
+            .filter { it.scopeLevel == RoleScope.SOCIETY && actor.canGrant(Permissions.USER_INVITE_CREATE, it.code, societyId) }
+            .sortedBy { it.name }
+    }
+
     @Transactional(readOnly = true)
     fun search(search: InvitationSearch): List<InvitationView> =
         repository.search(search).map { InvitationView.of(it, search.now) }
@@ -186,8 +195,8 @@ class InvitationService(
         return InvitationView.of(invitation, now)
     }
 
-    // A new link (and QR code) for an invitation that hasn't been answered; the old link stops working and
-    // the expiry starts again. Also how to show the QR code again: only the token's hash is kept.
+    // A new link (and QR code) for an invitation that hasn't been answered or has expired; the old link stops
+    // working and the expiry starts again. Also how to show the QR code again: only the token's hash is kept.
     @Transactional
     fun resend(id: Long, actor: Access): IssuedInvitation {
         val now = clock.instant()
@@ -195,8 +204,17 @@ class InvitationService(
         if (!actor.canGrant(Permissions.USER_INVITE_CREATE, invitation.role.code, invitation.society.id!!)) {
             throw AccessDeniedException("You can't resend this invitation")
         }
-        if (invitation.status != InvitationStatus.PENDING) {
-            throw ConflictException("This invitation is already ${describe(invitation, now)}; send a new one instead")
+        when (invitation.status) {
+            InvitationStatus.PENDING -> {}
+            // Expired ones can be renewed, unless the person has been invited again since.
+            InvitationStatus.EXPIRED -> {
+                val newer = repository.findOpen(invitation.society.id!!, invitation.role.id!!, invitation.phone, invitation.flat?.id)
+                if (newer.isNotEmpty()) throw ConflictException("${invitation.name} has a newer invitation; use that one")
+                invitation.status = InvitationStatus.PENDING
+                invitation.closedAt = null
+                invitation.closedBy = null
+            }
+            else -> throw ConflictException("This invitation is already ${describe(invitation, now)}; send a new one instead")
         }
         val token = InvitationTokens.newToken()
         invitation.tokenHash = InvitationTokens.hash(token)
