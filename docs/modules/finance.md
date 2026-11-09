@@ -3,7 +3,7 @@
 The society's books: what came in, what went out, where the money sits, and the statements an annual
 audit asks for. Module 15 in [MODULES.md](../MODULES.md).
 
-**Status:** 🟡 being built. Steps 1–4 (books, vouchers, maintenance credit and refunds, maintenance postings) done 2026-11-10; steps 5–6 to come. Builds on Maintenance (module 14). Revised
+**Status:** 🟡 being built. Backend done 2026-11-10 (steps 1–5: books, vouchers, maintenance credit and refunds, maintenance postings, statements); step 6 (web) next. Builds on Maintenance (module 14). Revised
 after the review in [finance-upgrades.md](finance-upgrades.md); its "Review outcome" table says what
 was adopted and why.
 
@@ -464,6 +464,41 @@ Decisions while building:
 - Opening-balance cycles now publish `MaintenanceBillsIssued` too (no push to residents).
 
 Tests: `FinanceMaintenanceIntegrationTest` (12, each ending with a clean maintenance check).
+
+### Step 5: statements (2026-11-10)
+
+All computed from the voucher lines in the books (POSTED and VOID with their reversals); zero rows are
+left out; periods default to the current financial year (not before the books start) to today, "as of"
+to today. COMMITTEE and above read them (`FINANCE.REPORT.VIEW`) and export them (`FINANCE.REPORT.EXPORT`).
+
+| Endpoint | What |
+|---|---|
+| `GET …/finance/reports/trial-balance?asOf=` | Every ledger's balance on its own side; `balanced` |
+| `GET …/finance/reports/income-expenditure?from=&to=` | Income and expenditure by top-level group (e.g. Utilities, Services), `surplus` (negative = deficit) |
+| `GET …/finance/reports/receipts-payments?from=&to=` | Cash and bank at the start, money in and out by the account on the other side, cash and bank at the end |
+| `GET …/finance/reports/balance-sheet?asOf=` | Assets vs liabilities + funds; the accumulated surplus is shown with the funds; `balanced` |
+| `GET …/finance/summary?from=&to=` | Monthly totals by group and month-end cash + bank (at most 36 months) |
+| `…/reports/{trial-balance,income-expenditure,receipts-payments,balance-sheet}/export` | CSV of each |
+| `GET /api/finance/accounts/{id}/ledger/export`, `GET …/finance/day-book/export` | CSV ledger; CSV day book (one row per line, at most 5000 entries) |
+
+Decisions while building:
+- **Groups** are the child of the type's root that holds a ledger ("Utilities", "Services" …); a ledger
+  directly under the root is its own group.
+- **Receipts & Payments** counts only vouchers that touch a cash/bank ledger, nets each other account over
+  the period and puts it on the side of its net movement, so transfers between cash and bank never show.
+  The opening voucher is treated as the opening balance even when the period starts on the books' first
+  day.
+- **Balance sheet:** until year closing exists (V1.1), the surplus to date is computed and shown with the
+  funds, so it always balances; nothing is posted for it.
+- **Resident summary** (`FINANCE.SUMMARY.VIEW`, RESIDENT): society-wide report readers always; residents only
+  while `residentsSeeFinanceSummary` is on (403 otherwise). It holds group totals and cash + bank, never an
+  entry, payee or flat.
+- **Postman:** folder 17 "Finance" (cleanup is now 18): chart, bank, start, receipt, approval (the super
+  admin as second person), transfer, void, day book, cash & bank, ledger, the four statements,
+  maintenance check, CSV, resident 403s, audit log. Full run: 238 requests, 337 assertions, one failure
+  that predates finance (cleanup can't delete the test resident: `invitation_invited_by_fkey`).
+
+Tests: `FinanceStatementsIntegrationTest` (6, one worked example with totals checked by hand).
 
 ## Build steps
 

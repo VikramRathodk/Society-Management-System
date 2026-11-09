@@ -11,6 +11,9 @@ import org.springframework.stereotype.Repository
 import java.math.BigDecimal
 import java.time.LocalDate
 
+// One line of a voucher in the books, without the voucher.
+data class PeriodLine(val voucherId: Long, val type: VoucherType, val accountId: Long, val debit: BigDecimal, val credit: BigDecimal)
+
 // Debit and credit totals of one account (over some set of lines).
 data class AccountTotals(val accountId: Long, val debit: BigDecimal, val credit: BigDecimal)
 
@@ -55,6 +58,8 @@ interface VoucherRepository {
     fun totalsByFlat(accountId: Long): Map<Long, AccountTotals>
     // Source ids of the automatic postings of one kind.
     fun sourceIds(societyId: Long, sourceType: String, sourceEvent: String): Set<Long>
+    // Every line of the vouchers in the books dated within [from, to].
+    fun linesBetween(societyId: Long, from: LocalDate, to: LocalDate): List<PeriodLine>
 }
 
 // Every filter is optional except the society. `accountId` matches vouchers with a line on that account.
@@ -81,6 +86,18 @@ interface VoucherJpaRepository : JpaRepository<Voucher, Long> {
     fun findWithLinesByIds(@Param("ids") ids: Collection<Long>): List<Voucher>
 
     fun findByReversesVoucherId(voucherId: Long): Voucher?
+
+    @Query(
+        "select new org.devvikram.societymanagement.finance.repository.PeriodLine(v.id, v.type, l.accountId, l.debit, l.credit) " +
+            "from VoucherLine l join l.voucher v where v.societyId = :s and v.status in :statuses " +
+            "and v.voucherDate between :from and :to"
+    )
+    fun linesBetween(
+        @Param("s") societyId: Long,
+        @Param("statuses") statuses: Collection<VoucherStatus>,
+        @Param("from") from: LocalDate,
+        @Param("to") to: LocalDate,
+    ): List<PeriodLine>
 
     @Query(
         "select distinct v from Voucher v left join fetch v.lines where v.societyId = :s and v.sourceType = :type " +
@@ -210,6 +227,9 @@ class VoucherRepositoryImpl(
         voucherJpaRepository.totalsByAccountBetween(societyId, VoucherStatus.IN_BOOKS, from, to)
 
     override fun findReversalOf(voucherId: Long): Voucher? = voucherJpaRepository.findByReversesVoucherId(voucherId)
+
+    override fun linesBetween(societyId: Long, from: LocalDate, to: LocalDate): List<PeriodLine> =
+        voucherJpaRepository.linesBetween(societyId, VoucherStatus.IN_BOOKS, from, to)
 
     override fun findBySource(societyId: Long, sourceType: String, sourceId: Long, sourceEvent: String): Voucher? =
         voucherJpaRepository.findBySource(societyId, sourceType, sourceId, sourceEvent)
