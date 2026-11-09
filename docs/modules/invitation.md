@@ -39,12 +39,15 @@ Custom roles follow the same rank rule automatically.
 4. **Accept.**
    - New phone: set name and password. The account and role are created in one transaction.
    - Existing account: log in, then accept. The logged-in phone must match the invite's phone.
-5. **Approve (resident invites only, when the setting is on).** The invite goes to `AWAITING_APPROVAL`.
-   COMMITTEE or above in that society approves or rejects it. The role is attached on approval.
+5. **Approval (resident invites only, when the setting is on) comes first.** A resident's invitation is
+   created `AWAITING_APPROVAL`: the resident can already share the link, but it only previews ("waiting
+   for approval") until COMMITTEE or above approves it; then it works like any other and its expiry
+   starts. A rejected invitation never works, so a rejected person never gets an account. (Confirmed
+   with the product owner on 2026-11-09.)
 6. **Done.** Status `ACCEPTED`, role active, inviter gets a push. Each token works once.
 
 Statuses: `PENDING → ACCEPTED | DECLINED | REVOKED | EXPIRED`, plus
-`PENDING → AWAITING_APPROVAL → ACCEPTED | REJECTED` for resident invites needing approval.
+`AWAITING_APPROVAL → PENDING (approved) | REJECTED | REVOKED` for resident invites needing approval.
 
 ## Rules (as built)
 - **Who (`InvitationRules`):** staff: `USER.INVITE.CREATE` (COMMITTEE, inherited upwards) plus a role
