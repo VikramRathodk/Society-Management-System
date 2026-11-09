@@ -7,6 +7,7 @@ import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.authorization.dto.AssignableRoleResponse
 import org.devvikram.societymanagement.invitation.dto.AcceptInvitationRequest
 import org.devvikram.societymanagement.invitation.dto.CreateInvitationRequest
+import org.devvikram.societymanagement.invitation.dto.FlatInviteOptionResponse
 import org.devvikram.societymanagement.invitation.dto.InvitationPreviewResponse
 import org.devvikram.societymanagement.invitation.dto.InvitationResponse
 import org.devvikram.societymanagement.invitation.dto.IssuedInvitationResponse
@@ -25,7 +26,8 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.time.Clock
 
-// Society side: COMMITTEE and above invite roles below their own and manage the society's invitations.
+// Society side: COMMITTEE and above invite roles below their own and manage the society's invitations;
+// residents invite onto their own flat and see the invitations they sent (rules in InvitationService).
 // Person side: /api/invitations/token/** is public (whoever holds the link); /mine and accept/decline by id
 // are for a logged-in user whose phone number the invitation was sent to.
 @RestController
@@ -38,7 +40,6 @@ class InvitationController(
 
     @PostMapping("/api/societies/{societyId}/invitations")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiresPermission(Permissions.USER_INVITE_CREATE)
     fun create(@PathVariable societyId: Long, @Valid @RequestBody request: CreateInvitationRequest): IssuedInvitationResponse =
         IssuedInvitationResponse.from(
             invitationService.create(request.toCommand(societyId), accessService.current()),
@@ -52,19 +53,29 @@ class InvitationController(
         invitationService.invitableRoles(societyId, accessService.current())
             .map { AssignableRoleResponse(it.code, it.name, it.scopeLevel, it.requiresFlat) }
 
-    // Newest first; status=PENDING / EXPIRED reflect expiry even before the row is updated.
+    // The caller's own flats they may invite people to as a resident (empty when the society doesn't allow it).
+    @GetMapping("/api/societies/{societyId}/invitations/flat-options")
+    fun flatOptions(@PathVariable societyId: Long): List<FlatInviteOptionResponse> =
+        invitationService.flatOptions(societyId, accessService.current()).map(FlatInviteOptionResponse::from)
+
+    // Newest first; status=PENDING / EXPIRED reflect expiry even before the row is updated. Society-wide
+    // viewers get every invitation, other members of the society only the ones they sent.
     @GetMapping("/api/societies/{societyId}/invitations")
-    @RequiresPermission(Permissions.USER_INVITE_VIEW)
     fun list(
         @PathVariable societyId: Long,
         @RequestParam(required = false) status: InvitationStatus?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): List<InvitationResponse> {
-        requireSocietyWide(Permissions.USER_INVITE_VIEW, societyId)
+        val access = accessService.current()
+        val everyone = access.canSocietyWide(Permissions.USER_INVITE_VIEW, societyId)
+        if (!everyone && access.grants.none { it.societyId == societyId }) {
+            throw AccessDeniedException("You are not a member of this society")
+        }
         val search = InvitationSearch(
             societyId = societyId,
             status = status,
+            invitedById = if (everyone) null else access.userId,
             now = clock.instant(),
             page = page.coerceAtLeast(0),
             size = size.coerceIn(1, 100),
@@ -73,21 +84,29 @@ class InvitationController(
     }
 
     @GetMapping("/api/invitations/{id}")
-    @RequiresPermission(Permissions.USER_INVITE_VIEW)
     fun get(@PathVariable id: Long): InvitationResponse {
-        requireSocietyWide(Permissions.USER_INVITE_VIEW, invitationService.societyOf(id))
+        if (!invitationService.canSee(id, accessService.current())) throw AccessDeniedException("You can't see this invitation")
         return InvitationResponse.from(invitationService.get(id))
     }
 
     @PostMapping("/api/invitations/{id}/resend")
-    @RequiresPermission(Permissions.USER_INVITE_CREATE)
     fun resend(@PathVariable id: Long): IssuedInvitationResponse =
         IssuedInvitationResponse.from(invitationService.resend(id, accessService.current()), webBaseUrl)
 
     @PostMapping("/api/invitations/{id}/revoke")
-    @RequiresPermission(Permissions.USER_INVITE_CREATE)
     fun revoke(@PathVariable id: Long): InvitationResponse =
         InvitationResponse.from(invitationService.revoke(id, accessService.current()))
+
+    // A resident's invitation waiting for the committee (USER.INVITE.APPROVE, society-wide).
+    @PostMapping("/api/invitations/{id}/approve")
+    @RequiresPermission(Permissions.USER_INVITE_APPROVE)
+    fun approve(@PathVariable id: Long): InvitationResponse =
+        InvitationResponse.from(invitationService.approve(id, accessService.current()))
+
+    @PostMapping("/api/invitations/{id}/reject")
+    @RequiresPermission(Permissions.USER_INVITE_APPROVE)
+    fun reject(@PathVariable id: Long): InvitationResponse =
+        InvitationResponse.from(invitationService.reject(id, accessService.current()))
 
     // Open invitations sent to the logged-in user's phone number.
     @GetMapping("/api/invitations/mine")
@@ -126,10 +145,4 @@ class InvitationController(
     @PostMapping("/api/invitations/token/{token}/decline")
     fun decline(@PathVariable token: String): InvitationResponse =
         InvitationResponse.from(invitationService.decline(token))
-
-    private fun requireSocietyWide(permission: String, societyId: Long) {
-        if (!accessService.current().canSocietyWide(permission, societyId)) {
-            throw AccessDeniedException("Missing permission: $permission for this society")
-        }
-    }
 }

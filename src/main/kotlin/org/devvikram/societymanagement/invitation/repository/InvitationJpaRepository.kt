@@ -33,4 +33,10 @@ interface InvitationJpaRepository : JpaRepository<Invitation, Long> {
     ): List<Invitation>
 
     fun findByPhoneAndStatusOrderByCreatedAtDesc(phone: String, status: InvitationStatus): List<Invitation>
+
+    @Query(
+        "select count(i) from Invitation i where i.flat.id = :flatId and " +
+            "(i.status = 'AWAITING_APPROVAL' or (i.status = 'PENDING' and i.expiresAt > :now))"
+    )
+    fun countOpenForFlat(@Param("flatId") flatId: Long, @Param("now") now: java.time.Instant): Long
 }

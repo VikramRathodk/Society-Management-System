@@ -184,7 +184,7 @@ class InvitationIntegrationTest {
         invite(secretary, roleInvite(randomPhone(), "COMMITTEE")).andExpect(status().isCreated)
         invite(secretary, roleInvite(randomPhone(), "GUARD")).andExpect(status().isCreated)
         invite(secretary, roleInvite(randomPhone(), "SECRETARY")).andExpect(status().isForbidden)
-        invite(resident, residentInvite(randomPhone(), "FAMILY")).andExpect(status().isForbidden)
+        invite(resident, roleInvite(randomPhone(), "GUARD")).andExpect(status().isForbidden)
         invite(otherSecretary, residentInvite(randomPhone())).andExpect(status().isForbidden)
         invite(superAdmin, roleInvite(randomPhone(), "ADMIN")).andExpect(status().isCreated)
     }
@@ -329,7 +329,7 @@ class InvitationIntegrationTest {
     }
 
     @Test
-    fun `the committee lists the society's invitations, residents can't`() {
+    fun `the committee lists the society's invitations, residents only their own`() {
         issued(invite(secretary, residentInvite(randomPhone())))
         val (token, _) = issued(invite(secretary, roleInvite(randomPhone(), "GUARD")))
         call("POST", "/api/invitations/token/$token/decline")
@@ -340,7 +340,7 @@ class InvitationIntegrationTest {
             .andExpect(jsonPath("$[0].role").value("GUARD"))
         call("GET", "/api/societies/$societyId/invitations?status=DECLINED", by = committee)
             .andExpect(jsonPath("$", hasSize<Any>(1)))
-        call("GET", "/api/societies/$societyId/invitations", by = resident).andExpect(status().isForbidden)
+        call("GET", "/api/societies/$societyId/invitations", by = resident).andExpect(jsonPath("$", hasSize<Any>(0)))
         call("GET", "/api/societies/$societyId/invitations", by = otherSecretary).andExpect(status().isForbidden)
     }
 }

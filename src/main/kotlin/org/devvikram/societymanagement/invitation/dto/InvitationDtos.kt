@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import org.devvikram.societymanagement.invitation.model.InvitationStatus
 import org.devvikram.societymanagement.invitation.service.CreateInvitationCommand
+import org.devvikram.societymanagement.invitation.service.FlatInviteOption
 import org.devvikram.societymanagement.invitation.service.InvitationPreview
 import org.devvikram.societymanagement.invitation.service.InvitationView
 import org.devvikram.societymanagement.invitation.service.IssuedInvitation
@@ -48,12 +49,14 @@ data class InvitationResponse(
     val expiresAt: Instant,
     val closedAt: Instant?,
     val acceptedUserId: Long?,
+    val approvedAt: Instant?,
+    val approvedByName: String?,
 ) {
     companion object {
         fun from(v: InvitationView) = InvitationResponse(
             v.id, v.societyId, v.societyName, v.roleCode, v.roleName, v.flatId, v.flatLabel, v.residentType,
             v.phone, v.name, v.status, v.invitedById, v.invitedByName, v.createdAt, v.expiresAt, v.closedAt,
-            v.acceptedUserId,
+            v.acceptedUserId, v.approvedAt, v.approvedByName,
         )
     }
 }
@@ -92,5 +95,20 @@ data class InvitationPreviewResponse(
             p.societyName, p.roleCode, p.roleName, p.flatLabel, p.residentType, p.name, p.maskedPhone,
             p.invitedByName, p.status, p.expiresAt, p.hasAccount,
         )
+    }
+}
+
+// A flat the caller may invite residents to as a resident, and as which resident types.
+data class FlatInviteOptionResponse(
+    val flatId: Long,
+    val flatLabel: String,
+    val role: String,
+    val roleName: String,
+    val residentTypes: List<ResidentType>,
+    val needsApproval: Boolean,
+) {
+    companion object {
+        fun from(o: FlatInviteOption) =
+            FlatInviteOptionResponse(o.flatId, o.flatLabel, o.roleCode, o.roleName, o.residentTypes, o.needsApproval)
     }
 }

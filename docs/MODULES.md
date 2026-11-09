@@ -25,7 +25,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 5 | Society Management | `society` | ✅ | Complex and society CRUD; per-society settings (V16). |
 | 6 | Society Structure | `society` | ✅ | Wings and flats; flat directory scoping. Shares the package with 5 for now; split only if it grows. |
 | 7 | Society Onboarding | *`onboarding`* | ⏳ | Blocked on the onboarding-model decision (see Open Decisions in the plan). |
-| 8 | Invitation Management | `invitation` | 🟡 | Backend core built (V17): invite by rank, link + preview, accept as new or existing user, revoke, resend, decline, expiry, pushes. Web screens and resident-sent invites next. See [invitation](modules/invitation.md). |
+| 8 | Invitation Management | `invitation` | ✅ | V17–V18: invite by rank or (residents) onto their own flat with committee approval, link + QR, accept as new or existing user, revoke, resend/renew, decline, expiry, per-flat limit, pushes; web screens. See [invitation](modules/invitation.md). |
 | 9 | Resident & Membership | `user` (`UserRole`) | 🟡 | A role assignment with a flat *is* the residency today; `resident_type` on the user. Move to *`resident`* when membership gets its own workflow (move-in/out, tenancy). |
 | 10 | Visitor Management | `visitor` | ✅ | M3. Gate flow, approvals, override, photo, CSV export, push. |
 | 11 | Staff Management | *`staff`* | 🟡 | `StaffMember` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |

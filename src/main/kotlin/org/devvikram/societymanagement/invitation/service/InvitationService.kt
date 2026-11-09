@@ -18,6 +18,7 @@ import org.devvikram.societymanagement.society.service.SocietySettingsService
 import org.devvikram.societymanagement.user.model.User
 import org.devvikram.societymanagement.user.service.AssignRoleCommand
 import org.devvikram.societymanagement.user.service.CreateUserCommand
+import org.devvikram.societymanagement.user.repository.UserRoleRepository
 import org.devvikram.societymanagement.user.service.UserService
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.security.access.AccessDeniedException
@@ -27,9 +28,10 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 
-// Who may invite: anyone who could grant the role there (USER.INVITE.CREATE plus a higher role in that
-// society, see Access.canGrant). The same check runs again when the invitation is accepted, so an
-// inviter who has since lost their role can't still bring people in through old links.
+// Who may invite (see InvitationRules): anyone who could grant the role there, or a resident onto their own
+// flat. The same check runs again when the invitation is accepted, so an inviter who has since lost their
+// role (or a society that stopped resident invitations) can't still bring people in through old links.
+// A resident's invitation may first need a committee member's approval: until then its link doesn't work.
 @Service
 class InvitationService(
     private val repository: InvitationRepository,
@@ -39,6 +41,8 @@ class InvitationService(
     private val userService: UserService,
     private val accessService: AccessService,
     private val settings: SocietySettingsService,
+    private val rules: InvitationRules,
+    private val userRoleRepository: UserRoleRepository,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
 ) {
@@ -51,9 +55,6 @@ class InvitationService(
         val role = roleRepository.findByCode(command.roleCode)
             ?: throw NoSuchElementException("Role ${command.roleCode} not found")
         require(role.scopeLevel == RoleScope.SOCIETY) { "Only society roles can be given by invitation" }
-        if (!actor.canGrant(Permissions.USER_INVITE_CREATE, role.code, society.id!!)) {
-            throw AccessDeniedException("You can't invite someone as ${role.name} in this society")
-        }
 
         val flat = if (role.requiresFlat) {
             val flatId = requireNotNull(command.flatId) { "${role.name} needs a flat" }
@@ -67,6 +68,11 @@ class InvitationService(
             }
             null
         }
+        val route = rules.route(actor, role, society.id!!, flat?.id, command.residentType)
+            ?: throw AccessDeniedException(
+                if (flat != null) "You can't invite someone to flat ${flat.flatNumber} as ${role.name}"
+                else "You can't invite someone as ${role.name} in this society"
+            )
 
         userService.getByPhone(phone)?.let { existing ->
             if (!existing.isActive) throw ConflictException("The account for this phone number is deactivated")
@@ -82,6 +88,7 @@ class InvitationService(
             close(it, if (it.statusAt(now) == InvitationStatus.EXPIRED) InvitationStatus.EXPIRED else InvitationStatus.REVOKED, inviter, now)
         }
         repository.flush()
+        flat?.let { requireRoomInFlat(society.id!!, it.id!!, it.flatNumber, now) }
 
         val token = InvitationTokens.newToken()
         val invitation = repository.save(
@@ -98,8 +105,58 @@ class InvitationService(
                 expiresAt = expiryFrom(now, society.id!!),
             )
         )
-        events.publishEvent(sentEvent(invitation))
+        if (rules.needsApproval(route, society.id!!)) {
+            invitation.status = InvitationStatus.AWAITING_APPROVAL
+            repository.save(invitation)
+            events.publishEvent(approvalEvent(invitation))
+        } else {
+            events.publishEvent(sentEvent(invitation))
+        }
         return IssuedInvitation(InvitationView.of(invitation, now), token)
+    }
+
+    // The flats (and resident types) the actor may invite people to as a resident.
+    @Transactional(readOnly = true)
+    fun flatOptions(societyId: Long, actor: Access): List<FlatInviteOption> {
+        societyService.getById(societyId)
+        return rules.residentOptions(actor, societyId)
+    }
+
+    // A committee member lets a resident's invitation through: its link starts working and expiring now.
+    @Transactional
+    fun approve(id: Long, actor: Access): InvitationView {
+        val now = clock.instant()
+        val invitation = find(id)
+        requireApprover(invitation, actor)
+        requireAwaitingApproval(invitation, now)
+        requireInviterStillAllowed(invitation)
+        invitation.status = InvitationStatus.PENDING
+        invitation.approvedAt = now
+        invitation.approvedBy = userService.getById(actor.userId)
+        invitation.expiresAt = expiryFrom(now, invitation.society.id!!)
+        repository.save(invitation)
+        events.publishEvent(decidedEvent(invitation, approved = true))
+        events.publishEvent(sentEvent(invitation))
+        return InvitationView.of(invitation, now)
+    }
+
+    @Transactional
+    fun reject(id: Long, actor: Access): InvitationView {
+        val now = clock.instant()
+        val invitation = find(id)
+        requireApprover(invitation, actor)
+        requireAwaitingApproval(invitation, now)
+        close(invitation, InvitationStatus.REJECTED, userService.getById(actor.userId), now)
+        events.publishEvent(decidedEvent(invitation, approved = false))
+        return InvitationView.of(invitation, now)
+    }
+
+    // Society-wide viewers see every invitation; anyone else only the ones they sent.
+    @Transactional(readOnly = true)
+    fun canSee(id: Long, actor: Access): Boolean {
+        val invitation = find(id)
+        return actor.canSocietyWide(Permissions.USER_INVITE_VIEW, invitation.society.id!!) ||
+            invitation.invitedBy.id == actor.userId
     }
 
     // Society roles the actor could invite someone to here, by name.
@@ -187,7 +244,8 @@ class InvitationService(
         val now = clock.instant()
         val invitation = find(id)
         val sentIt = invitation.invitedBy.id == actor.userId
-        if (!sentIt && !actor.canGrant(Permissions.USER_INVITE_CREATE, invitation.role.code, invitation.society.id!!)) {
+        // Residents manage only the invitations they sent; staff any they could have sent.
+        if (!sentIt && routeFor(actor, invitation) != InviteRoute.STAFF) {
             throw AccessDeniedException("You can't revoke this invitation")
         }
         if (!invitation.statusAt(now).isOpen) throw ConflictException("This invitation is already ${describe(invitation, now)}")
@@ -201,18 +259,24 @@ class InvitationService(
     fun resend(id: Long, actor: Access): IssuedInvitation {
         val now = clock.instant()
         val invitation = find(id)
-        if (!actor.canGrant(Permissions.USER_INVITE_CREATE, invitation.role.code, invitation.society.id!!)) {
+        val route = routeFor(actor, invitation)
+        if (route == null || route == InviteRoute.RESIDENT && invitation.invitedBy.id != actor.userId) {
             throw AccessDeniedException("You can't resend this invitation")
         }
         when (invitation.status) {
-            InvitationStatus.PENDING -> {}
+            InvitationStatus.PENDING, InvitationStatus.AWAITING_APPROVAL -> {}
             // Expired ones can be renewed, unless the person has been invited again since.
             InvitationStatus.EXPIRED -> {
                 val newer = repository.findOpen(invitation.society.id!!, invitation.role.id!!, invitation.phone, invitation.flat?.id)
                 if (newer.isNotEmpty()) throw ConflictException("${invitation.name} has a newer invitation; use that one")
-                invitation.status = InvitationStatus.PENDING
                 invitation.closedAt = null
                 invitation.closedBy = null
+                invitation.status = InvitationStatus.PENDING
+                invitation.flat?.let { requireRoomInFlat(invitation.society.id!!, it.id!!, it.flatNumber, now) }
+                // A resident's invitation that was never approved goes back to the committee.
+                if (invitation.approvedAt == null && rules.needsApproval(route, invitation.society.id!!)) {
+                    invitation.status = InvitationStatus.AWAITING_APPROVAL
+                }
             }
             else -> throw ConflictException("This invitation is already ${describe(invitation, now)}; send a new one instead")
         }
@@ -220,7 +284,7 @@ class InvitationService(
         invitation.tokenHash = InvitationTokens.hash(token)
         invitation.expiresAt = expiryFrom(now, invitation.society.id!!)
         repository.save(invitation)
-        events.publishEvent(sentEvent(invitation))
+        if (invitation.status == InvitationStatus.PENDING) events.publishEvent(sentEvent(invitation))
         return IssuedInvitation(InvitationView.of(invitation, now), token)
     }
 
@@ -283,13 +347,55 @@ class InvitationService(
     private fun requireInviterStillAllowed(invitation: Invitation) {
         val inviter = invitation.invitedBy
         val grants = userService.getRoles(inviter.id!!).map { it.toGrant() }
-        val allowed = inviter.isActive &&
-            accessService.accessFor(inviter.id!!, grants)
-                .canGrant(Permissions.USER_INVITE_CREATE, invitation.role.code, invitation.society.id!!)
+        val allowed = inviter.isActive && routeFor(accessService.accessFor(inviter.id!!, grants), invitation) != null
         if (!allowed) {
             throw ConflictException("${inviter.name} can no longer give this role. Ask the society for a new invitation.")
         }
     }
+
+    private fun routeFor(actor: Access, invitation: Invitation): InviteRoute? =
+        rules.route(actor, invitation.role, invitation.society.id!!, invitation.flat?.id, invitation.residentType)
+
+    private fun requireApprover(invitation: Invitation, actor: Access) {
+        if (!actor.canSocietyWide(Permissions.USER_INVITE_APPROVE, invitation.society.id!!)) {
+            throw AccessDeniedException("You can't approve invitations in this society")
+        }
+    }
+
+    private fun requireAwaitingApproval(invitation: Invitation, now: Instant) {
+        if (invitation.status != InvitationStatus.AWAITING_APPROVAL) {
+            throw ConflictException("This invitation is ${describe(invitation, now)}")
+        }
+    }
+
+    // Residents of the flat plus its open invitations must stay within the society's limit (0 = none).
+    private fun requireRoomInFlat(societyId: Long, flatId: Long, flatNumber: String, now: Instant) {
+        val max = settings.integer(societyId, SocietySettingKeys.MAX_RESIDENTS_PER_FLAT)
+        if (max == 0L) return
+        val residents = userRoleRepository.findByFlatId(flatId).filter { it.user.isActive }.map { it.user.id }.toSet().size
+        val open = repository.countOpenForFlat(flatId, now)
+        if (residents + open >= max) {
+            throw ConflictException(
+                "Flat $flatNumber already has $residents residents and $open open invitations; this society allows $max per flat"
+            )
+        }
+    }
+
+    private fun approvalEvent(invitation: Invitation) = InvitationNeedsApproval(
+        invitationId = invitation.id!!,
+        societyId = invitation.society.id!!,
+        inviterName = invitation.invitedBy.name,
+        personName = invitation.name,
+        flatLabel = flatLabel(invitation),
+    )
+
+    private fun decidedEvent(invitation: Invitation, approved: Boolean) = InvitationDecided(
+        invitationId = invitation.id!!,
+        inviterId = invitation.invitedBy.id!!,
+        personName = invitation.name,
+        societyName = invitation.society.name,
+        approved = approved,
+    )
 
     private fun roleCommand(invitation: Invitation) = AssignRoleCommand(
         roleCode = invitation.role.code,

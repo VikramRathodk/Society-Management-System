@@ -85,6 +85,14 @@ class Invitation(
     @JoinColumn(name = "accepted_user_id")
     var acceptedUser: User? = null
 
+    // Set when a committee member approved a resident's invitation.
+    @Column(name = "approved_at")
+    var approvedAt: Instant? = null
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    var approvedBy: User? = null
+
     fun statusAt(now: Instant): InvitationStatus =
         if (status == InvitationStatus.PENDING && !expiresAt.isAfter(now)) InvitationStatus.EXPIRED else status
 }

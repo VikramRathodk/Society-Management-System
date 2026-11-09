@@ -73,6 +73,9 @@ data class SettingDefinition(
 object SocietySettingKeys {
     const val TENANTS_SEE_MAINTENANCE = "tenantsSeeMaintenance"
     const val INVITE_EXPIRY_DAYS = "inviteExpiryDays"
+    const val RESIDENTS_CAN_INVITE = "residentsCanInvite"
+    const val RESIDENT_INVITES_NEED_APPROVAL = "residentInvitesNeedApproval"
+    const val MAX_RESIDENTS_PER_FLAT = "maxResidentsPerFlat"
 }
 
 // Every society setting. To add one: add a definition here (and a key constant if code reads it).
@@ -98,6 +101,35 @@ object SocietySettingCatalog {
             defaultValue = "7",
             min = 1,
             max = 30,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.RESIDENTS_CAN_INVITE,
+            group = SettingGroup.MEMBERSHIP,
+            label = "Residents can invite to their own flat",
+            description = "Owners invite family members and tenants; tenants invite other tenants of their " +
+                "household. Off: only the committee and above invite people.",
+            type = SettingType.BOOLEAN,
+            defaultValue = "true",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.RESIDENT_INVITES_NEED_APPROVAL,
+            group = SettingGroup.MEMBERSHIP,
+            label = "Resident invitations need committee approval",
+            description = "On: an invitation sent by a resident works only after a committee member approves " +
+                "it. Off: it works straight away.",
+            type = SettingType.BOOLEAN,
+            defaultValue = "true",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.MAX_RESIDENTS_PER_FLAT,
+            group = SettingGroup.MEMBERSHIP,
+            label = "Most residents per flat",
+            description = "Residents of a flat plus its open invitations, for any invitation to that flat. " +
+                "0 means no limit.",
+            type = SettingType.INTEGER,
+            defaultValue = "10",
+            min = 0,
+            max = 100,
         ),
     )
 

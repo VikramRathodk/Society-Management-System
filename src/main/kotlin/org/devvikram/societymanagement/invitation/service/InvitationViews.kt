@@ -33,6 +33,8 @@ data class InvitationView(
     val expiresAt: Instant,
     val closedAt: Instant?,
     val acceptedUserId: Long?,
+    val approvedAt: Instant?,
+    val approvedByName: String?,
 ) {
     companion object {
         fun of(invitation: Invitation, now: Instant) = InvitationView(
@@ -53,6 +55,8 @@ data class InvitationView(
             expiresAt = invitation.expiresAt,
             closedAt = invitation.closedAt,
             acceptedUserId = invitation.acceptedUser?.id,
+            approvedAt = invitation.approvedAt,
+            approvedByName = invitation.approvedBy?.name,
         )
     }
 }

@@ -3,6 +3,7 @@ package org.devvikram.societymanagement.invitation.repository
 import jakarta.persistence.EntityManager
 import org.devvikram.societymanagement.invitation.model.Invitation
 import org.devvikram.societymanagement.invitation.model.InvitationStatus
+import java.time.Instant
 import org.springframework.stereotype.Repository
 
 @Repository
@@ -25,8 +26,11 @@ class InvitationRepositoryImpl(
     override fun findPendingForPhone(phone: String): List<Invitation> =
         jpaRepository.findByPhoneAndStatusOrderByCreatedAtDesc(phone, InvitationStatus.PENDING)
 
+    override fun countOpenForFlat(flatId: Long, now: Instant): Long = jpaRepository.countOpenForFlat(flatId, now)
+
     override fun search(search: InvitationSearch): List<Invitation> {
         val where = mutableListOf("i.society.id = :societyId")
+        if (search.invitedById != null) where += "i.invitedBy.id = :invitedById"
         when (search.status) {
             null -> {}
             InvitationStatus.PENDING -> where += "i.status = 'PENDING' and i.expiresAt > :now"
@@ -34,12 +38,13 @@ class InvitationRepositoryImpl(
             else -> where += "i.status = :status"
         }
         val query = entityManager.createQuery(
-            "select i from Invitation i join fetch i.society join fetch i.role join fetch i.invitedBy " +
+            "select i from Invitation i join fetch i.society join fetch i.role join fetch i.invitedBy left join fetch i.approvedBy " +
                 "left join fetch i.flat f left join fetch f.wing " +
                 "where ${where.joinToString(" and ")} order by i.createdAt desc, i.id desc",
             Invitation::class.java,
         )
         query.setParameter("societyId", search.societyId)
+        search.invitedById?.let { query.setParameter("invitedById", it) }
         when (search.status) {
             null -> {}
             InvitationStatus.PENDING, InvitationStatus.EXPIRED -> query.setParameter("now", search.now)

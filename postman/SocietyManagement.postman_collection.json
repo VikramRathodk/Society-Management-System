@@ -162,6 +162,10 @@
     {
       "key": "invitationId",
       "value": ""
+    },
+    {
+      "key": "familyInviteePhone",
+      "value": ""
     }
   ],
   "item": [
@@ -6957,6 +6961,154 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident sees the flats they may invite to",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/invitations/flat-options",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"own flat, family or tenant\", () => {",
+                  "    const o = pm.response.json()[0];",
+                  "    pm.expect(o.flatId).to.eql(Number(pm.collectionVariables.get(\"flatId\")));",
+                  "    pm.expect(o.residentTypes).to.eql([\"FAMILY\", \"TENANT\"]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident (owner) invites a family member - waits for approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/invitations",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{familyInviteePhone}}\",\n  \"name\": \"Riya Resident\",\n  \"role\": \"RESIDENT\",\n  \"flatId\": {{flatId}},\n  \"residentType\": \"FAMILY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"familyInviteePhone\", \"7\" + Math.floor(100000000 + Math.random() * 899999999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"awaiting approval\", () => pm.expect(r.invitation.status).to.eql(\"AWAITING_APPROVAL\"));",
+                  "pm.collectionVariables.set(\"invitationId\", r.invitation.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident approves it themselves (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/invitations/{{invitationId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary approves it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/invitations/{{invitationId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"link works now\", () => pm.expect(pm.response.json().status).to.eql(\"PENDING\"));"
                 ]
               }
             }
