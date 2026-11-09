@@ -13,7 +13,7 @@ every step. Backend branch `feature/finance` (cut from `master` 039a21c); nothin
 | 3 | Maintenance credit and refunds (V21) | ✅ | 0010beb | 310 |
 | 4 | Maintenance posts to the books automatically; maintenance check | ✅ | 5ea4734 | 322 |
 | 5 | Statements: trial balance, I&E, R&P, balance sheet, resident summary, CSV; Postman folder 17 | ✅ | e5d520f | 328 |
-| 6 | Web: Finance section in the Angular app (web branch `feature/finance`) | ✅ (smoke-checked) | web  | web 137 |
+| 6 | Web: Finance section in the Angular app (web branch `feature/finance`) | ✅ (smoke-checked) | web 6b58360 | web 137 |
 
 ## Decisions taken without the product owner (2026-11-10)
 
