@@ -8,9 +8,12 @@ import org.springframework.stereotype.Service
 @Service
 class AccessService(private val permissionService: PermissionService) {
 
-    fun current(): Access {
+    fun current(): Access = currentOrNull() ?: throw AccessDeniedException("Not authenticated")
+
+    // For public endpoints that also accept a logged-in caller (e.g. opening an invitation link).
+    fun currentOrNull(): Access? {
         val principal = SecurityContextHolder.getContext().authentication?.principal as? AuthenticatedUser
-            ?: throw AccessDeniedException("Not authenticated")
+            ?: return null
         return accessFor(principal.id, principal.grants)
     }
 

@@ -7,6 +7,7 @@ enum class SettingType { BOOLEAN, INTEGER, TEXT, CHOICE }
 // Sections of the settings page, in display order.
 enum class SettingGroup(val label: String) {
     MAINTENANCE("Maintenance"),
+    MEMBERSHIP("Membership & invitations"),
 }
 
 // What one setting is. Values are stored as text: "true"/"false", a whole number, or the string itself.
@@ -71,6 +72,7 @@ data class SettingDefinition(
 
 object SocietySettingKeys {
     const val TENANTS_SEE_MAINTENANCE = "tenantsSeeMaintenance"
+    const val INVITE_EXPIRY_DAYS = "inviteExpiryDays"
 }
 
 // Every society setting. To add one: add a definition here (and a key constant if code reads it).
@@ -85,6 +87,17 @@ object SocietySettingCatalog {
                 "notifications. On: tenants do too. Committee members and above always see every flat.",
             type = SettingType.BOOLEAN,
             defaultValue = "false",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.INVITE_EXPIRY_DAYS,
+            group = SettingGroup.MEMBERSHIP,
+            label = "Invitation link expiry (days)",
+            description = "How long an invitation link and its QR code work. Resending an invitation " +
+                "starts the period again.",
+            type = SettingType.INTEGER,
+            defaultValue = "7",
+            min = 1,
+            max = 30,
         ),
     )
 

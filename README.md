@@ -91,6 +91,7 @@ database and the JWT secret, so the app will not start until these are set:
 | `FIREBASE_CREDENTIALS` | with `fcm` | Path to the Firebase service-account JSON (default `secrets/firebase-service-account.json`); blank uses Google Application Default Credentials |
 | `PUSH_ANDROID_CHANNEL` | no | Android notification channel id, default `society_default` |
 | `REPORT_ZONE` | no | Time zone for export date ranges, default `Asia/Kolkata` |
+| `WEB_BASE_URL` | yes (prod) | Public address of the web app, e.g. `https://app.example.com`; invitation links and QR codes point to `<WEB_BASE_URL>/invite/<token>`. Default `http://localhost:4200` outside prod |
 | `SERVER_PORT` | no | Default `8080` |
 
 **First super admin.** A new database has no users, and every account is created by another user.

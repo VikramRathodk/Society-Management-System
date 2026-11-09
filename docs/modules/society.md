@@ -51,6 +51,7 @@ Per-society rules that a society can change, so behaviour isn't hard-coded (SECR
 | Key | Group | Type | Default | Effect |
 |---|---|---|---|---|
 | `tenantsSeeMaintenance` | Maintenance | BOOLEAN | false | Off: only a flat's OWNER / FAMILY residents see its bills, payments and dues and get maintenance pushes. On: TENANTs too. See [maintenance](maintenance.md). |
+| `inviteExpiryDays` | Membership & invitations | INTEGER (1–30) | 7 | How long an invitation link works; resending starts it again. See [invitation](invitation.md). |
 
 ## Tables
 `complex`, `society`, `wing`, `flat`, `society_setting` (V16). `parking_slot` and `staff_member` exist

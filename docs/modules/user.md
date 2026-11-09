@@ -39,4 +39,4 @@ User identity, role assignments, profile and passwords. Status: ✅ built (M1).
 
 ## Known limits
 - One push token per user, so a user on web and phone gets pushes on the last registered device only.
-- No invitations / self-registration yet (blocked on onboarding decisions).
+- Self-registration without an invitation isn't built; people join through [invitations](invitation.md).

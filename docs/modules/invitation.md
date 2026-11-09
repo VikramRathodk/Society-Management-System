@@ -1,7 +1,7 @@
 # Invitations (`invitation`)
 
-Bringing people into a society with a role, following the role hierarchy. Status: 📝 planned
-(2026-11-09, replaces the earlier blocked design).
+Bringing people into a society with a role, following the role hierarchy. Status: 🟡 backend core
+built (2026-11-09, V17); web screens and resident-sent invitations next (see Build order).
 
 ## Decisions
 | # | Decision |
@@ -46,15 +46,29 @@ Custom roles follow the same rank rule automatically.
 Statuses: `PENDING → ACCEPTED | DECLINED | REVOKED | EXPIRED`, plus
 `PENDING → AWAITING_APPROVAL → ACCEPTED | REJECTED` for resident invites needing approval.
 
-## Rules
-- One open invite per phone + society + role + flat. Re-inviting replaces the old token.
-- Rejected if the phone already holds that role in that society/flat.
-- Revoke: the inviter, or anyone who outranks them in the society. Resend: new token, old one dies.
-- An invite checks the inviter's rights **again at accept time**. If the inviter lost their role,
-  the invite fails.
-- Identity proof in v1 is the link alone (bound to the phone). OTP on accept comes with SMS delivery.
-- Phone stored in the same format as `users.phone` today.
-- Expired invites are marked by a daily job (or lazily on read).
+## Rules (as built)
+- **Who:** `USER.INVITE.CREATE` (COMMITTEE, inherited upwards) plus a role above the invited one in that
+  society (`Access.canGrant`). Only society-scope roles can be invited (403 / 400 otherwise).
+- **Shape:** flat-tied roles need `flatId` (in the society) and `residentType`; other roles must have
+  neither (400). Phone: 10–14 digits, optional leading `+`, trimmed.
+- **One open invitation** per phone + society + role + flat (unique index). Inviting again, by anyone
+  allowed, closes the open one (`REVOKED`, or `EXPIRED` if it had run out) and issues a new link.
+- **Refused (409)** if the phone's account already holds that role there, or the account is deactivated.
+- **Accept:** a new phone signs up with a password (8–72) and optionally corrects the name; the account
+  and role are created together, then the person logs in normally. A phone that already has an account
+  must log in and accept (by link or from `/mine`); the logged-in phone must match (403 otherwise).
+- **The inviter's rights are checked again at accept time.** If they lost the role or were
+  deactivated, accepting fails (409) and the society has to send a new invitation.
+- **Revoke:** the inviter, or anyone who could have sent it. **Resend:** anyone who could have sent it;
+  only while `PENDING` (also after it ran out). It gives a new token and a fresh expiry; the old link
+  stops working.
+- **Expiry:** `inviteExpiryDays` society setting (1–30, default 7). A `PENDING` invitation past its expiry
+  counts as `EXPIRED` everywhere (preview, lists, accept) even before its row changes.
+- **Tokens:** 32 random bytes (URL-safe base64). Only the SHA-256 is stored, so the link can't be shown
+  again later: "show QR again" in the web app is a resend.
+- **Identity proof** in v1 is the link alone (bound to the phone). OTP on accept comes with SMS delivery.
+- **Pushes** (after commit, best effort): `INVITATION_RECEIVED` to the invited phone's account if it has
+  one; `INVITATION_ACCEPTED` back to the inviter.
 
 ## Invite QR code
 Every invite comes with a QR code of its link, so the person can scan it with their phone camera and
@@ -65,8 +79,8 @@ land straight on the accept page.
 - Invite dialog after creating: **QR code + Copy link + Share on WhatsApp + Download QR (PNG) +
   Print card**. The printable card shows society name, flat, role, "Scan to join", the QR, the expiry
   date and the short link underneath (for people who can't scan).
-- Shown again from the Invitations list while the invite is `PENDING`. Resend gives a new QR (the old
-  one stops working).
+- From the Invitations list, while the invite is `PENDING`, "Show QR" resends it and shows the new QR
+  (the old one stops working), because only the token's hash is stored.
 - The accept page `/invite/:token` must work well on a phone, since that is where a scan lands.
 - The QR holds only the link and token: no phone, name or other personal data.
 - Later (not v1): a **society join QR** posted at the gate/notice board for self-registration that a
@@ -101,35 +115,44 @@ First settings:
 | `residentInvitesNeedApproval` | true (toggle) | Invites sent by residents wait for COMMITTEE+ approval. |
 | `residentsCanInvite` | true (toggle) | Turns resident-sent invites off entirely. |
 | `maxResidentsPerFlat` | 10 | Limit on active + pending residents per flat (0 = no limit). |
-| `inviteExpiryDays` | 7 | How long an invite link works. |
+| `inviteExpiryDays` | 7 (1–30) | How long an invite link works. ✅ built (V17 step). |
 
 `tenantsSeeMaintenance` needs a maintenance-side change: bill/payment/dues reads and
 `MaintenanceNotifications.tokensByFlat` filter flat roles by resident type when the toggle is off.
 Society-wide viewers (COMMITTEE+) are unaffected.
 
-## Endpoints (planned)
+## Endpoints
 | Method | Path | Who | Notes |
 |---|---|---|---|
-| POST | `/api/societies/{societyId}/invitations` | rank rule above | `{phone, name, role, flatId?, residentType?}` → invite + link |
-| GET | `/api/societies/{societyId}/invitations?status=` | COMMITTEE+ (all), resident (own sent) | |
-| POST | `/api/invitations/{id}/resend` | inviter / outranks | New token |
-| POST | `/api/invitations/{id}/revoke` | inviter / outranks | |
-| POST | `/api/invitations/{id}/approve` · `/reject` | COMMITTEE+ in society | Resident invites only |
-| GET | `/api/invitations/token/{token}` | public | Preview |
-| POST | `/api/invitations/token/{token}/accept` | public (new user) / logged in (existing) | `{name, password}` for new users |
+| POST | `/api/societies/{societyId}/invitations` | `USER.INVITE.CREATE` + rank | `{phone, name, role, flatId?, residentType?}` → 201 `{invitation, token, inviteUrl}` |
+| GET | `/api/societies/{societyId}/invitations?status=&page=&size=` | `USER.INVITE.VIEW` society-wide | Newest first |
+| GET | `/api/invitations/{id}` | `USER.INVITE.VIEW` society-wide | |
+| POST | `/api/invitations/{id}/resend` | could have sent it | → `{invitation, token, inviteUrl}` |
+| POST | `/api/invitations/{id}/revoke` | inviter / could have sent it | |
+| GET | `/api/invitations/mine` | logged in | Open invitations for my phone |
+| POST | `/api/invitations/{id}/accept` · `/decline` | logged in, phone matches | |
+| GET | `/api/invitations/token/{token}` | public | Preview: society, role, flat, inviter, masked phone, status, `hasAccount` |
+| POST | `/api/invitations/token/{token}/accept` | public | Logged in → adds the role to that account; otherwise `{name?, password}` creates it |
 | POST | `/api/invitations/token/{token}/decline` | public | |
-| GET | `/api/users/me/invitations` | authenticated | Pending invites for my phone |
-| GET · PATCH | `/api/societies/{societyId}/settings` | SECRETARY+ (`SOCIETY.SETTINGS.VIEW` / `.UPDATE`) | ✅ built (step 1), see [society](society.md#society-settings) |
+| POST | `/api/invitations/{id}/approve` · `/reject` | COMMITTEE+ in society | Planned (step 4), resident invites only |
+| GET · PATCH | `/api/societies/{societyId}/settings` | SECRETARY+ (`SOCIETY.SETTINGS.VIEW` / `.UPDATE`) | ✅ step 1, see [society](society.md#society-settings) |
 
-New permissions: `USER.INVITE.CREATE`, `USER.INVITE.VIEW`, `USER.INVITE.APPROVE`. Settings reuse the
-existing `SOCIETY.SETTINGS.VIEW` / `.UPDATE`. Residents never read the settings directly: the invite
-endpoints apply them.
+Permissions (V17): `USER.INVITE.CREATE`, `USER.INVITE.VIEW` on COMMITTEE (SECRETARY, ADMIN inherit;
+SUPER_ADMIN has all). `USER.INVITE.APPROVE` comes with step 4. Errors: 400 bad shape, 403 rank / scope /
+wrong phone, 404 unknown link, 409 already answered / expired / already holds the role / inviter lost
+the right.
 
-## Tables (planned, `V16__invitations.sql`)
-- `invitation`: id, society_id, role_id, flat_id?, resident_type?, phone, name, token_hash, status,
-  invited_by, expires_at, created_at, accepted_by?, accepted_at?, decided_by?, decided_at?.
-- `society_setting` (✅ V16): society_id, setting_key (PK together), setting_value, updated_at,
+Config: `app.web-base-url` (`WEB_BASE_URL`, required in prod) builds `inviteUrl`.
+
+## Tables
+- `invitation` (V17): society_id, role_id, flat_id?, resident_type?, phone, name, token_hash (unique),
+  status, invited_by, created_at, expires_at, closed_at?, closed_by?, accepted_user_id?. Goes with its
+  society, role or flat (cascade); partial unique index on open invitations.
+- `society_setting` (V16): society_id, setting_key (PK together), setting_value, updated_at,
   updated_by. Cascades with the society.
+
+Code: `InvitationService` (rules), `InvitationTokens` (token, hash, phone mask), `InvitationController`,
+`InvitationNotificationListener`. Tests: `InvitationIntegrationTest` (10).
 
 ## Web screens (planned)
 - **Invite** dialog (members page / flat page): role list from `/api/roles/assignable`, flat + type
@@ -141,10 +164,11 @@ endpoints apply them.
 
 ## Build order
 1. Society settings framework (registry, table, GET/PATCH, cache, web page) + `tenantsSeeMaintenance`
-   applied to maintenance. **Backend ✅ 2026-11-09** (V16); web page pending. The membership settings
-   (`residentsCanInvite`, `residentInvitesNeedApproval`, `maxResidentsPerFlat`, `inviteExpiryDays`) are
-   added to the catalog together with the features that use them.
+   applied to maintenance. **✅ 2026-11-09** (V16, web rules card). The other membership settings
+   (`residentsCanInvite`, `residentInvitesNeedApproval`, `maxResidentsPerFlat`) are added to the
+   catalog together with step 4, which uses them.
 2. Invitation core: create, preview, accept (new + existing user), revoke, resend, `inviteUrl`.
+   **Backend ✅ 2026-11-09** (V17, `inviteExpiryDays`).
 3. Web: invite dialog with QR / share / download / print, accept page, invitations page.
 4. Resident invites + approval (uses the membership settings).
 5. Postman folder, docs.
