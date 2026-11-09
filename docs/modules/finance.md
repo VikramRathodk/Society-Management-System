@@ -3,7 +3,7 @@
 The society's books: what came in, what went out, where the money sits, and the statements an annual
 audit asks for. Module 15 in [MODULES.md](../MODULES.md).
 
-**Status:** 🟡 being built. Steps 1 (books and chart), 2 (vouchers) and 3 (maintenance credit and refunds) done 2026-11-10; steps 4–6 to come. Builds on Maintenance (module 14). Revised
+**Status:** 🟡 being built. Steps 1–4 (books, vouchers, maintenance credit and refunds, maintenance postings) done 2026-11-10; steps 5–6 to come. Builds on Maintenance (module 14). Revised
 after the review in [finance-upgrades.md](finance-upgrades.md); its "Review outcome" table says what
 was adopted and why.
 
@@ -418,6 +418,52 @@ Built in `maintenance` (V21); the rules and endpoints are in [maintenance.md](ma
 
 Tests: `MaintenanceCreditIntegrationTest` (10), `CreditAllocatorTest`, `PaymentAllocatorExcessTest`; two
 existing payment tests updated for advances being on by default.
+
+### Step 4: maintenance postings (2026-11-10)
+
+`MaintenancePostings` listens to maintenance's events inside its transaction and posts through
+`SystemPoster` (one SYSTEM voucher per source event; unique index as the safety net).
+
+| Event (maintenance) | Source | Voucher |
+|---|---|---|
+| `MaintenanceBillsIssued` (regular) | `MAINTENANCE_CYCLE/id/ISSUED` | Dr Member dues per flat · Cr each line's ledger: head mapping (default Maintenance charges), late charges → Interest / late charges |
+| `MaintenanceBillsIssued` (opening balances, `opening = true`) | same | Dr Member dues · Cr General fund (old dues the society already had) |
+| `MaintenanceCreditApplied` | `…/CREDIT_APPLIED` | Dr Member advance · Cr Member dues, per flat |
+| `MaintenancePaymentRecorded` | `MAINTENANCE_PAYMENT/id/RECORDED` | Dr deposit ledger · Cr Member dues (allocated) · Cr Member advance (excess) |
+| `MaintenancePaymentVoided` | `…/VOIDED` | Cr the ledger it went into · Dr Member dues (everything on bills, credit use included) · Dr Member advance (unused rest) |
+| `MaintenanceBillWaived` | `MAINTENANCE_BILL/id/WAIVED` | Dr Maintenance waived · Cr Member dues |
+| `MaintenanceCycleCancelled` | `MAINTENANCE_CYCLE/id/CANCELLED` | Cr Member dues / Dr income per bill; waivers undone; released credit Dr dues · Cr advance |
+| `MaintenanceRefundCompleted` / `…Voided` | `MAINTENANCE_REFUND/id/COMPLETED` / `VOIDED` | Dr Member advance · Cr paid-from ledger (reversed on void) |
+
+Decisions while building:
+- **State-based reversals.** A void or cancel is worked out from the payment or cycle as it stands, not by
+  reversing an earlier voucher. That way it stays right for things that happened before the books
+  started (the opening took them over). Where the original was never booked, its income or write-off side
+  goes to the General fund.
+- **Head mapping by name.** Bill lines copy the head's name at issue; the posting runs in the same
+  transaction, so names still match the heads exactly.
+- **Posting dates** are the event's day (period start, paid-on, today for voids, waivers and cancels),
+  never after today, never before the books start, and moved to the first open day (noted in the
+  narration) inside a locked period.
+- **Who:** the signed-in user of the maintenance request; the person who started the books if there is
+  none (e.g. background jobs).
+- **Deposit ledgers:** an explicit `depositAccountId` / `paidFromAccountId` must be an active cash/bank
+  ledger (400 otherwise, even before the books start); without one, the method's default, then the cash
+  default, then Cash in hand. Refunds default to the paying account.
+- **Opening member balances.** Starting (or correcting) the books now adds one Member dues line per flat
+  that owes (open bills' outstanding) and one Member advance line per flat with credit. Credit held by
+  waiting refunds counts as advance: the books only see a refund once it's completed. The openings
+  response shows `memberDues` and `memberAdvances` totals.
+- **Maintenance check** (`GET /api/societies/{id}/finance/maintenance-check`, REPORT.VIEW): per flat,
+  all-time member dues and advance in the books vs maintenance; lists only disagreements (`ok` when none).
+  It compares balances; it doesn't separately list actions without a voucher (a missing posting shows up
+  as a difference).
+- **Charge-head mapping** (`GET`/`PUT /api/societies/{id}/finance/charge-head-accounts`): income, fund or
+  liability ledgers only (not cash/bank or member accounts); `accountId: null` goes back to the default;
+  audited as MAPPING.
+- Opening-balance cycles now publish `MaintenanceBillsIssued` too (no push to residents).
+
+Tests: `FinanceMaintenanceIntegrationTest` (12, each ending with a clean maintenance check).
 
 ## Build steps
 

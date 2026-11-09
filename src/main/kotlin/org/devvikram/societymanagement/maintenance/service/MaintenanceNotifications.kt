@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.maintenance.service
 
 import org.devvikram.societymanagement.authorization.AccessService
 import org.devvikram.societymanagement.authorization.Permissions
+import org.devvikram.societymanagement.maintenance.model.BillLineType
 import org.devvikram.societymanagement.notification.PushNotifier
 import org.devvikram.societymanagement.user.repository.UserRepository
 import org.devvikram.societymanagement.user.repository.UserRoleRepository
@@ -14,9 +15,20 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-data class IssuedBill(val billId: Long, val flatId: Long, val flatNumber: String, val total: BigDecimal)
+// One line of an issued bill, as finance needs it: which head (by its name at issue time) or kind of line.
+data class IssuedLine(val headName: String, val type: BillLineType, val amount: BigDecimal)
 
-// Events carry everything the message needs, so listeners never touch lazy associations.
+data class IssuedBill(
+    val billId: Long,
+    val flatId: Long,
+    val flatNumber: String,
+    val total: BigDecimal,
+    val lines: List<IssuedLine> = emptyList(),
+)
+
+// Events carry everything the message needs, so listeners never touch lazy associations. They are
+// published inside the transaction: the push listener waits for the commit, finance posts to the books
+// at once (so a failed posting rolls the maintenance write back).
 data class MaintenanceBillsIssued(
     val cycleId: Long,
     val societyId: Long,
@@ -24,6 +36,32 @@ data class MaintenanceBillsIssued(
     val periodEnd: LocalDate,
     val dueDate: LocalDate,
     val bills: List<IssuedBill>,
+    // The one-off opening-balance cycle: no push, and finance books it against the General fund.
+    val opening: Boolean = false,
+)
+
+data class MaintenancePaymentVoided(val paymentId: Long, val societyId: Long)
+
+// What was written off: the bill's outstanding when it was waived.
+data class MaintenanceBillWaived(val billId: Long, val societyId: Long, val flatId: Long, val writtenOff: BigDecimal)
+
+// A bill a cancelled cycle took with it (UNPAID or WAIVED; credit it used was released first).
+data class CancelledBill(
+    val billId: Long,
+    val flatId: Long,
+    val total: BigDecimal,
+    val writtenOff: BigDecimal,
+    val lines: List<IssuedLine>,
+)
+
+data class ReleasedCredit(val flatId: Long, val amount: BigDecimal)
+
+data class MaintenanceCycleCancelled(
+    val cycleId: Long,
+    val societyId: Long,
+    val opening: Boolean,
+    val bills: List<CancelledBill>,
+    val releasedCredit: List<ReleasedCredit>,
 )
 
 data class MaintenancePaymentRecorded(
@@ -81,6 +119,7 @@ class MaintenanceNotificationListener(
     // One message per flat, to every active resident of it who sees its maintenance (see MaintenanceAudience).
     @TransactionalEventListener
     fun onIssued(event: MaintenanceBillsIssued) {
+        if (event.opening) return // old dues entered by the society: nothing new to tell residents
         try {
             val billsByFlat = event.bills.associateBy { it.flatId }
             val period = periodLabel(event.periodStart, event.periodEnd)

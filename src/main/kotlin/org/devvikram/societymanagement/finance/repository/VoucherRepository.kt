@@ -49,6 +49,12 @@ interface VoucherRepository {
     fun search(search: VoucherSearch): List<Voucher>
     // The voucher that reverses this one, if it was voided.
     fun findReversalOf(voucherId: Long): Voucher?
+    // The automatic posting of one source event, with its lines.
+    fun findBySource(societyId: Long, sourceType: String, sourceId: Long, sourceEvent: String): Voucher?
+    // Per flat, all-time totals of one per-flat account (every voucher in the books).
+    fun totalsByFlat(accountId: Long): Map<Long, AccountTotals>
+    // Source ids of the automatic postings of one kind.
+    fun sourceIds(societyId: Long, sourceType: String, sourceEvent: String): Set<Long>
 }
 
 // Every filter is optional except the society. `accountId` matches vouchers with a line on that account.
@@ -75,6 +81,26 @@ interface VoucherJpaRepository : JpaRepository<Voucher, Long> {
     fun findWithLinesByIds(@Param("ids") ids: Collection<Long>): List<Voucher>
 
     fun findByReversesVoucherId(voucherId: Long): Voucher?
+
+    @Query(
+        "select distinct v from Voucher v left join fetch v.lines where v.societyId = :s and v.sourceType = :type " +
+            "and v.sourceId = :id and v.sourceEvent = :event"
+    )
+    fun findBySource(
+        @Param("s") societyId: Long,
+        @Param("type") sourceType: String,
+        @Param("id") sourceId: Long,
+        @Param("event") sourceEvent: String,
+    ): Voucher?
+
+    @Query(
+        "select l.flatId, sum(l.debit), sum(l.credit) from VoucherLine l join l.voucher v " +
+            "where l.accountId = :a and v.status in :statuses group by l.flatId"
+    )
+    fun totalsByFlat(@Param("a") accountId: Long, @Param("statuses") statuses: Collection<VoucherStatus>): List<Array<Any>>
+
+    @Query("select v.sourceId from Voucher v where v.societyId = :s and v.sourceType = :type and v.sourceEvent = :event")
+    fun sourceIds(@Param("s") societyId: Long, @Param("type") sourceType: String, @Param("event") sourceEvent: String): List<Long>
 
     @Query(
         """
@@ -184,6 +210,17 @@ class VoucherRepositoryImpl(
         voucherJpaRepository.totalsByAccountBetween(societyId, VoucherStatus.IN_BOOKS, from, to)
 
     override fun findReversalOf(voucherId: Long): Voucher? = voucherJpaRepository.findByReversesVoucherId(voucherId)
+
+    override fun findBySource(societyId: Long, sourceType: String, sourceId: Long, sourceEvent: String): Voucher? =
+        voucherJpaRepository.findBySource(societyId, sourceType, sourceId, sourceEvent)
+
+    override fun totalsByFlat(accountId: Long): Map<Long, AccountTotals> =
+        voucherJpaRepository.totalsByFlat(accountId, VoucherStatus.IN_BOOKS)
+            .filter { it[0] != null }
+            .associate { (it[0] as Number).toLong() to AccountTotals(accountId, decimal(it[1]), decimal(it[2])) }
+
+    override fun sourceIds(societyId: Long, sourceType: String, sourceEvent: String): Set<Long> =
+        voucherJpaRepository.sourceIds(societyId, sourceType, sourceEvent).toSet()
 
     // Two steps: the page of ids (filters, order, paging), then those vouchers with their lines.
     override fun search(search: VoucherSearch): List<Voucher> {

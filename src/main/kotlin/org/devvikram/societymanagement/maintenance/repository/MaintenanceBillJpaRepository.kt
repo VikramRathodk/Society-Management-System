@@ -17,6 +17,14 @@ interface MaintenanceBillJpaRepository : JpaRepository<MaintenanceBill, Long> {
     )
     fun findWithDetailsById(@Param("id") id: Long): MaintenanceBill?
 
+    @Query(
+        "select distinct b from MaintenanceBill b join fetch b.flat f left join fetch b.lines where b.cycle.id = :cycleId order by b.id"
+    )
+    fun findByCycleWithLines(@Param("cycleId") cycleId: Long): List<MaintenanceBill>
+
+    @Query("select b.amountPaid from MaintenanceBill b where b.id = :id")
+    fun paidAmountOf(@Param("id") id: Long): java.math.BigDecimal
+
     // Oldest due first: the order payments are applied in.
     @Query(
         "select b from MaintenanceBill b join fetch b.cycle c join fetch b.society join fetch b.flat f join fetch f.wing " +

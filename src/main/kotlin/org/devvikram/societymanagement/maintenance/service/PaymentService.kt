@@ -127,6 +127,7 @@ class PaymentService(
         payment.voidedAt = Instant.now()
         payment.voidReason = reason.trim()
         paymentRepository.save(payment)
+        events.publishEvent(MaintenancePaymentVoided(id, societyId))
     }
 
     // What of the payment isn't on any bill or in a refund (only meaningful while it is RECORDED).

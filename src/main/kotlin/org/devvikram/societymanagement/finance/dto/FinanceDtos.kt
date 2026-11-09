@@ -106,6 +106,9 @@ data class OpeningsResponse(
     val entries: List<OpeningLineResponse>,
     // What balances the openings, credit positive.
     val generalFund: BigDecimal,
+    // Totals of the per-flat openings taken from maintenance.
+    val memberDues: BigDecimal,
+    val memberAdvances: BigDecimal,
     val editable: Boolean,
 ) {
     companion object {
@@ -118,6 +121,8 @@ data class OpeningsResponse(
                 OpeningLineResponse(account.id!!, account.code, account.name, account.type, it.amount)
             },
             generalFund = view.generalFund,
+            memberDues = view.memberDues,
+            memberAdvances = view.memberAdvances,
             editable = editable,
         )
     }

@@ -135,13 +135,12 @@ class MaintenanceCreditIntegrationTest {
     @Test
     fun `paying more than is owed keeps the rest as the flat's credit`() {
         val nov = issue()
-        val payment = read(pay("5000", extra = ""","depositAccountId":42""")
+        val payment = read(pay("5000")
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.allocations", hasSize<Any>(1)))
             .andExpect(jsonPath("$.allocations[0].amount").value(2625))
             .andExpect(jsonPath("$.allocations[0].fromCredit").value(false))
-            .andExpect(jsonPath("$.creditLeft").value(2375))
-            .andExpect(jsonPath("$.depositAccountId").value(42)), "$.id")
+            .andExpect(jsonPath("$.creditLeft").value(2375)), "$.id")
         getAs(secretary, "/api/maintenance/bills/${billOf(nov)}").andExpect(jsonPath("$.status").value("PAID"))
         assertEquals(d("2375"), credit())
 

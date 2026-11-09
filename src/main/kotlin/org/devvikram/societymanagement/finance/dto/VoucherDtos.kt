@@ -238,3 +238,53 @@ data class CashAndBankResponse(
         }
     }
 }
+
+// ---- Maintenance in the books ----
+
+data class ChargeHeadMappingResponse(
+    val chargeHeadId: Long,
+    val chargeHeadName: String,
+    val chargeHeadActive: Boolean,
+    val accountId: Long,
+    val accountCode: String,
+    val accountName: String,
+    // false: no ledger chosen, the default (Maintenance charges) applies.
+    val mapped: Boolean,
+) {
+    companion object {
+        fun from(mapping: org.devvikram.societymanagement.finance.service.ChargeHeadMapping) = ChargeHeadMappingResponse(
+            mapping.head.id!!, mapping.head.name, mapping.head.isActive,
+            mapping.account.id!!, mapping.account.code, mapping.account.name, mapping.mapped,
+        )
+    }
+}
+
+// accountId null clears a head's mapping (back to the default).
+data class ChargeHeadMappingRequest(@field:NotNull val chargeHeadId: Long?, val accountId: Long? = null)
+
+data class ChargeHeadMappingsRequest(@field:NotEmpty @field:Valid val mappings: List<ChargeHeadMappingRequest> = emptyList())
+
+data class FlatMismatchResponse(
+    val flatId: Long,
+    val flatLabel: String,
+    val booksDues: BigDecimal,
+    val maintenanceDues: BigDecimal,
+    val booksAdvance: BigDecimal,
+    val maintenanceAdvance: BigDecimal,
+)
+
+data class MaintenanceCheckResponse(
+    val ok: Boolean,
+    val booksDues: BigDecimal,
+    val maintenanceDues: BigDecimal,
+    val booksAdvance: BigDecimal,
+    val maintenanceAdvance: BigDecimal,
+    val mismatches: List<FlatMismatchResponse>,
+) {
+    companion object {
+        fun from(check: org.devvikram.societymanagement.finance.service.MaintenanceCheck) = MaintenanceCheckResponse(
+            check.ok, check.booksDues, check.maintenanceDues, check.booksAdvance, check.maintenanceAdvance,
+            check.mismatches.map { FlatMismatchResponse(it.flatId, it.label, it.booksDues, it.maintenanceDues, it.booksAdvance, it.maintenanceAdvance) },
+        )
+    }
+}

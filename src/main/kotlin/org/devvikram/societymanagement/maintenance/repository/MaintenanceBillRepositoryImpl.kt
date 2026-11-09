@@ -62,4 +62,8 @@ class MaintenanceBillRepositoryImpl(
 
     override fun cancelByCycle(cycleId: Long, from: Set<BillStatus>, by: User, at: Instant, reason: String): Int =
         billJpaRepository.changeStatusByCycle(cycleId, from, BillStatus.CANCELLED, by, at, reason)
+
+    override fun findByCycleWithLines(cycleId: Long): List<MaintenanceBill> = billJpaRepository.findByCycleWithLines(cycleId)
+
+    override fun paidAmountOf(billId: Long): java.math.BigDecimal = billJpaRepository.paidAmountOf(billId)
 }

@@ -61,18 +61,21 @@ data class BooksState(
     val openingsEditable: Boolean,
 )
 
-// The openings as entered, plus the General fund line that balances them.
+// The openings as entered, the members' dues and advances taken from maintenance (totals of the per-flat
+// lines), and the General fund line that balances them.
 data class OpeningsView(
     val startDate: LocalDate,
     val voucher: Voucher,
     val entries: List<OpeningEntry>,
     // Natural sign (credit positive).
     val generalFund: BigDecimal,
+    val memberDues: BigDecimal,
+    val memberAdvances: BigDecimal,
 )
 
 // Starting a society's books: the opening balance of each account on the start date, as one OPENING
 // voucher. The General fund takes whatever makes it balance, so users never have to balance it by hand.
-// Member dues and advances are filled from maintenance, not typed in (step 4 of the plan).
+// Member dues and advances are filled from maintenance (one line per flat), never typed in.
 @Service
 class BooksService(
     private val booksRepository: BooksRepository,
@@ -81,6 +84,7 @@ class BooksService(
     private val voucherWriter: VoucherWriter,
     private val societyService: SocietyService,
     private val audit: FinanceAudit,
+    private val maintenanceBalances: MaintenanceBalances,
 ) {
     fun state(societyId: Long): BooksState {
         societyService.getById(societyId)
@@ -103,12 +107,15 @@ class BooksService(
         val voucher = voucherRepository.findOpening(societyId) ?: error("Books of society $societyId have no opening voucher")
         val generalFund = chartService.systemAccount(societyId, SystemAccounts.GENERAL_FUND)
         val accounts = chartService.accounts(societyId).associateBy { it.id }
-        val entries = voucher.lines.filter { it.accountId != generalFund.id }.map { line ->
+        val entries = voucher.lines.filter { it.accountId != generalFund.id && it.flatId == null }.map { line ->
             OpeningEntry(line.accountId, accounts.getValue(line.accountId).type.natural(line.debit, line.credit))
         }
         val fund = voucher.lines.filter { it.accountId == generalFund.id }
             .fold(BigDecimal.ZERO) { sum, line -> sum + generalFund.type.natural(line.debit, line.credit) }
-        return OpeningsView(books.startDate, voucher, entries, fund)
+        fun member(key: String) = chartService.systemAccount(societyId, key).let { account ->
+            voucher.lines.filter { it.accountId == account.id }.fold(BigDecimal.ZERO) { sum, l -> sum + account.type.natural(l.debit, l.credit) }
+        }
+        return OpeningsView(books.startDate, voucher, entries, fund, member(SystemAccounts.MEMBER_DUES), member(SystemAccounts.MEMBER_ADVANCE))
     }
 
     @Transactional
@@ -119,7 +126,7 @@ class BooksService(
         require(!command.startDate.isAfter(today)) { "The start date can't be in the future" }
         chartService.ensureChart(societyId, userId)
         // Everything is checked before anything is written.
-        val lines = openingLines(societyId, command.openings)
+        val lines = openingLines(societyId, command.openings, today)
         voucherWriter.checkLines(societyId, lines)
 
         val books = FinanceBooks(societyId, command.startDate, userId)
@@ -151,7 +158,7 @@ class BooksService(
 
         val voucher = voucherRepository.findOpening(societyId) ?: error("Books of society $societyId have no opening voucher")
         val before = mapOf("startDate" to books.startDate) + linesSnapshot(voucher.lines.map { LineEntry(it.accountId, it.debit, it.credit, it.flatId) })
-        val lines = openingLines(societyId, command.openings)
+        val lines = openingLines(societyId, command.openings, today)
         voucherWriter.checkLines(societyId, lines)
         if (startDate != voucher.voucherDate) {
             books.startDate = startDate
@@ -213,7 +220,7 @@ class BooksService(
     }
 
     // Debit/credit lines for the entries, plus a General fund line for the difference.
-    private fun openingLines(societyId: Long, openings: List<OpeningEntry>): List<LineEntry> {
+    private fun openingLines(societyId: Long, openings: List<OpeningEntry>, today: LocalDate): List<LineEntry> {
         val duplicates = openings.groupBy { it.accountId }.filterValues { it.size > 1 }.keys
         require(duplicates.isEmpty()) { "Each account can have one opening balance (repeated: ${duplicates.joinToString()})" }
         val generalFund = chartService.systemAccount(societyId, SystemAccounts.GENERAL_FUND)
@@ -226,11 +233,21 @@ class BooksService(
             }
             line(account, entry.amount)
         }
-        val difference = lines.fold(BigDecimal.ZERO) { sum, line -> sum + line.debit - line.credit }
+        // Each flat's dues and credit as maintenance has them right now.
+        val dues = chartService.systemAccount(societyId, SystemAccounts.MEMBER_DUES).id!!
+        val advance = chartService.systemAccount(societyId, SystemAccounts.MEMBER_ADVANCE).id!!
+        val members = maintenanceBalances.byFlat(societyId, today).values.flatMap { flat ->
+            listOfNotNull(
+                flat.dues.takeIf { it.signum() > 0 }?.let { LineEntry.debit(dues, it, flat.flatId) },
+                flat.advance.takeIf { it.signum() > 0 }?.let { LineEntry.credit(advance, it, flat.flatId) },
+            )
+        }
+        val all = lines + members
+        val difference = all.fold(BigDecimal.ZERO) { sum, line -> sum + line.debit - line.credit }
         return when (difference.signum()) {
-            1 -> lines + LineEntry.credit(generalFund.id!!, difference)
-            -1 -> lines + LineEntry.debit(generalFund.id!!, difference.negate())
-            else -> lines
+            1 -> all + LineEntry.credit(generalFund.id!!, difference)
+            -1 -> all + LineEntry.debit(generalFund.id!!, difference.negate())
+            else -> all
         }
     }
 

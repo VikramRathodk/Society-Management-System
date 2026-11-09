@@ -137,7 +137,8 @@ Added with the finance module (plan step 3, [finance.md](finance.md)).
   - A completed refund can be voided with a reason (`VOID`, credit back). A payment can't be voided while a
     refund holds part of its credit (409): void or reject the refund first.
 - **Deposit account.** A payment may carry `depositAccountId`, a refund `paidFromAccountId`: the finance
-  cash/bank ledger involved. Maintenance stores the number only; finance checks it when it posts (step 4).
+  cash/bank ledger involved. Maintenance stores the number; finance refuses (400) one that isn't an active
+  cash/bank ledger of the society, and posts every money movement to the books once they are started.
 - **Cheque bounce** until cheque tracking exists: void the payment with a reason.
 
 | Method | Path | Permission | Notes |

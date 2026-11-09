@@ -91,12 +91,17 @@ class BillingService(
                 periodStart = period.start,
                 periodEnd = period.end,
                 dueDate = period.dueDate,
-                bills = saved.map { IssuedBill(it.id!!, it.flat.id!!, it.flat.flatNumber, it.total) },
+                bills = saved.map(::issued),
             )
         )
         spendCredit(cycle)
         return cycle.id!!
     }
+
+    private fun issued(bill: MaintenanceBill) = IssuedBill(
+        bill.id!!, bill.flat.id!!, bill.flat.flatNumber, bill.total,
+        bill.lines.map { IssuedLine(it.headName, it.calcType, it.amount) },
+    )
 
     // Flats with unused credit pay their open bills from it, the new ones included, on the cycle's start.
     private fun spendCredit(cycle: MaintenanceCycle) {
@@ -146,7 +151,18 @@ class BillingService(
             )
             newBill(cycle, BillDraft(flat, listOf(line)), "OB-%04d".format(index + 1))
         }
-        billRepository.saveAll(bills)
+        val saved = billRepository.saveAll(bills)
+        events.publishEvent(
+            MaintenanceBillsIssued(
+                cycleId = cycle.id!!,
+                societyId = societyId,
+                periodStart = command.asOf,
+                periodEnd = command.asOf,
+                dueDate = command.dueDate,
+                bills = saved.map(::issued),
+                opening = true,
+            )
+        )
         spendCredit(cycle)
         return cycle.id!!
     }
@@ -159,7 +175,11 @@ class BillingService(
         val cleanReason = requireReason(reason)
         val cycle = getCycle(id)
         cycleRepository.lockSociety(cycle.society.id!!)
-        if (cycle.status == CycleStatus.ISSUED) creditService.releaseCredit(id)
+        if (cycle.status != CycleStatus.ISSUED) throw ConflictException("Cycle is ${cycle.status} and cannot be cancelled")
+        // What a waived bill wrote off, measured before its credit is released.
+        val bills = billRepository.findByCycleWithLines(id).filter { it.status != BillStatus.CANCELLED }
+        val writtenOff = bills.filter { it.status == BillStatus.WAIVED }.associate { it.id!! to it.total - it.amountPaid }
+        val released = creditService.releaseCredit(id)
         val paid = billRepository.countPaidInCycle(id)
         if (paid > 0) {
             throw ConflictException("$paid bill(s) in this cycle have payments; void those payments first")
@@ -170,6 +190,21 @@ class BillingService(
             throw ConflictException("Cycle is ${getCycle(id).status} and cannot be cancelled")
         }
         billRepository.cancelByCycle(id, CANCELLABLE, actor, now, cleanReason)
+        events.publishEvent(
+            MaintenanceCycleCancelled(
+                cycleId = id,
+                societyId = cycle.society.id!!,
+                opening = cycle.kind == CycleKind.OPENING_BALANCE,
+                bills = bills.map { bill ->
+                    CancelledBill(
+                        bill.id!!, bill.flat.id!!, bill.total, writtenOff[bill.id] ?: BigDecimal.ZERO,
+                        bill.lines.map { IssuedLine(it.headName, it.calcType, it.amount) },
+                    )
+                },
+                releasedCredit = released.groupBy { it.bill.flat.id!! }
+                    .map { (flatId, allocations) -> ReleasedCredit(flatId, allocations.fold(BigDecimal.ZERO) { s, a -> s + a.amount }) },
+            )
+        )
     }
 
     // Writes off what is left of an unpaid or partly paid bill; the flat no longer owes it. Money already
@@ -179,11 +214,14 @@ class BillingService(
         val cleanReason = requireReason(reason)
         val bill = getBill(id)
         cycleRepository.lockSociety(bill.society.id!!)
+        // Read after taking the lock, so a payment that just committed is counted.
+        val writtenOff = bill.total - billRepository.paidAmountOf(id)
         if (bill.status !in BillStatus.OPEN ||
             !billRepository.changeStatus(id, BillStatus.OPEN, BillStatus.WAIVED, user(actorId), Instant.now(), cleanReason)
         ) {
             throw ConflictException("Bill is ${getBill(id).status} and cannot be waived")
         }
+        events.publishEvent(MaintenanceBillWaived(id, bill.society.id!!, bill.flat.id!!, writtenOff))
     }
 
     fun cycles(societyId: Long): List<MaintenanceCycle> = cycleRepository.findBySocietyId(societyId)

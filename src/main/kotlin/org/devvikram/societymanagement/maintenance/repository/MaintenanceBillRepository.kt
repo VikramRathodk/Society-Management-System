@@ -67,4 +67,8 @@ interface MaintenanceBillRepository {
     fun changeStatus(id: Long, from: Set<BillStatus>, to: BillStatus, by: User, at: Instant, reason: String): Boolean
     // Every bill of the cycle in one of `from` → CANCELLED; returns how many changed.
     fun cancelByCycle(cycleId: Long, from: Set<BillStatus>, by: User, at: Instant, reason: String): Int
+    // Every bill of the cycle with its lines (and flat).
+    fun findByCycleWithLines(cycleId: Long): List<MaintenanceBill>
+    // Read from the database, not the session: what the bill has been paid right now.
+    fun paidAmountOf(billId: Long): java.math.BigDecimal
 }
