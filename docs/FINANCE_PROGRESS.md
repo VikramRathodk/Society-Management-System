@@ -78,8 +78,8 @@ line, reopen the latest only with a reason.
 | Step | What | State | Commit | Tests after |
 |---|---|---|---|---|
 | Plan | `modules/finance-reconciliation.md` | ✅ (approved 2026-11-12) | 8fbd919 | |
-| R1 | V22, mapping, preview, statements, import | ✅ | (this commit) | 349 |
-| R2 | Matching, exclude, void handling, voucher from bank line | | | |
+| R1 | V22, mapping, preview, statements, import | ✅ | 2288aa4 | 349 |
+| R2 | Matching, exclude, void handling, voucher from bank line | ✅ | (this commit) | 361 |
 | R3 | Complete/reopen, BRS, audit, Postman | | | |
 | R4 | Web Reconcile page, e2e | | | |
 
@@ -98,3 +98,20 @@ line, reopen the latest only with a reason.
 - Names: `BankStatementService` / `BankStatementRepository`, because `StatementService` is the
   financial statements service from step 5.
 - Tests: `StatementCsvTest` (13), `BankStatementIntegrationTest` (8); full suite 349/349.
+
+### R2, as executed (2026-11-12)
+
+- `ReconciliationService` (matching) on top of `BankStatementService` (statements and imports);
+  `BankMatchRepository` reads the bank ledger's uncleared entries straight from `finance_line`.
+  Approval and rejection reach it through the existing `VoucherDecided` event; vouchers know nothing
+  of reconciliation.
+- Changed from the plan: **voiding no longer removes a match**, even in an open statement. A cheque
+  deposited and bounced in the same month must keep the deposit matched to the bank's credit and let
+  the reversal match the return; removing the match would leave both bank lines with nothing to match.
+- Decided while building: only entries dated up to the statement's end can be matched in it; auto-match
+  needs each side to be the other's only candidate; any two exactly cancelling entries can be paired
+  by hand (maintenance voids are separate system vouchers, not linked reversals); a bank line with a
+  voucher waiting for approval is held until it's decided.
+- Tests: `ReconciliationIntegrationTest` (12), including the five-cheque deposit, a bounced cheque,
+  approval and rejection, and the two database triggers (made immediate in the test, since the total
+  check is deferred to commit). Full suite 361/361.

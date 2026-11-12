@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Digits
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import org.devvikram.societymanagement.finance.model.AmountStyle
@@ -12,6 +13,14 @@ import org.devvikram.societymanagement.finance.model.BankLineState
 import org.devvikram.societymanagement.finance.model.StatementImport
 import org.devvikram.societymanagement.finance.model.StatementMapping
 import org.devvikram.societymanagement.finance.model.StatementStatus
+import org.devvikram.societymanagement.finance.model.VoucherStatus
+import org.devvikram.societymanagement.finance.model.VoucherType
+import org.devvikram.societymanagement.finance.repository.BookEntryRow
+import org.devvikram.societymanagement.finance.service.AutoMatchResult
+import org.devvikram.societymanagement.finance.service.BankLineView
+import org.devvikram.societymanagement.finance.service.BookEntryView
+import org.devvikram.societymanagement.finance.service.LineVoucherCommand
+import org.devvikram.societymanagement.finance.service.Suggestions
 import org.devvikram.societymanagement.finance.service.CreateStatementCommand
 import org.devvikram.societymanagement.finance.service.ImportResult
 import org.devvikram.societymanagement.finance.service.MappingSpec
@@ -240,28 +249,6 @@ data class StatementResponse(
     }
 }
 
-data class BankLineResponse(
-    val id: Long,
-    val lineNo: Int,
-    val date: LocalDate,
-    val description: String,
-    val reference: String?,
-    val debit: BigDecimal,
-    val credit: BigDecimal,
-    val balance: BigDecimal?,
-    val state: BankLineState,
-    val excludeReason: String?,
-    val voucherId: Long?,
-    val importId: Long,
-) {
-    companion object {
-        fun from(line: BankLine) = BankLineResponse(
-            line.id!!, line.lineNo, line.txnDate, line.description, line.reference, line.debit, line.credit,
-            line.balance, line.state, line.excludeReason, line.voucherId, line.importId,
-        )
-    }
-}
-
 data class StatementImportResponse(
     val id: Long,
     val statementId: Long,
@@ -287,14 +274,118 @@ data class ImportResultResponse(
     val outsidePeriod: List<RowNoteResponse>,
     val ignored: List<RowNoteResponse>,
     val warnings: List<RowNoteResponse>,
+    // Cleared straight after the import (see auto-match).
+    val autoMatched: Int,
+    val autoPaired: Int,
 ) {
     companion object {
-        fun from(result: ImportResult, statement: StatementView) = ImportResultResponse(
+        fun from(result: ImportResult, auto: AutoMatchResult, statement: StatementView) = ImportResultResponse(
             import = StatementImportResponse.from(result.statementImport),
             statement = StatementResponse.from(statement),
             outsidePeriod = result.outsidePeriod.take(50).map(RowNoteResponse::from),
             ignored = result.ignored.take(50).map(RowNoteResponse::from),
             warnings = result.warnings.take(50).map(RowNoteResponse::from),
+            autoMatched = auto.matched,
+            autoPaired = auto.paired,
         )
     }
 }
+
+// ---- Matching ----
+
+// An entry of the bank ledger in the books: money into the bank (a receipt) or out of it (a payment).
+data class BookEntryResponse(
+    val lineId: Long,
+    val voucherId: Long,
+    val number: String,
+    val type: VoucherType,
+    val date: LocalDate,
+    val status: VoucherStatus,
+    // A reversal of a voided entry.
+    val reversal: Boolean,
+    val narration: String?,
+    val payee: String?,
+    val reference: String?,
+    val moneyIn: BigDecimal,
+    val moneyOut: BigDecimal,
+    // Where it cleared on this statement (cleared lists only): a bank line, or the entry it cancels.
+    val bankLineId: Long? = null,
+    val pairLineId: Long? = null,
+    val auto: Boolean? = null,
+) {
+    companion object {
+        fun from(row: BookEntryRow) = BookEntryResponse(
+            row.lineId, row.voucherId, row.number, row.type, row.date, row.status, row.reversesVoucherId != null,
+            row.narration, row.payee, row.reference, row.debit, row.credit,
+        )
+
+        fun from(view: BookEntryView) = from(view.row).copy(bankLineId = view.bankLineId, pairLineId = view.pairLineId, auto = view.auto)
+    }
+}
+
+// A bank line with the entries it cleared and the voucher recorded from it.
+data class BankLineDetailResponse(
+    val id: Long,
+    val lineNo: Int,
+    val date: LocalDate,
+    val description: String,
+    val reference: String?,
+    val debit: BigDecimal,
+    val credit: BigDecimal,
+    val balance: BigDecimal?,
+    val state: BankLineState,
+    val excludeReason: String?,
+    val importId: Long,
+    val entries: List<BookEntryResponse>,
+    // Matched automatically (null while unmatched).
+    val auto: Boolean?,
+    val voucherId: Long?,
+    val voucherNumber: String?,
+    val voucherStatus: VoucherStatus?,
+) {
+    companion object {
+        fun from(view: BankLineView) = with(view.line) {
+            BankLineDetailResponse(
+                id!!, lineNo, txnDate, description, reference, debit, credit, balance, state, excludeReason, importId,
+                view.entries.map(BookEntryResponse::from), view.auto, voucherId, view.voucher?.number, view.voucher?.status,
+            )
+        }
+    }
+}
+
+data class SuggestionResponse(val entry: BookEntryResponse, val daysApart: Long, val withinWindow: Boolean)
+
+data class SuggestionsResponse(val single: List<SuggestionResponse>, val groups: List<List<BookEntryResponse>>) {
+    companion object {
+        fun from(s: Suggestions) = SuggestionsResponse(
+            s.single.map { SuggestionResponse(BookEntryResponse.from(it.entry), it.days, it.withinWindow) },
+            s.groups.map { group -> group.map(BookEntryResponse::from) },
+        )
+    }
+}
+
+data class MatchRequest(@field:NotEmpty @field:Size(max = 200) val bookLineIds: List<Long>?)
+
+data class PairRequest(@field:NotNull val firstLineId: Long?, @field:NotNull val secondLineId: Long?)
+
+data class ExcludeLineRequest(@field:NotBlank @field:Size(max = 500) val reason: String?)
+
+// The other side of the voucher (an income or expense account, or another cash/bank account for a
+// transfer). Payee, narration and reference default to the bank line's.
+data class LineVoucherRequest(
+    @field:NotNull val accountId: Long?,
+    @field:Size(max = 200) val payee: String? = null,
+    @field:Size(max = 500) val narration: String? = null,
+    @field:Size(max = 100) val reference: String? = null,
+) {
+    fun toCommand() = LineVoucherCommand(accountId!!, payee, narration, reference)
+}
+
+data class LineVoucherResponse(
+    val voucherId: Long,
+    val voucherNumber: String,
+    val voucherStatus: VoucherStatus,
+    val line: BankLineDetailResponse,
+)
+
+data class AutoMatchResponse(val matched: Int, val paired: Int, val statement: StatementResponse)

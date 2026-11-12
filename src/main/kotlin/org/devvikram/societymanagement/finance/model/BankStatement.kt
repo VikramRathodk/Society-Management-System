@@ -232,3 +232,34 @@ class BankLine(
     // Money in minus money out.
     val net: BigDecimal get() = credit - debit
 }
+
+// A book line cleared against a bank line, or (no bank line) against its pair: a voided entry and its
+// reversal that never reached the bank. Several book lines may clear one bank line; each clears once.
+@Entity
+@Table(name = "finance_bank_match")
+class BankMatch(
+    @Column(name = "statement_id", nullable = false)
+    var statementId: Long,
+
+    @Column(name = "bank_line_id")
+    var bankLineId: Long?,
+
+    @Column(name = "finance_line_id", nullable = false)
+    var financeLineId: Long,
+
+    @Column(name = "pair_line_id")
+    var pairLineId: Long?,
+
+    @Column(nullable = false)
+    var auto: Boolean,
+
+    @Column(name = "matched_by", nullable = false)
+    var matchedBy: Long,
+
+    @Column(name = "matched_at", nullable = false)
+    var matchedAt: Instant = Instant.now(),
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
+}

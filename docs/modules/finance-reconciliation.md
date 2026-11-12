@@ -27,11 +27,25 @@ month, per bank account. Planned 2026-11-12; build log in [../FINANCE_PROGRESS.m
 - **Book entries** are the lines of POSTED and VOID vouchers on that bank ledger (a void stays in the
   books with its reversal, as in the statements). Pending and rejected vouchers aren't in the books and
   can't be matched.
-- **A voided entry and its reversal cancel out.** When neither has cleared, they are cleared together
-  without a bank line (shown as "cancelled in the books"). When the original had already cleared (a
-  bounced cheque), the reversal is an ordinary entry waiting for the bank's matching debit.
-- **Voiding a voucher whose bank line is matched in an open reconciliation** removes that match. In a
-  completed one the match stays (the bank did see it); the reversal waits for its own bank line.
+- **A voided entry and its reversal cancel out.** When neither has cleared and both are dated within
+  the statement, auto-match clears them together without a bank line ("cancelled in the books"). Any
+  two entries that cancel exactly (a maintenance payment and its void, which are separate system
+  vouchers) can be paired by hand. When the original had already cleared (a bounced cheque), the
+  reversal is an ordinary entry waiting for the bank's matching debit.
+- **Voiding never removes a match** (changed in R2 from "removes it in an open statement"). The bank did
+  see the money: a cheque deposited and returned in the same month keeps the deposit matched to the
+  credit, and the reversal matches the return. A wrong match is fixed by unmatching it, on purpose.
+- **Only entries dated within the statement** (up to its end, carried-over ones included) can be
+  matched in it, so the BRS arithmetic holds. Its end can't move before an entry it cleared.
+- **Auto-match** runs after every import and on request: a bank line and an entry of the same amount
+  and direction, within `reconciliationMatchDays`, match only when each is the other's only candidate.
+  Suggestions show same-amount entries within 30 days (nearest first, flagged inside or outside the
+  window) and groups of 2–8 entries that add up to the line (from 30 days before to the window after).
+- **Recording from a bank line.** Money in becomes a receipt, money out a payment, and another
+  cash/bank account a transfer, dated on the bank line with the usual voucher rules (approval, lock
+  date, no member accounts). Posted: it clears the line at once. Waiting for approval: the line is held
+  (no match, exclude or second voucher) until it is decided; approval clears it, rejection or withdrawal
+  frees it.
 - **The opening voucher counts as cleared**: the bank-account opening is the bank's balance on the day
   the books started. Cheques that were uncleared on that day are a known V1.1 limit (enter the opening
   as the bank's balance, record those cheques as entries after the start).
@@ -104,27 +118,30 @@ Built in R1 (`FinanceReconciliationController`):
   non-zero while lines are missing).
 - `POST|GET /api/finance/statements/{sid}/imports` (multipart `file`); `DELETE /api/finance/statement-imports/{iid}`;
   `GET /api/finance/statement-imports/{iid}/file`.
-- `GET /api/finance/statements/{sid}/lines?state=`.
+- `GET /api/finance/statements/{sid}/lines?state=` (each with the entries it cleared and any voucher
+  recorded from it).
 
-Still to build (paths under `/api/finance/statements/{sid}`):
+Built in R2 (under `/api/finance/statements/{sid}`); the import response also says how many lines
+auto-match cleared:
 
-- Auto-match after each import.
-- `GET …/book-entries?cleared=false`,
-  `GET /statements/{sid}/lines/{lid}/suggestions`.
-- `POST /statements/{sid}/matches` (bank line + book lines), `DELETE /matches/{mid}`,
-  `POST /statements/{sid}/auto-match`.
-- `POST /statements/{sid}/lines/{lid}/exclude` (reason), `…/include`,
-  `POST /statements/{sid}/lines/{lid}/voucher` (receipt or payment, other account, narration; the
-  voucher is matched to the line when it posts, straight away or after approval).
-- `POST /statements/{sid}/complete`, `POST /statements/{sid}/reopen` (reason).
-- `GET /statements/{sid}/brs` and `…/brs.csv`; the ledger shows each bank line's cleared date.
+- `GET …/book-entries?cleared=false|true`, `GET …/lines/{lid}/suggestions`, `POST …/auto-match`.
+- `POST|DELETE …/lines/{lid}/match` (body `bookLineIds`), `POST …/lines/{lid}/exclude` (reason),
+  `POST …/lines/{lid}/include`.
+- `POST …/lines/{lid}/voucher` (`accountId`, optional payee, narration, reference; also needs
+  `FINANCE.VOUCHER.CREATE`).
+- `POST …/pairs` (`firstLineId`, `secondLineId`), `DELETE …/pairs/{bookLineId}`.
+
+Still to build (R3):
+
+- `POST …/complete`, `POST …/reopen` (reason).
+- `GET …/brs` and `…/brs.csv`; the ledger shows each entry's cleared date.
 
 ## Build steps
 
 | Step | What | Done when |
 |---|---|---|
 | R1 ✅ | V22, permissions, setting; column mapping, preview, statements, import with duplicates | Import tests: several bank layouts, Dr/Cr column, Indian amounts (1,23,456.00), date formats, header junk rows, duplicates, out-of-period rows |
-| R2 | Book entries, suggestions, auto-match, manual match/unmatch, exclude, void handling, voucher from a bank line (incl. after approval) | Matching tests including the ₹15,000 five-cheque deposit and a bounced cheque |
+| R2 ✅ | Book entries, suggestions, auto-match, manual match/unmatch, exclude, void handling, voucher from a bank line (incl. after approval) | Matching tests including the ₹15,000 five-cheque deposit and a bounced cheque |
 | R3 | Complete with BRS snapshot, reopen latest, audit, BRS JSON/CSV, cleared date on the ledger; Postman folder | Hand-checked BRS worked example; full Postman run |
 | R4 | Web: Reconcile page per bank account (two-column bank vs books, suggestions, create voucher from line, complete/reopen), mapping wizard, BRS in Reports | Unit tests, build, Playwright e2e on a fresh society |
 

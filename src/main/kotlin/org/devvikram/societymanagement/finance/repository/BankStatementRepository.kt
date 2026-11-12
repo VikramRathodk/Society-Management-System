@@ -50,6 +50,7 @@ interface BankLineJpaRepository : JpaRepository<BankLine, Long> {
     fun findByStatementIdOrderByTxnDateAscLineNoAsc(statementId: Long): List<BankLine>
     fun findByStatementIdAndStateOrderByTxnDateAscLineNoAsc(statementId: Long, state: BankLineState): List<BankLine>
     fun countByImportId(importId: Long): Long
+    fun findByVoucherId(voucherId: Long): List<BankLine>
 
     @Query("select l.fingerprint from BankLine l where l.accountId = :accountId and l.fingerprint in :fingerprints")
     fun fingerprintsIn(accountId: Long, fingerprints: Collection<String>): List<String>

@@ -13,6 +13,7 @@ import org.devvikram.societymanagement.finance.model.StatementMapping
 import org.devvikram.societymanagement.finance.model.StatementStatus
 import org.devvikram.societymanagement.finance.repository.AccountRepository
 import org.devvikram.societymanagement.finance.repository.BooksRepository
+import org.devvikram.societymanagement.finance.repository.BankMatchRepository
 import org.devvikram.societymanagement.finance.repository.BankStatementRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -76,6 +77,7 @@ data class ImportResult(
 @Service
 class BankStatementService(
     private val bankStatementRepository: BankStatementRepository,
+    private val matchRepository: BankMatchRepository,
     private val accountRepository: AccountRepository,
     private val chartService: ChartService,
     private val booksService: BooksService,
@@ -166,11 +168,6 @@ class BankStatementService(
 
     fun view(id: Long): StatementView = view(get(id))
 
-    fun lines(statementId: Long, state: BankLineState?): List<BankLine> {
-        get(statementId)
-        return bankStatementRepository.findLines(statementId, state)
-    }
-
     fun imports(statementId: Long): List<StatementImport> {
         get(statementId)
         return bankStatementRepository.findImports(statementId)
@@ -232,6 +229,8 @@ class BankStatementService(
         }
         val outside = bankStatementRepository.findLines(id, null).filter { it.txnDate < from || it.txnDate > to }
         require(outside.isEmpty()) { "${outside.size} imported line(s) fall outside $from to $to; remove that import first" }
+        val clearedAfter = matchRepository.entries(matchRepository.findByStatement(id).map { it.financeLineId }).filter { it.date > to }
+        require(clearedAfter.isEmpty()) { "${clearedAfter.first().number} is dated after $to and cleared on this statement; unmatch it first" }
         statement.periodFrom = from
         statement.periodTo = to
         command.openingBalance?.let { statement.openingBalance = money(it) }
@@ -358,7 +357,7 @@ class BankStatementService(
         )
     }
 
-    private fun requireOpen(id: Long): BankStatement = get(id).also {
+    fun requireOpen(id: Long): BankStatement = get(id).also {
         if (it.status != StatementStatus.OPEN) throw ConflictException("The statement ${it.periodFrom} to ${it.periodTo} is completed; reopen it first")
     }
 
