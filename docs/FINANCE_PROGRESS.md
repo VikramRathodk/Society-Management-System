@@ -1,7 +1,7 @@
 # Finance & Accounting: build progress
 
 Running log of the finance module build (plan: [modules/finance.md](modules/finance.md)). Updated after
-every step. Backend branch `feature/finance` (cut from `master` 039a21c); nothing is pushed.
+every step. Backend branch `feature/finance` (cut from `master` 039a21c); merged to `master` and pushed on 2026-11-12.
 
 ## Status
 
@@ -63,7 +63,7 @@ The product owner asked me to decide on my own and record it. Each can be revisi
 
 ## Left to do
 
-- Push both branches (`feature/finance` in backend and web) and merge to `master` when happy.
+- (done 2026-11-12) Merged both `feature/finance` branches to `master` (backend fast-forward to c59ea34, web merge 735f68c) and pushed.
 - (done) Playwright e2e `e2e/finance.spec.ts` in the web repo: 6/6 against test servers, including the committee approving a waiting expense. The dropdowns were labelled correctly; the earlier smoke failures were the test clicking an empty Material select's floating label. Run it against your 8080/4200 servers with `npx playwright test e2e/finance.spec.ts`; each run leaves one "E2E Finance …" society behind.
 - V1.1 items in `modules/finance.md` (reconciliation, year closing, recurring expenses, cheques, petty cash).
 - Accounting questions for a society accountant ("Needs an accountant" in `modules/finance.md`).
