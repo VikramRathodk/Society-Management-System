@@ -134,3 +134,16 @@ line, reopen the latest only with a reason.
 - Postman folder 18 "Bank reconciliation" (22 requests; cleanup renumbered 19). Full newman run on a
   test server (8081): 260 requests, 386 assertions, 1 failure, the old one (cleanup can't delete the
   test resident because of their invitation).
+
+### Next: R4 (web), paused 2026-11-12, to resume next session
+
+- Backend R1–R3 are committed on `feature/bank-reconciliation` (up to fb9df02), not pushed or merged.
+- R4 = the web Reconcile page: cut `feature/bank-reconciliation` in the web repo
+  (`D:\angular_projects\Society Management - Web`) from its `master`.
+- Screens: per bank account, a statements list; the column-mapping wizard (preview shows raw rows and
+  a SUGGESTED mapping); a statement page with bank lines vs book entries side by side, suggestions,
+  match/unmatch, exclude/include, record an entry from a line, pairs; the BRS with complete/reopen
+  and CSV; `clearedOn` in the bank ledger. Nav under Finance, behind `FINANCE.RECONCILIATION.VIEW`.
+- Every endpoint is listed under "API" in `modules/finance-reconciliation.md`.
+- Checks when done: web unit tests, production build, Playwright e2e on a fresh society (test servers
+  8081/4300, as for `e2e/finance.spec.ts`).
