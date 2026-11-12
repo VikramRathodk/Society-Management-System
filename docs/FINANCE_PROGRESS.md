@@ -67,3 +67,18 @@ The product owner asked me to decide on my own and record it. Each can be revisi
 - (done) Playwright e2e `e2e/finance.spec.ts` in the web repo: 6/6 against test servers, including the committee approving a waiting expense. The dropdowns were labelled correctly; the earlier smoke failures were the test clicking an empty Material select's floating label. Run it against your 8080/4200 servers with `npx playwright test e2e/finance.spec.ts`; each run leaves one "E2E Finance …" society behind.
 - V1.1 items in `modules/finance.md` (reconciliation, year closing, recurring expenses, cheques, petty cash).
 - Accounting questions for a society accountant ("Needs an accountant" in `modules/finance.md`).
+
+## V1.1: bank reconciliation
+
+Plan: [modules/finance-reconciliation.md](modules/finance-reconciliation.md). Backend branch
+`feature/bank-reconciliation` (from `master` 8687ecb). Product owner chose all four recommended options
+on 2026-11-12: column mapping per bank account, suggest + confirm matching, many book entries to one bank
+line, reopen the latest only with a reason.
+
+| Step | What | State | Commit | Tests after |
+|---|---|---|---|---|
+| Plan | `modules/finance-reconciliation.md` | ✅ (waiting for review) | | |
+| R1 | V22, mapping, preview, statements, import | | | |
+| R2 | Matching, exclude, void handling, voucher from bank line | | | |
+| R3 | Complete/reopen, BRS, audit, Postman | | | |
+| R4 | Web Reconcile page, e2e | | | |
