@@ -77,8 +77,24 @@ line, reopen the latest only with a reason.
 
 | Step | What | State | Commit | Tests after |
 |---|---|---|---|---|
-| Plan | `modules/finance-reconciliation.md` | ✅ (waiting for review) | | |
-| R1 | V22, mapping, preview, statements, import | | | |
+| Plan | `modules/finance-reconciliation.md` | ✅ (approved 2026-11-12) | 8fbd919 | |
+| R1 | V22, mapping, preview, statements, import | ✅ | (this commit) | 349 |
 | R2 | Matching, exclude, void handling, voucher from bank line | | | |
 | R3 | Complete/reopen, BRS, audit, Postman | | | |
 | R4 | Web Reconcile page, e2e | | | |
+
+### R1, as executed (2026-11-12)
+
+- V22: `finance_statement_mapping` (typed columns instead of the planned JSON), statements, imports,
+  bank lines, matches (table and both triggers in place; used from R2), three permissions.
+  Setting `reconciliationMatchDays` (default 3).
+- `StatementCsv` reads the CSV on its own (unit-tested): UTF-8 or Windows-1252, any of `, ; tab |`,
+  12 date formats, Indian amounts, Dr/Cr suffixes and brackets, three amount layouts (withdrawal +
+  deposit, amount + Dr/Cr, signed). It guesses the mapping from the column names (checked on
+  HDFC-, SBI- and ICICI-style samples).
+- Decided while building: rows outside the period are **skipped and reported**, not refused (banks
+  export wider ranges than a month). A file with any unreadable transaction row is refused whole.
+  An import can be removed while the statement is open. One open statement per bank account.
+- Names: `BankStatementService` / `BankStatementRepository`, because `StatementService` is the
+  financial statements service from step 5.
+- Tests: `StatementCsvTest` (13), `BankStatementIntegrationTest` (8); full suite 349/349.

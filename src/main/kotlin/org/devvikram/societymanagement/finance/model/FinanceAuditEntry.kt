@@ -10,9 +10,9 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
 
-enum class AuditEntityType { VOUCHER, ACCOUNT, BANK_ACCOUNT, BOOKS, MAPPING, SETTING, REFUND, DOCUMENT }
+enum class AuditEntityType { VOUCHER, ACCOUNT, BANK_ACCOUNT, BOOKS, MAPPING, SETTING, REFUND, DOCUMENT, RECONCILIATION }
 
-enum class AuditAction { CREATE, UPDATE, DELETE, APPROVE, REJECT, VOID, START, LOCK, UNLOCK }
+enum class AuditAction { CREATE, UPDATE, DELETE, APPROVE, REJECT, VOID, START, LOCK, UNLOCK, IMPORT, MATCH, UNMATCH, EXCLUDE, INCLUDE, COMPLETE, REOPEN }
 
 // One recorded change to the books. Insert-only: the database refuses updates and deletes.
 @Entity

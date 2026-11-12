@@ -40,7 +40,14 @@ month, per bank account. Planned 2026-11-12; build log in [../FINANCE_PROGRESS.m
   on any day on or after the books' start date.
 - **The same bank transaction can't come in twice.** Each imported row gets a fingerprint (date, amount,
   direction, description, running balance); a row already imported for that bank account is skipped and
-  reported. Rows dated outside the statement period are rejected.
+  reported. The nth identical row of a file (two ₹500 UPI payments from one person on one day) gets its
+  own fingerprint, so both come in, and the same file imported again adds nothing. Rows dated outside
+  the statement period are skipped and reported (banks export wider ranges), not imported.
+- **A file is imported whole or not at all.** Rows without a date (account details, opening balance,
+  summary) or without an amount are skipped and listed; a row with a date but an amount that can't be
+  read refuses the whole file. Newest-first exports are turned round. A running balance that doesn't
+  follow from the amounts is a warning, not an error. An import can be taken back out while the
+  statement is open.
 - **Completing** needs every bank line resolved (matched, or excluded with a reason for a bank error
   that the bank reversed) and a zero difference:
 
@@ -60,7 +67,7 @@ month, per bank account. Planned 2026-11-12; build log in [../FINANCE_PROGRESS.m
 
 | Table | What |
 |---|---|
-| `finance_bank_account` + `statement_mapping JSONB` | Saved column mapping: header row, date column + format, description, reference, debit/credit columns *or* amount + Dr/Cr column, balance column |
+| `finance_statement_mapping` | Saved column mapping per bank account (typed columns rather than JSON): separator, header row, date column + format, description, reference, then debit/credit columns, *or* amount + Dr/Cr column, *or* a signed amount; balance column |
 | `finance_bank_statement` | One per period per bank account: dates, opening and closing balance, status `OPEN` / `COMPLETED`, prepared/completed/reopened by and when, reopen reason, BRS snapshot (book balance, uncleared receipts, uncleared payments) |
 | `finance_bank_statement_import` | Each upload: file name, row count, imported, skipped as duplicates, by, at. The original CSV kept through `common/storage` |
 | `finance_bank_line` | One per statement row: date, description, reference, debit, credit, balance, fingerprint (unique per bank account), state `UNMATCHED` / `MATCHED` / `EXCLUDED`, exclude reason, voucher created from it |
@@ -81,14 +88,28 @@ Creating a voucher from a bank line also needs `FINANCE.VOUCHER.CREATE`. Setting
 `reconciliationMatchDays` (FINANCE group, 0–15, default 3). Audit: new entity `RECONCILIATION`, actions
 `IMPORT`, `MATCH`, `UNMATCH`, `EXCLUDE`, `COMPLETE`, `REOPEN`.
 
-## API (under `/api/v1/societies/{id}/finance`)
+## API
 
-- `PUT /bank-accounts/{accountId}/statement-mapping`, and `POST …/statement-preview` (multipart CSV →
-  the first 20 parsed rows and any errors, nothing saved).
-- `POST /bank-accounts/{accountId}/statements` (dates, opening and closing balance) and
-  `GET` list; `GET /statements/{sid}` with totals and the difference.
-- `POST /statements/{sid}/imports` (multipart CSV): parse, skip duplicates, run auto-match.
-- `GET /statements/{sid}/lines?state=`, `GET /statements/{sid}/book-entries?cleared=false`,
+Built in R1 (`FinanceReconciliationController`):
+
+- `GET|PUT /api/finance/bank-accounts/{accountId}/statement-mapping` (GET also lists the 12 date
+  formats).
+- `POST /api/finance/bank-accounts/{accountId}/statement-preview`, multipart `file` and an optional
+  JSON part `mapping`: the first 30 raw rows, the mapping used (`GIVEN`, `SAVED`, `SUGGESTED` from the
+  column names, or `NONE`) and the lines it reads, with ignored rows, errors and balance warnings.
+  Nothing is saved.
+- `POST /api/finance/bank-accounts/{accountId}/statements`; `GET /api/societies/{id}/finance/statements?accountId=`;
+  `GET|PATCH|DELETE /api/finance/statements/{sid}` (change and delete while open). A statement shows its
+  line counts by state, money in and out, and `linesDifference` (closing balance minus opening + lines:
+  non-zero while lines are missing).
+- `POST|GET /api/finance/statements/{sid}/imports` (multipart `file`); `DELETE /api/finance/statement-imports/{iid}`;
+  `GET /api/finance/statement-imports/{iid}/file`.
+- `GET /api/finance/statements/{sid}/lines?state=`.
+
+Still to build (paths under `/api/finance/statements/{sid}`):
+
+- Auto-match after each import.
+- `GET …/book-entries?cleared=false`,
   `GET /statements/{sid}/lines/{lid}/suggestions`.
 - `POST /statements/{sid}/matches` (bank line + book lines), `DELETE /matches/{mid}`,
   `POST /statements/{sid}/auto-match`.
@@ -102,7 +123,7 @@ Creating a voucher from a bank line also needs `FINANCE.VOUCHER.CREATE`. Setting
 
 | Step | What | Done when |
 |---|---|---|
-| R1 | V22, permissions, setting; column mapping, preview, statements, import with duplicates | Import tests: several bank layouts, Dr/Cr column, Indian amounts (1,23,456.00), date formats, header junk rows, duplicates, out-of-period rows |
+| R1 ✅ | V22, permissions, setting; column mapping, preview, statements, import with duplicates | Import tests: several bank layouts, Dr/Cr column, Indian amounts (1,23,456.00), date formats, header junk rows, duplicates, out-of-period rows |
 | R2 | Book entries, suggestions, auto-match, manual match/unmatch, exclude, void handling, voucher from a bank line (incl. after approval) | Matching tests including the ₹15,000 five-cheque deposit and a bounced cheque |
 | R3 | Complete with BRS snapshot, reopen latest, audit, BRS JSON/CSV, cleared date on the ledger; Postman folder | Hand-checked BRS worked example; full Postman run |
 | R4 | Web: Reconcile page per bank account (two-column bank vs books, suggestions, create voucher from line, complete/reopen), mapping wizard, BRS in Reports | Unit tests, build, Playwright e2e on a fresh society |
