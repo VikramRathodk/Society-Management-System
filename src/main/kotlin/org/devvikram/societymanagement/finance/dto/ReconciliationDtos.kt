@@ -17,6 +17,7 @@ import org.devvikram.societymanagement.finance.model.VoucherStatus
 import org.devvikram.societymanagement.finance.model.VoucherType
 import org.devvikram.societymanagement.finance.repository.BookEntryRow
 import org.devvikram.societymanagement.finance.service.AutoMatchResult
+import org.devvikram.societymanagement.finance.service.Brs
 import org.devvikram.societymanagement.finance.service.BankLineView
 import org.devvikram.societymanagement.finance.service.BookEntryView
 import org.devvikram.societymanagement.finance.service.LineVoucherCommand
@@ -389,3 +390,54 @@ data class LineVoucherResponse(
 )
 
 data class AutoMatchResponse(val matched: Int, val paired: Int, val statement: StatementResponse)
+
+// ---- Bank reconciliation statement ----
+
+data class ExcludedLineResponse(val id: Long, val statementId: Long, val date: LocalDate, val description: String,
+    val moneyIn: BigDecimal, val moneyOut: BigDecimal, val reason: String?)
+
+data class BrsResponse(
+    val statement: StatementResponse,
+    val bankClosing: BigDecimal,
+    val bookBalance: BigDecimal,
+    val unclearedReceipts: BigDecimal,
+    val receipts: List<BookEntryResponse>,
+    val unclearedPayments: BigDecimal,
+    val payments: List<BookEntryResponse>,
+    val excludedNet: BigDecimal,
+    val excluded: List<ExcludedLineResponse>,
+    // books − uncleared receipts + uncleared payments + set-aside lines.
+    val explainedBalance: BigDecimal,
+    val difference: BigDecimal,
+    val canComplete: Boolean,
+    val problems: List<String>,
+    // Completed statements only: entries dated within it were added or changed since.
+    val booksChanged: Boolean,
+) {
+    companion object {
+        fun from(brs: Brs): BrsResponse {
+            val open = brs.view.statement.status == StatementStatus.OPEN
+            val problems = if (open) brs.problems() else emptyList()
+            return BrsResponse(
+                statement = StatementResponse.from(brs.view),
+                bankClosing = brs.view.statement.closingBalance,
+                bookBalance = brs.bookBalance,
+                unclearedReceipts = brs.unclearedReceipts,
+                receipts = brs.receipts.map(BookEntryResponse::from),
+                unclearedPayments = brs.unclearedPayments,
+                payments = brs.payments.map(BookEntryResponse::from),
+                excludedNet = brs.excludedNet,
+                excluded = brs.excluded.map {
+                    ExcludedLineResponse(it.id!!, it.statementId, it.txnDate, it.description, it.credit, it.debit, it.excludeReason)
+                },
+                explainedBalance = brs.explainedBalance,
+                difference = brs.difference,
+                canComplete = open && problems.isEmpty(),
+                problems = problems,
+                booksChanged = brs.booksChanged,
+            )
+        }
+    }
+}
+
+data class ReopenStatementRequest(@field:NotBlank @field:Size(max = 500) val reason: String?)

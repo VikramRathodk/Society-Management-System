@@ -20,6 +20,7 @@ import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -40,6 +41,36 @@ data class Suggestions(
 )
 
 data class AutoMatchResult(val matched: Int, val paired: Int)
+
+// The bank reconciliation statement of one statement period. Amounts are positive; `excludedNet` and
+// `difference` are signed (money in positive).
+data class Brs(
+    val view: StatementView,
+    val bookBalance: BigDecimal,
+    // Entries in the books not yet seen by the bank, as of the statement's end.
+    val receipts: List<BookEntryRow>,
+    val unclearedReceipts: BigDecimal,
+    val payments: List<BookEntryRow>,
+    val unclearedPayments: BigDecimal,
+    // Bank lines set aside, on this and earlier statements of the account.
+    val excluded: List<BankLine>,
+    val excludedNet: BigDecimal,
+    // What the books say the bank should show.
+    val explainedBalance: BigDecimal,
+    // The bank's closing balance minus that: zero once reconciled.
+    val difference: BigDecimal,
+    val booksChanged: Boolean,
+) {
+    // Why the statement can't be completed yet; empty when it can.
+    fun problems(): List<String> = buildList {
+        if (view.unmatched > 0) add("${view.unmatched} bank line(s) still need matching, a voucher, or setting aside")
+        if (view.linesDifference.signum() != 0) {
+            add("the imported lines come to ${view.linesClosing.toPlainString()} but the statement closes at " +
+                "${view.statement.closingBalance.toPlainString()}; a line is missing or a balance is wrong")
+        }
+        if (difference.signum() != 0) add("the books explain ${explainedBalance.toPlainString()}, a difference of ${difference.toPlainString()}")
+    }
+}
 
 // The other side of a voucher recorded from a bank line: an income or expense account, or another cash
 // or bank account (a transfer). The bank side, date and amount come from the line.
@@ -65,7 +96,7 @@ class ReconciliationService(
     // from earlier months. Cleared: the entries this statement cleared.
     fun bookEntries(statementId: Long, cleared: Boolean): List<BookEntryView> {
         val statement = bankStatementService.get(statementId)
-        if (!cleared) return matchRepository.uncleared(statement.accountId, statement.periodTo).map { BookEntryView(it, null, null, null) }
+        if (!cleared) return unclearedOf(statement).map { BookEntryView(it, null, null, null) }
         val matches = matchRepository.findByStatement(statementId).associateBy { it.financeLineId }
         return matchRepository.entries(matches.keys).map { row ->
             val match = matches.getValue(row.lineId)
@@ -91,7 +122,7 @@ class ReconciliationService(
         val statement = bankStatementService.get(statementId)
         val line = lineOf(statement, lineId)
         val window = window(statement.societyId)
-        val uncleared = matchRepository.uncleared(statement.accountId, statement.periodTo)
+        val uncleared = unclearedOf(statement)
         fun days(row: BookEntryRow) = ChronoUnit.DAYS.between(row.date, line.txnDate)
         val single = uncleared.filter { it.net.compareTo(line.net) == 0 }
             .sortedWith(compareBy({ kotlin.math.abs(days(it)) }, { it.date }))
@@ -115,7 +146,7 @@ class ReconciliationService(
         val line = freeLine(statement, lineId)
         require(bookLineIds.isNotEmpty()) { "Choose the entries in the books this bank line is" }
         require(bookLineIds.distinct().size == bookLineIds.size) { "An entry is chosen twice" }
-        val waiting = matchRepository.uncleared(statement.accountId, statement.periodTo).associateBy { it.lineId }
+        val waiting = unclearedOf(statement).associateBy { it.lineId }
         val rows = bookLineIds.map { id ->
             waiting[id] ?: throw ConflictException(
                 "That entry isn't waiting to clear on this bank account: already cleared, not in the books, " +
@@ -149,7 +180,7 @@ class ReconciliationService(
     fun pair(statementId: Long, firstLineId: Long, secondLineId: Long, userId: Long) {
         val statement = openStatement(statementId)
         require(firstLineId != secondLineId) { "Choose two different entries" }
-        val waiting = matchRepository.uncleared(statement.accountId, statement.periodTo).associateBy { it.lineId }
+        val waiting = unclearedOf(statement).associateBy { it.lineId }
         val first = waiting[firstLineId] ?: throw ConflictException("The first entry isn't waiting to clear up to ${statement.periodTo}")
         val second = waiting[secondLineId] ?: throw ConflictException("The second entry isn't waiting to clear up to ${statement.periodTo}")
         require((first.net + second.net).signum() == 0) { "Only an entry and one that cancels it exactly can clear together" }
@@ -250,7 +281,7 @@ class ReconciliationService(
     @Transactional
     fun autoMatch(statementId: Long, userId: Long): AutoMatchResult {
         val statement = openStatement(statementId)
-        var uncleared = matchRepository.uncleared(statement.accountId, statement.periodTo)
+        var uncleared = unclearedOf(statement)
 
         var paired = 0
         val byVoucher = uncleared.groupBy { it.voucherId }
@@ -261,7 +292,7 @@ class ReconciliationService(
                 paired++
             }
         }
-        if (paired > 0) uncleared = matchRepository.uncleared(statement.accountId, statement.periodTo)
+        if (paired > 0) uncleared = unclearedOf(statement)
 
         val window = window(statement.societyId)
         val lines = bankStatementRepository.findLines(statementId, BankLineState.UNMATCHED).filter { pendingVoucher(it) == null }
@@ -304,7 +335,7 @@ class ReconciliationService(
                 return@forEach
             }
             val rows = matchRepository.entriesOfVouchers(line.accountId, listOf(voucher.id!!))
-            val waiting = matchRepository.uncleared(line.accountId, statement.periodTo).map { it.lineId }.toSet()
+            val waiting = unclearedOf(statement).map { it.lineId }.toSet()
             if (rows.isNotEmpty() && rows.all { it.lineId in waiting } &&
                 rows.fold(BigDecimal.ZERO) { sum, row -> sum + row.net }.compareTo(line.net) == 0
             ) {
@@ -313,7 +344,113 @@ class ReconciliationService(
         }
     }
 
+    // ---- Bank reconciliation statement (BRS), complete, reopen ----
+
+    // The bank's closing balance explained from the books:
+    //   bank = books − receipts not yet in the bank + payments not yet out of it + bank lines set aside.
+    // A completed statement keeps the totals it was completed with; the lists are worked out again, and
+    // `booksChanged` says when they no longer give the same totals (a backdated entry since).
+    fun brs(statementId: Long): Brs {
+        val statement = bankStatementService.get(statementId)
+        val view = bankStatementService.view(statementId)
+        val uncleared = unclearedOf(statement)
+        val receipts = uncleared.filter { it.net.signum() > 0 }
+        val payments = uncleared.filter { it.net.signum() < 0 }
+        val excluded = matchRepository.excludedUpTo(statement.accountId, statement.periodTo)
+        val liveBooks = matchRepository.balanceAtEndOf(statement.accountId, statement.periodTo)
+        val liveReceipts = receipts.fold(ZERO) { sum, row -> sum + row.net }
+        val livePayments = payments.fold(ZERO) { sum, row -> sum - row.net }
+        val completed = statement.status == StatementStatus.COMPLETED
+        val books = if (completed) statement.bookBalance!! else liveBooks
+        val unclearedReceipts = if (completed) statement.unclearedReceipts!! else liveReceipts
+        val unclearedPayments = if (completed) statement.unclearedPayments!! else livePayments
+        val excludedNet = excluded.fold(ZERO) { sum, line -> sum + line.net }
+        val explained = books - unclearedReceipts + unclearedPayments + excludedNet
+        return Brs(
+            view = view,
+            bookBalance = books,
+            receipts = receipts,
+            unclearedReceipts = unclearedReceipts,
+            payments = payments,
+            unclearedPayments = unclearedPayments,
+            excluded = excluded,
+            excludedNet = excludedNet,
+            explainedBalance = explained,
+            difference = statement.closingBalance - explained,
+            booksChanged = completed && (liveBooks.compareTo(books) != 0 || liveReceipts.compareTo(unclearedReceipts) != 0 ||
+                livePayments.compareTo(unclearedPayments) != 0),
+        )
+    }
+
+    // Needs every bank line resolved, the lines adding up to the closing balance, and the BRS explaining
+    // the closing balance to the paisa. Keeps the BRS totals.
+    @Transactional
+    fun complete(statementId: Long, userId: Long) {
+        val statement = openStatement(statementId)
+        val brs = brs(statementId)
+        val problems = brs.problems()
+        if (problems.isNotEmpty()) throw ConflictException("Can't complete yet: " + problems.joinToString("; "))
+        statement.status = StatementStatus.COMPLETED
+        statement.completedAt = Instant.now()
+        statement.completedBy = userId
+        statement.bookBalance = brs.bookBalance
+        statement.unclearedReceipts = brs.unclearedReceipts
+        statement.unclearedPayments = brs.unclearedPayments
+        bankStatementRepository.save(statement)
+        audit.record(statement.societyId, AuditEntityType.RECONCILIATION, statementId, AuditAction.COMPLETE, userId,
+            newValues = mapOf(
+                "periodTo" to statement.periodTo.toString(),
+                "closingBalance" to statement.closingBalance.toPlainString(),
+                "bookBalance" to brs.bookBalance.toPlainString(),
+                "unclearedReceipts" to brs.unclearedReceipts.toPlainString(),
+                "unclearedPayments" to brs.unclearedPayments.toPlainString(),
+                "excludedNet" to brs.excludedNet.toPlainString(),
+            ))
+    }
+
+    // Only an account's latest statement, and only while no later one exists (an open later one is
+    // deleted first: one statement is open at a time). The BRS totals go; the matches stay.
+    @Transactional
+    fun reopen(statementId: Long, reason: String, userId: Long) {
+        val statement = bankStatementService.get(statementId)
+        booksRepository.lockSociety(statement.societyId)
+        if (statement.status != StatementStatus.COMPLETED) throw ConflictException("This statement is already open")
+        val why = reason.trim().take(500).ifEmpty { throw IllegalArgumentException("Say why the statement is reopened") }
+        val latest = bankStatementRepository.findLatest(statement.accountId)!!
+        if (latest.id != statement.id) {
+            throw ConflictException(
+                if (latest.status == StatementStatus.OPEN) "Delete the statement ${latest.periodFrom} to ${latest.periodTo} first; only one can be open"
+                else "Only the latest statement (${latest.periodFrom} to ${latest.periodTo}) can be reopened"
+            )
+        }
+        val before = mapOf(
+            "bookBalance" to statement.bookBalance?.toPlainString(),
+            "unclearedReceipts" to statement.unclearedReceipts?.toPlainString(),
+            "unclearedPayments" to statement.unclearedPayments?.toPlainString(),
+            "completedAt" to statement.completedAt?.toString(),
+        )
+        statement.status = StatementStatus.OPEN
+        statement.completedAt = null
+        statement.completedBy = null
+        statement.bookBalance = null
+        statement.unclearedReceipts = null
+        statement.unclearedPayments = null
+        statement.reopenedAt = Instant.now()
+        statement.reopenedBy = userId
+        statement.reopenReason = why
+        bankStatementRepository.save(statement)
+        audit.record(statement.societyId, AuditEntityType.RECONCILIATION, statementId, AuditAction.REOPEN, userId,
+            oldValues = before, newValues = mapOf("status" to StatementStatus.OPEN), reason = why)
+    }
+
     // ---- helpers ----
+
+    // Entries waiting to clear as of this statement: from the account's first statement (earlier entries
+    // count as cleared) to this one's end, not cleared by this or an earlier statement.
+    private fun unclearedOf(statement: BankStatement): List<BookEntryRow> {
+        val start = bankStatementRepository.findFirst(statement.accountId)!!.periodFrom
+        return matchRepository.uncleared(statement.accountId, start, statement.periodTo)
+    }
 
     private fun saveMatch(statement: BankStatement, line: BankLine, rows: List<BookEntryRow>, auto: Boolean, userId: Long, audited: Boolean = true) {
         matchRepository.saveAll(rows.map { BankMatch(statement.id!!, line.id, it.lineId, null, auto, userId) })
@@ -394,6 +531,7 @@ class ReconciliationService(
     }
 
     companion object {
+        private val ZERO: BigDecimal = BigDecimal.ZERO.setScale(2)
         const val GROUP_LOOKBACK_DAYS = 30L
         const val GROUP_POOL = 20
         const val MAX_GROUP = 8

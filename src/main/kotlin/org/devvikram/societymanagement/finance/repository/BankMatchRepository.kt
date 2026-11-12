@@ -2,6 +2,7 @@ package org.devvikram.societymanagement.finance.repository
 
 import jakarta.persistence.EntityManager
 import org.devvikram.societymanagement.finance.model.BankLine
+import org.devvikram.societymanagement.finance.model.BankLineState
 import org.devvikram.societymanagement.finance.model.BankMatch
 import org.devvikram.societymanagement.finance.model.VoucherStatus
 import org.devvikram.societymanagement.finance.model.VoucherType
@@ -38,8 +39,18 @@ interface BankMatchRepository {
     fun deleteAll(matches: List<BankMatch>)
 
     // Lines of a bank ledger in the books (POSTED or VOID; never the opening balance, which is the bank's
-    // own balance on the day the books started) dated up to `upTo` that haven't cleared anywhere yet.
-    fun uncleared(accountId: Long, upTo: LocalDate): List<BookEntryRow>
+    // own balance on the day the books started) dated from `from` (the account's first statement: earlier
+    // entries count as cleared) up to `upTo`, not cleared by any statement ending on or before `upTo`.
+    // For the latest statement that is simply "not cleared anywhere".
+    fun uncleared(accountId: Long, from: LocalDate, upTo: LocalDate): List<BookEntryRow>
+    // Balance of a bank ledger (debit − credit) at the start of `from`: the opening plus everything before.
+    fun balanceAtStartOf(accountId: Long, from: LocalDate): BigDecimal
+    // Balance at the end of `upTo`.
+    fun balanceAtEndOf(accountId: Long, upTo: LocalDate): BigDecimal
+    // The bank lines set aside (excluded) on this account's statements ending by `upTo`.
+    fun excludedUpTo(accountId: Long, upTo: LocalDate): List<BankLine>
+    // When each of these book lines cleared: its bank line's date, or the later of a pair's two dates.
+    fun clearedOn(lineIds: Collection<Long>): Map<Long, LocalDate>
     fun entries(lineIds: Collection<Long>): List<BookEntryRow>
     // The bank ledger's lines of these vouchers.
     fun entriesOfVouchers(accountId: Long, voucherIds: Collection<Long>): List<BookEntryRow>
@@ -68,24 +79,70 @@ class BankMatchRepositoryImpl(
     override fun findByBankLine(bankLineId: Long): List<BankMatch> = matches.findByBankLineIdOrderById(bankLineId)
 
     override fun findByFinanceLines(lineIds: Collection<Long>): List<BankMatch> =
-        if (lineIds.isEmpty()) emptyList() else matches.findByFinanceLineIdIn(lineIds)
+        if (lineIds.isEmpty()) emptyList() else lineIds.chunked(1000).flatMap(matches::findByFinanceLineIdIn)
 
     override fun deleteAll(matches: List<BankMatch>) {
         this.matches.deleteAll(matches)
         this.matches.flush()
     }
 
-    override fun uncleared(accountId: Long, upTo: LocalDate): List<BookEntryRow> =
+    override fun uncleared(accountId: Long, from: LocalDate, upTo: LocalDate): List<BookEntryRow> =
         entityManager.createQuery(
-            "$SELECT where l.accountId = :a and v.status in :statuses and v.type <> :opening and v.voucherDate <= :upTo " +
-                "and not exists (select 1 from BankMatch m where m.financeLineId = l.id) order by v.voucherDate, v.id, l.id",
+            "$SELECT where l.accountId = :a and v.status in :statuses and v.type <> :opening " +
+                "and v.voucherDate between :from and :upTo and not exists (select 1 from BankMatch m, BankStatement s " +
+                "where m.financeLineId = l.id and s.id = m.statementId and s.periodTo <= :upTo) " +
+                "order by v.voucherDate, v.id, l.id",
             BookEntryRow::class.java,
         )
             .setParameter("a", accountId)
             .setParameter("statuses", VoucherStatus.IN_BOOKS)
             .setParameter("opening", VoucherType.OPENING)
+            .setParameter("from", from)
             .setParameter("upTo", upTo)
             .resultList
+
+    override fun balanceAtStartOf(accountId: Long, from: LocalDate): BigDecimal =
+        balance("(v.type = :opening or v.voucherDate < :d)", accountId, from)
+
+    override fun balanceAtEndOf(accountId: Long, upTo: LocalDate): BigDecimal =
+        balance("(v.type = :opening or v.voucherDate <= :d)", accountId, upTo)
+
+    override fun excludedUpTo(accountId: Long, upTo: LocalDate): List<BankLine> =
+        entityManager.createQuery(
+            "select b from BankLine b, BankStatement s where s.id = b.statementId and b.accountId = :a " +
+                "and b.state = :excluded and s.periodTo <= :upTo order by b.txnDate, b.id",
+            BankLine::class.java,
+        )
+            .setParameter("a", accountId)
+            .setParameter("excluded", BankLineState.EXCLUDED)
+            .setParameter("upTo", upTo)
+            .resultList
+
+    override fun clearedOn(lineIds: Collection<Long>): Map<Long, LocalDate> {
+        val matches = findByFinanceLines(lineIds)
+        if (matches.isEmpty()) return emptyMap()
+        val bankDates = lines.findAllById(matches.mapNotNull { it.bankLineId }.toSet()).associate { it.id!! to it.txnDate }
+        val pairDates = entries(matches.filter { it.pairLineId != null }.flatMap { listOf(it.financeLineId, it.pairLineId!!) }.toSet())
+            .associate { it.lineId to it.date }
+        return matches.associate { m ->
+            m.financeLineId to (m.bankLineId?.let(bankDates::getValue)
+                ?: maxOf(pairDates.getValue(m.financeLineId), pairDates.getValue(m.pairLineId!!)))
+        }
+    }
+
+    private fun balance(dateRule: String, accountId: Long, date: LocalDate): BigDecimal {
+        val row = entityManager.createQuery(
+            "select coalesce(sum(l.debit), 0), coalesce(sum(l.credit), 0) from VoucherLine l join l.voucher v " +
+                "where l.accountId = :a and v.status in :statuses and $dateRule",
+            Array<Any>::class.java,
+        )
+            .setParameter("a", accountId)
+            .setParameter("statuses", VoucherStatus.IN_BOOKS)
+            .setParameter("opening", VoucherType.OPENING)
+            .setParameter("d", date)
+            .singleResult
+        return (BigDecimal(row[0].toString()) - BigDecimal(row[1].toString())).setScale(2)
+    }
 
     override fun entries(lineIds: Collection<Long>): List<BookEntryRow> =
         if (lineIds.isEmpty()) emptyList() else lineIds.chunked(1000).flatMap { ids ->

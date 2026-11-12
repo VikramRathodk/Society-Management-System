@@ -3,9 +3,12 @@ package org.devvikram.societymanagement.finance.controller
 import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
+import org.devvikram.societymanagement.common.export.Csv
 import org.devvikram.societymanagement.finance.dto.AutoMatchResponse
 import org.devvikram.societymanagement.finance.dto.BankLineDetailResponse
 import org.devvikram.societymanagement.finance.dto.BookEntryResponse
+import org.devvikram.societymanagement.finance.dto.BrsResponse
+import org.devvikram.societymanagement.finance.dto.ReopenStatementRequest
 import org.devvikram.societymanagement.finance.dto.ExcludeLineRequest
 import org.devvikram.societymanagement.finance.dto.LineVoucherRequest
 import org.devvikram.societymanagement.finance.dto.LineVoucherResponse
@@ -258,6 +261,54 @@ class FinanceReconciliationController(
     fun unpair(@PathVariable id: Long, @PathVariable bookLineId: Long) {
         val access = guard.require(Permissions.FINANCE_RECONCILIATION_UPDATE, societyOf(id))
         reconciliationService.unpair(id, bookLineId, access.userId)
+    }
+
+    // ---- Bank reconciliation statement, complete, reopen ----
+
+    @GetMapping("/api/finance/statements/{id}/brs")
+    @RequiresPermission(Permissions.FINANCE_RECONCILIATION_VIEW)
+    fun brs(@PathVariable id: Long): BrsResponse {
+        guard.require(Permissions.FINANCE_RECONCILIATION_VIEW, societyOf(id))
+        return BrsResponse.from(reconciliationService.brs(id))
+    }
+
+    @GetMapping("/api/finance/statements/{id}/brs.csv")
+    @RequiresPermission(Permissions.FINANCE_RECONCILIATION_VIEW)
+    fun brsCsv(@PathVariable id: Long): ResponseEntity<ByteArray> {
+        guard.require(Permissions.FINANCE_RECONCILIATION_VIEW, societyOf(id))
+        val brs = reconciliationService.brs(id)
+        val statement = brs.view.statement
+        val rows = buildList<List<Any?>> {
+            add(listOf("Balance in the books", statement.periodTo, null, null, brs.bookBalance))
+            brs.receipts.forEach { add(listOf("Less: receipt not yet in the bank", it.date, it.number, it.payee ?: it.narration, it.net)) }
+            add(listOf("Total receipts not yet in the bank", null, null, null, brs.unclearedReceipts))
+            brs.payments.forEach { add(listOf("Add: payment not yet out of the bank", it.date, it.number, it.payee ?: it.narration, it.net.negate())) }
+            add(listOf("Total payments not yet out of the bank", null, null, null, brs.unclearedPayments))
+            brs.excluded.forEach { add(listOf("Bank line set aside", it.txnDate, null, it.description + (it.excludeReason?.let { r -> " ($r)" } ?: ""), it.net)) }
+            add(listOf("Balance the books explain", null, null, null, brs.explainedBalance))
+            add(listOf("Balance as per bank statement", statement.periodTo, null, null, statement.closingBalance))
+            add(listOf("Difference", null, null, null, brs.difference))
+        }
+        return Csv.download(
+            "brs-${brs.view.accountName.replace(Regex("[^A-Za-z0-9]+"), "-")}-${statement.periodTo}.csv",
+            Csv.write(listOf("Item", "Date", "Voucher", "Details", "Amount"), rows),
+        )
+    }
+
+    @PostMapping("/api/finance/statements/{id}/complete")
+    @RequiresPermission(Permissions.FINANCE_RECONCILIATION_COMPLETE)
+    fun complete(@PathVariable id: Long): BrsResponse {
+        val access = guard.require(Permissions.FINANCE_RECONCILIATION_COMPLETE, societyOf(id))
+        reconciliationService.complete(id, access.userId)
+        return BrsResponse.from(reconciliationService.brs(id))
+    }
+
+    @PostMapping("/api/finance/statements/{id}/reopen")
+    @RequiresPermission(Permissions.FINANCE_RECONCILIATION_COMPLETE)
+    fun reopen(@PathVariable id: Long, @Valid @RequestBody request: ReopenStatementRequest): StatementResponse {
+        val access = guard.require(Permissions.FINANCE_RECONCILIATION_COMPLETE, societyOf(id))
+        reconciliationService.reopen(id, request.reason!!, access.userId)
+        return StatementResponse.from(bankStatementService.view(id))
     }
 
     private fun line(statementId: Long, lineId: Long) =

@@ -19,6 +19,8 @@ interface BankStatementRepository {
     // Newest period first.
     fun findBySociety(societyId: Long, accountId: Long?): List<BankStatement>
     fun findLatest(accountId: Long): BankStatement?
+    // The account's first statement: where its reconciliation starts.
+    fun findFirst(accountId: Long): BankStatement?
     fun delete(statement: BankStatement)
 
     fun saveImport(statementImport: StatementImport): StatementImport
@@ -40,6 +42,7 @@ interface BankStatementJpaRepository : JpaRepository<BankStatement, Long> {
     fun findBySocietyIdOrderByPeriodFromDescIdDesc(societyId: Long): List<BankStatement>
     fun findBySocietyIdAndAccountIdOrderByPeriodFromDescIdDesc(societyId: Long, accountId: Long): List<BankStatement>
     fun findFirstByAccountIdOrderByPeriodToDesc(accountId: Long): BankStatement?
+    fun findFirstByAccountIdOrderByPeriodFromAsc(accountId: Long): BankStatement?
 }
 
 interface StatementImportJpaRepository : JpaRepository<StatementImport, Long> {
@@ -79,6 +82,8 @@ class BankStatementRepositoryImpl(
         else statements.findBySocietyIdAndAccountIdOrderByPeriodFromDescIdDesc(societyId, accountId)
 
     override fun findLatest(accountId: Long): BankStatement? = statements.findFirstByAccountIdOrderByPeriodToDesc(accountId)
+
+    override fun findFirst(accountId: Long): BankStatement? = statements.findFirstByAccountIdOrderByPeriodFromAsc(accountId)
 
     override fun delete(statement: BankStatement) {
         statements.delete(statement)

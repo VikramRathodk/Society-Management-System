@@ -79,8 +79,8 @@ line, reopen the latest only with a reason.
 |---|---|---|---|---|
 | Plan | `modules/finance-reconciliation.md` | ✅ (approved 2026-11-12) | 8fbd919 | |
 | R1 | V22, mapping, preview, statements, import | ✅ | 2288aa4 | 349 |
-| R2 | Matching, exclude, void handling, voucher from bank line | ✅ | (this commit) | 361 |
-| R3 | Complete/reopen, BRS, audit, Postman | | | |
+| R2 | Matching, exclude, void handling, voucher from bank line | ✅ | 8ce2d62 | 361 |
+| R3 | Complete/reopen, BRS, audit, Postman | ✅ | (this commit) | 369 |
 | R4 | Web Reconcile page, e2e | | | |
 
 ### R1, as executed (2026-11-12)
@@ -115,3 +115,22 @@ line, reopen the latest only with a reason.
 - Tests: `ReconciliationIntegrationTest` (12), including the five-cheque deposit, a bounced cheque,
   approval and rejection, and the two database triggers (made immediate in the test, since the total
   check is deferred to commit). Full suite 361/361.
+
+### R3, as executed (2026-11-12)
+
+- BRS (`ReconciliationService.brs`): bank = books − uncleared receipts + uncleared payments + set-aside
+  lines (cumulative over the account's statements). Completing needs no unmatched lines, the lines
+  adding up to the closing balance, and a zero difference; it keeps the totals, and a completed BRS
+  flags `booksChanged` when a backdated entry no longer gives them. Reopen: latest statement only, no
+  later statement, reason required; matches stay.
+- Found while building, added: **entries before an account's first statement count as cleared, and
+  the first statement must open at the books' balance that day.** Without it, a society whose books
+  start in April but which starts reconciling in October could never complete: every April–September
+  entry would stay "uncleared". "Uncleared" is now as of the statement (not cleared by it or an
+  earlier one), so an old BRS still shows what was outstanding then.
+- Ledger lines carry `clearedOn` on bank accounts (`LedgerRow` gained the line id).
+- Tests: `BankReconciliationStatementIntegrationTest` (8) on a hand-checked April/May example; full
+  suite 369/369.
+- Postman folder 18 "Bank reconciliation" (22 requests; cleanup renumbered 19). Full newman run on a
+  test server (8081): 260 requests, 386 assertions, 1 failure, the old one (cleanup can't delete the
+  test resident because of their invitation).

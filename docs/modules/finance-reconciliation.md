@@ -51,7 +51,10 @@ month, per bank account. Planned 2026-11-12; build log in [../FINANCE_PROGRESS.m
   as the bank's balance, record those cheques as entries after the start).
 - **Periods follow each other.** Per bank account, a new statement starts the day after the last one
   ended and its opening balance must equal the previous closing balance. The first statement may start
-  on any day on or after the books' start date.
+  on any day on or after the books' start date, **and must open at the books' balance of that account
+  at the start of that day** (added in R3). Entries dated before an account's first statement count as
+  cleared: that is only true if the bank and the books agreed that day. If they didn't (cheques still
+  out), start the first statement earlier, on the books' start date, so those entries can be matched.
 - **The same bank transaction can't come in twice.** Each imported row gets a fingerprint (date, amount,
   direction, description, running balance); a row already imported for that bank account is skipped and
   reported. The nth identical row of a file (two ₹500 UPI payments from one person on one day) gets its
@@ -62,18 +65,26 @@ month, per bank account. Planned 2026-11-12; build log in [../FINANCE_PROGRESS.m
   read refuses the whole file. Newest-first exports are turned round. A running balance that doesn't
   follow from the amounts is a warning, not an error. An import can be taken back out while the
   statement is open.
-- **Completing** needs every bank line resolved (matched, or excluded with a reason for a bank error
-  that the bank reversed) and a zero difference:
+- **Completing** needs every bank line resolved (matched, a voucher recorded from it, or excluded with
+  a reason), the imported lines adding up to the closing balance, and a zero difference:
 
   ```
   statement closing balance
     = book balance on the end date
     − receipts in the books not yet cleared
     + payments in the books not yet cleared
+    + bank lines set aside (this and earlier statements of the account)
   ```
 
-  Uncleared book entries carry over to the next month. The completed reconciliation keeps a snapshot of
-  these numbers (the bank reconciliation statement, BRS).
+  Set-aside lines count cumulatively, so a wrong credit in April and the bank's reversal in May show as
+  +500 on April's BRS and 0 on May's. Uncleared book entries carry over to the next month; "uncleared
+  as of a statement" means not cleared by it or an earlier one, so April's BRS keeps showing what was
+  out at the end of April after May clears it. The completed statement keeps the BRS totals (book
+  balance, uncleared receipts and payments); its BRS lists are worked out again and `booksChanged`
+  flags when they no longer give the kept totals (an entry backdated into a reconciled month).
+- **Reopening** (`FINANCE.RECONCILIATION.COMPLETE`, reason required) only works on an account's latest
+  statement, and only while no later one exists: an open later statement must be deleted first, since
+  one statement is open at a time. The kept totals are cleared; the matches stay.
 - **Books lock.** Completing does not lock the books; the secretary still sets the lock date. A
   completed reconciliation's book lines can't be unmatched until it is reopened.
 
@@ -131,10 +142,17 @@ auto-match cleared:
   `FINANCE.VOUCHER.CREATE`).
 - `POST …/pairs` (`firstLineId`, `secondLineId`), `DELETE …/pairs/{bookLineId}`.
 
-Still to build (R3):
+Built in R3:
 
-- `POST …/complete`, `POST …/reopen` (reason).
-- `GET …/brs` and `…/brs.csv`; the ledger shows each entry's cleared date.
+- `GET …/brs` (totals, the outstanding receipts and payments, set-aside lines, difference,
+  `canComplete` and the reasons it can't yet) and `GET …/brs.csv`.
+- `POST …/complete` (returns the BRS), `POST …/reopen` (reason).
+- The ledger of a bank account gives each entry's `clearedOn` (the bank line's date; a pair's later
+  date; the opening's own date). Entries before the first statement have none, though they count as
+  cleared.
+- Postman folder 18 "Bank reconciliation" (cleanup is now 19): it builds today's statement from the bank
+  ledger at run time, because the books in the collection start today and a fixed CSV fixture couldn't
+  carry the date; uploads go as hand-built multipart bodies.
 
 ## Build steps
 
@@ -142,7 +160,7 @@ Still to build (R3):
 |---|---|---|
 | R1 ✅ | V22, permissions, setting; column mapping, preview, statements, import with duplicates | Import tests: several bank layouts, Dr/Cr column, Indian amounts (1,23,456.00), date formats, header junk rows, duplicates, out-of-period rows |
 | R2 ✅ | Book entries, suggestions, auto-match, manual match/unmatch, exclude, void handling, voucher from a bank line (incl. after approval) | Matching tests including the ₹15,000 five-cheque deposit and a bounced cheque |
-| R3 | Complete with BRS snapshot, reopen latest, audit, BRS JSON/CSV, cleared date on the ledger; Postman folder | Hand-checked BRS worked example; full Postman run |
+| R3 ✅ | Complete with BRS snapshot, reopen latest, audit, BRS JSON/CSV, cleared date on the ledger; Postman folder | Hand-checked BRS worked example; full Postman run |
 | R4 | Web: Reconcile page per bank account (two-column bank vs books, suggestions, create voucher from line, complete/reopen), mapping wizard, BRS in Reports | Unit tests, build, Playwright e2e on a fresh society |
 
 Each step ends with the suite passing and its own commit.

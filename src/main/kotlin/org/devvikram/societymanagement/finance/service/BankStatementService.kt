@@ -184,6 +184,7 @@ class BankStatementService(
         val latest = bankStatementRepository.findLatest(accountId)
         if (latest == null) {
             require(!command.periodFrom.isBefore(books.startDate)) { "A statement can't start before the books start (${books.startDate})" }
+            requireFirstOpening(accountId, command.periodFrom, command.openingBalance, books.startDate)
         } else {
             if (latest.status == StatementStatus.OPEN) {
                 throw ConflictException("Finish the statement ${latest.periodFrom} to ${latest.periodTo} first")
@@ -226,6 +227,7 @@ class BankStatementService(
         if (first) {
             val books = booksService.requireBooks(statement.societyId)
             require(!from.isBefore(books.startDate)) { "A statement can't start before the books start (${books.startDate})" }
+            requireFirstOpening(statement.accountId, from, command.openingBalance ?: statement.openingBalance, books.startDate)
         }
         val outside = bankStatementRepository.findLines(id, null).filter { it.txnDate < from || it.txnDate > to }
         require(outside.isEmpty()) { "${outside.size} imported line(s) fall outside $from to $to; remove that import first" }
@@ -359,6 +361,17 @@ class BankStatementService(
 
     fun requireOpen(id: Long): BankStatement = get(id).also {
         if (it.status != StatementStatus.OPEN) throw ConflictException("The statement ${it.periodFrom} to ${it.periodTo} is completed; reopen it first")
+    }
+
+    // Reconciling starts with an account's first statement: entries before it count as cleared, which is
+    // only true if the bank and the books agreed that day.
+    private fun requireFirstOpening(accountId: Long, from: LocalDate, opening: BigDecimal, booksStart: LocalDate) {
+        val books = matchRepository.balanceAtStartOf(accountId, from)
+        require(opening.compareTo(books) == 0) {
+            "The first statement must open at ${books.toPlainString()}, this account's balance in the books at the start " +
+                "of $from (entries before it count as cleared). If entries before then hadn't reached the bank yet, " +
+                "start the first statement earlier (the books start $booksStart); otherwise correct the opening balance."
+        }
     }
 
     private fun checkPeriod(from: LocalDate, to: LocalDate, today: LocalDate) {
