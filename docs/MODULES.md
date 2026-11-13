@@ -24,7 +24,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 4 | Authorization & Roles | `authorization` | ✅ | Dynamic roles, hierarchical permissions, `Access`, `@RequiresPermission`. |
 | 5 | Society Management | `society` | ✅ | Complex and society CRUD; per-society settings (V16). |
 | 6 | Society Structure | `society` | ✅ | Wings and flats; flat directory scoping. Shares the package with 5 for now; split only if it grows. |
-| 7 | Society Onboarding | *`onboarding`* | ⏳ | Blocked on the onboarding-model decision (see Open Decisions in the plan). |
+| 7 | Society Onboarding | *`onboarding`* | ⏳ | Planned 2026-11-13: platform-led and self-signup, setup wizard, Setup → Live. See [onboarding](modules/onboarding.md). |
 | 8 | Invitation Management | `invitation` | ✅ | V17–V18: invite by rank or (residents) onto their own flat with committee approval, link + QR, accept as new or existing user, revoke, resend/renew, decline, expiry, per-flat limit, pushes; web screens. See [invitation](modules/invitation.md). |
 | 9 | Resident & Membership | `user` (`UserRole`) | 🟡 | A role assignment with a flat *is* the residency today; `resident_type` on the user. Move to *`resident`* when membership gets its own workflow (move-in/out, tenancy). |
 | 10 | Visitor Management | `visitor` | ✅ | M3. Gate flow, approvals, override, photo, CSV export, push. |
