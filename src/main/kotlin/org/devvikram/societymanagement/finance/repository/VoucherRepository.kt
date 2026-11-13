@@ -28,6 +28,7 @@ data class LedgerRow(
     val flatId: Long?,
     val debit: BigDecimal,
     val credit: BigDecimal,
+    val lineId: Long,
 )
 
 interface VoucherRepository {
@@ -187,7 +188,7 @@ interface VoucherJpaRepository : JpaRepository<Voucher, Long> {
     @Query(
         """
         select new org.devvikram.societymanagement.finance.repository.LedgerRow(
-            v.id, v.number, v.type, v.voucherDate, v.narration, v.payee, l.flatId, l.debit, l.credit)
+            v.id, v.number, v.type, v.voucherDate, v.narration, v.payee, l.flatId, l.debit, l.credit, l.id)
         from VoucherLine l join l.voucher v
         where l.accountId = :a and v.status in :statuses and v.voucherDate between :from and :to
         order by v.voucherDate, v.id, l.lineOrder
@@ -203,7 +204,7 @@ interface VoucherJpaRepository : JpaRepository<Voucher, Long> {
     @Query(
         """
         select new org.devvikram.societymanagement.finance.repository.LedgerRow(
-            v.id, v.number, v.type, v.voucherDate, v.narration, v.payee, l.flatId, l.debit, l.credit)
+            v.id, v.number, v.type, v.voucherDate, v.narration, v.payee, l.flatId, l.debit, l.credit, l.id)
         from VoucherLine l join l.voucher v
         where l.accountId = :a and l.flatId = :flat and v.status in :statuses and v.voucherDate between :from and :to
         order by v.voucherDate, v.id, l.lineOrder

@@ -220,6 +220,8 @@ data class LedgerLineResponse(
     val debit: BigDecimal,
     val credit: BigDecimal,
     val balance: BigDecimal,
+    // Bank ledgers only: the day this entry cleared at the bank (null while it hasn't yet).
+    val clearedOn: LocalDate? = null,
 )
 
 data class LedgerResponse(
@@ -261,6 +263,7 @@ data class LedgerResponse(
                     debit = it.row.debit,
                     credit = it.row.credit,
                     balance = it.balance,
+                    clearedOn = it.clearedOn,
                 )
             },
             totalDebit = view.totalDebit,

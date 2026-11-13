@@ -2,6 +2,9 @@ package org.devvikram.societymanagement.finance.service
 
 import org.devvikram.societymanagement.finance.model.FinanceAccount
 import org.devvikram.societymanagement.finance.model.SystemAccounts
+import org.devvikram.societymanagement.finance.model.VoucherType
+import org.devvikram.societymanagement.finance.repository.AccountRepository
+import org.devvikram.societymanagement.finance.repository.BankMatchRepository
 import org.devvikram.societymanagement.finance.repository.LedgerRow
 import org.devvikram.societymanagement.finance.repository.VoucherRepository
 import org.devvikram.societymanagement.society.repository.FlatRepository
@@ -12,7 +15,8 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.LocalDate
 
-data class LedgerLine(val row: LedgerRow, val flatLabel: String?, val balance: BigDecimal)
+// `clearedOn`: on a bank ledger, when the entry cleared at the bank (the opening counts as cleared on its date).
+data class LedgerLine(val row: LedgerRow, val flatLabel: String?, val balance: BigDecimal, val clearedOn: LocalDate? = null)
 
 // One account's movements over a period; balances in the account's natural sign.
 data class LedgerView(
@@ -46,6 +50,8 @@ class LedgerService(
     private val booksService: BooksService,
     private val flatRepository: FlatRepository,
     private val settings: SocietySettingsService,
+    private val accountRepository: AccountRepository,
+    private val matchRepository: BankMatchRepository,
 ) {
     // Defaults: from the start of the current financial year (not before the books start) to today.
     // `flatId` narrows a member sub-ledger to one flat (the member ledger).
@@ -75,7 +81,11 @@ class LedgerService(
             credit += row.credit
             LedgerLine(row, row.flatId?.let(flats::get), running)
         }
-        return LedgerView(account, flatId, flatId?.let(flats::get), start, end, opening, lines, debit, credit, running)
+        val withCleared = if (accountRepository.findBank(accountId) == null) lines else {
+            val cleared = matchRepository.clearedOn(lines.map { it.row.lineId })
+            lines.map { it.copy(clearedOn = cleared[it.row.lineId] ?: it.row.date.takeIf { _ -> it.row.type == VoucherType.OPENING }) }
+        }
+        return LedgerView(account, flatId, flatId?.let(flats::get), start, end, opening, withCleared, debit, credit, running)
     }
 
     // The same default period as the ledger.

@@ -520,7 +520,7 @@ Tests: `FinanceStatementsIntegrationTest` (6, one worked example with totals che
 
 Each step ends with the suite passing and its own commit.
 
-**V1.1 next:** bank statement import (CSV) and reconciliation (`cleared_on` per bank line, sessions that
+**V1.1 next:** bank statement import (CSV) and reconciliation (planned in [finance-reconciliation.md](finance-reconciliation.md)) (`cleared_on` per bank line, sessions that
 are never allowed to edit vouchers), year closing (closing voucher moving the surplus to the General
 fund, then lock), recurring expense drafts, cheque lifecycle (with a bounce flow), petty cash counts, the
 remaining notifications.

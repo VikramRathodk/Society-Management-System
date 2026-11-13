@@ -81,6 +81,7 @@ object SocietySettingKeys {
     const val FINANCIAL_YEAR_START_MONTH = "financialYearStartMonth"
     const val FINANCE_APPROVAL_ABOVE = "financeApprovalAbove"
     const val RESIDENTS_SEE_FINANCE_SUMMARY = "residentsSeeFinanceSummary"
+    const val RECONCILIATION_MATCH_DAYS = "reconciliationMatchDays"
 }
 
 // Every society setting. To add one: add a definition here (and a key constant if code reads it).
@@ -175,6 +176,17 @@ object SocietySettingCatalog {
                 "They never see individual entries.",
             type = SettingType.BOOLEAN,
             defaultValue = "false",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.RECONCILIATION_MATCH_DAYS,
+            group = SettingGroup.FINANCE,
+            label = "Bank matching window (days)",
+            description = "When reconciling a bank statement, an entry in the books is matched to a bank line of " +
+                "the same amount up to this many days apart. 0 means the same day only.",
+            type = SettingType.INTEGER,
+            defaultValue = "3",
+            min = 0,
+            max = 15,
         ),
     )
 
