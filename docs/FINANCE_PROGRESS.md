@@ -161,6 +161,5 @@ line, reopen the latest only with a reason.
 
 ### Next
 
-- Nothing is pushed. Backend `feature/bank-reconciliation` (R1–R3 + docs) and web
-  `feature/bank-reconciliation` (R4, on top of `feature/ui-modernize`) await the user's review, then
-  merge to master in both repos (the user pushes).
+- Merged to master in both repos on 2026-11-13 (backend 82f4d21, web f244115; the web merge also brings
+  in `feature/ui-modernize`). Not pushed yet: the user pushes.
