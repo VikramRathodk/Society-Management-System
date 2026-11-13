@@ -161,7 +161,7 @@ Built in R3:
 | R1 ✅ | V22, permissions, setting; column mapping, preview, statements, import with duplicates | Import tests: several bank layouts, Dr/Cr column, Indian amounts (1,23,456.00), date formats, header junk rows, duplicates, out-of-period rows |
 | R2 ✅ | Book entries, suggestions, auto-match, manual match/unmatch, exclude, void handling, voucher from a bank line (incl. after approval) | Matching tests including the ₹15,000 five-cheque deposit and a bounced cheque |
 | R3 ✅ | Complete with BRS snapshot, reopen latest, audit, BRS JSON/CSV, cleared date on the ledger; Postman folder | Hand-checked BRS worked example; full Postman run |
-| R4 | Web: Reconcile page per bank account (two-column bank vs books, suggestions, create voucher from line, complete/reopen), mapping wizard, BRS in Reports | Unit tests, build, Playwright e2e on a fresh society |
+| R4 ✅ | Web: Reconcile page per bank account (two-column bank vs books, suggestions, create voucher from line, complete/reopen), mapping wizard, BRS in Reports | Unit tests, build, Playwright e2e on a fresh society |
 
 Each step ends with the suite passing and its own commit.
 
