@@ -182,6 +182,28 @@ Each step ends with the suite passing and its own commit.
     and QR cards from it (O4), since the links exist only in that response.
   - The checklist's `residents.staged` counts rows ready to send; a staged sheet completes the step.
 
+- **O4 done (2026-11-15, web `feature/onboarding` 8752175, on top of 48507ef, which commits the UI polish
+  that had been waiting uncommitted on master).**
+  - New society (Societies page) asks for the secretary's name and phone too, plus "already running:
+    skip setup", calls `POST /api/onboarding/societies`, then shows the secretary's link and QR (only
+    "Done" closes it). The list shows Setting up / Live and a Setup link per society.
+  - `/register-society` (public, signed in or not): register, or check a registration by number and
+    phone; a signed-in applicant registers with their account, and "Open my society" reloads their roles
+    once approved. The landing page links to it while `GET …/public/enabled` says registration is open.
+  - `/registrations` (platform, `SOCIETY.APPLICATION.VIEW`, in the side nav): waiting first, approve after
+    a confirm, reject with a reason.
+  - `/societies/:id/setup` (`SOCIETY.SETTINGS.UPDATE`): step rail with done/required marks and five
+    panels: profile (shared form with logo and notes, also on the settings page now), wings & flats
+    (pattern form with a live sample, preview, create), residents (upload, column pickers, row filter,
+    leave rows out; Send in a live society, staged in Setup), committee & rules (invite dialog, the
+    society rules, links to maintenance and finance settings), go live (checklist, confirm, then the
+    sent links). `?step=` keeps the open step. Opening it selects that society in the switcher.
+  - After sending (go-live or Send): links CSV (UTF-8 with BOM for Excel, formula cells defused) and a
+    print page of QR cards, three to a row, sorted by flat; lost links are resent from Invitations.
+  - A banner above every page while the selected society is in Setup and the user can run its setup,
+    with "n of 4 steps done" and Continue (hidden on the setup page).
+  - Web tests: 194 pass (35 new); production build passes.
+
 ## Open questions
 
 All answered 2026-11-14 as planned: self-signup waits for the super admin's approval; Setup restricts flat
