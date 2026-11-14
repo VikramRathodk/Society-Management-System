@@ -138,9 +138,10 @@ class OnboardingIntegrationTest {
 
         send("POST", "/api/societies/$societyId/go-live", secretary)
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.status").value("LIVE"))
-            .andExpect(jsonPath("$.wentLiveAt").isNotEmpty)
-            .andExpect(jsonPath("$.canGoLive").value(false))
+            .andExpect(jsonPath("$.onboarding.status").value("LIVE"))
+            .andExpect(jsonPath("$.onboarding.wentLiveAt").isNotEmpty)
+            .andExpect(jsonPath("$.onboarding.canGoLive").value(false))
+            .andExpect(jsonPath("$.residentInvitations").doesNotExist())
         send("POST", "/api/societies/$societyId/go-live", secretary).andExpect(status().isConflict)
     }
 

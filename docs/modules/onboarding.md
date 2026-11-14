@@ -156,6 +156,32 @@ Each step ends with the suite passing and its own commit.
   - No push on approval (onboarding doesn't use the notification module); the applicant checks the
     status page, and the super admin's confirmation call tells them.
 
+- **O3 done (2026-11-14).** V25 adds `resident_import` (one OPEN sheet per society) and `resident_import_row`.
+  - Wings & flats: `POST /api/societies/{id}/structure/preview` and `…/generate`, body
+    `{wings: [{wing, floorsFrom, floorsTo, flatsPerFloor, numbering?, skip?, extraUnits?}]}` (needs
+    `FLAT.STRUCTURE.CREATE`). Numbering tokens `{floor}`, `{nn}`, `{n}`, `{wing}` (default `{floor}{nn}`);
+    floors 0–200, up to 50 per floor, 5,000 flats a request. A numbering that repeats a number (e.g.
+    `{floor}{n}` with 11 flats a floor gives 111 twice) is refused. Wings match by name ignoring case;
+    existing flats are skipped, so generating twice is harmless. The answer lists every flat with `exists`.
+  - Residents sheet: `POST /api/societies/{id}/resident-imports` (multipart `file`, optional 1-based
+    `flatColumn`, `nameColumn`, `phoneColumn`, `wingColumn`, `typeColumn`; otherwise guessed from the
+    header) replaces the unsent sheet and returns it with the header and columns used; `GET …/current`
+    (204 when none), `DELETE …/current/rows/{rowId}`, `DELETE …/current`, `POST …/current/send`.
+    Secretary and above (`SOCIETY.SETTINGS.UPDATE`); 1 MB, 2,000 rows. The CSV reading moved to
+    `common/csv/CsvReader` (bank statements use it too).
+  - Rows are checked again every time they are read or sent: name, phone (Indian numbers kept as their
+    10 digits, so `+91 98765-43210` matches the account), type (owner/tenant/family in plain words; blank
+    is owner), flat (a wing column, `A-101` in the flat cell, or the number alone when only one wing has
+    it), same person and flat twice, already living there, deactivated account, and the per-flat limit
+    counting residents, open invitations and earlier rows. **The same phone on different flats is allowed**
+    (owners of two flats), unlike the plan's "duplicate phone".
+  - Sending creates a RESIDENT invitation per good row through the invitation module; every check it could
+    refuse on is made first, so bad rows are skipped instead of failing the batch. In Setup `send` answers
+    409 and the sheet goes out at go-live: `POST /go-live` now returns `{onboarding, residentInvitations}`
+    (null when nothing was staged). Each sent row carries its token and link: the web builds the links CSV
+    and QR cards from it (O4), since the links exist only in that response.
+  - The checklist's `residents.staged` counts rows ready to send; a staged sheet completes the step.
+
 ## Open questions
 
 All answered 2026-11-14 as planned: self-signup waits for the super admin's approval; Setup restricts flat

@@ -24,7 +24,8 @@ data class OnboardingResponse(
 ) {
     data class ProfileStep(val done: Boolean, val missing: List<String>)
     data class StructureStep(val done: Boolean, val wings: Int, val flats: Int)
-    data class PeopleStep(val done: Boolean, val members: Long, val openInvitations: Int)
+    // staged: residents from the sheet, ready to be invited (sent at go-live while in Setup).
+    data class PeopleStep(val done: Boolean, val members: Long, val openInvitations: Int, val staged: Int = 0)
     data class SettingsStep(val done: Boolean, val customized: Int)
 
     companion object {
@@ -37,7 +38,7 @@ data class OnboardingResponse(
             wentLiveAt = c.society.wentLiveAt,
             profile = ProfileStep(c.profileDone, c.missingProfile),
             structure = StructureStep(c.structureDone, c.wings, c.flats),
-            residents = PeopleStep(c.residentsDone, c.residents, c.residentInvitations),
+            residents = PeopleStep(c.residentsDone, c.residents, c.residentInvitations, c.stagedResidents),
             committee = PeopleStep(c.committeeDone, c.members, c.memberInvitations),
             settings = SettingsStep(c.settingsDone, c.customizedSettings),
             stepsDone = c.stepsDone,

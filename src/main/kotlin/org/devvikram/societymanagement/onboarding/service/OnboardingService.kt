@@ -25,13 +25,14 @@ data class Checklist(
     val flats: Int,
     val residents: Long,
     val residentInvitations: Int,
+    val stagedResidents: Int,
     val members: Long,
     val memberInvitations: Int,
     val customizedSettings: Int,
 ) {
     val profileDone get() = missingProfile.isEmpty()
     val structureDone get() = flats > 0
-    val residentsDone get() = residents > 0 || residentInvitations > 0
+    val residentsDone get() = residents > 0 || residentInvitations > 0 || stagedResidents > 0
     // The secretary alone isn't a committee: someone else holds or has been invited to a society-wide role.
     val committeeDone get() = members + memberInvitations >= 2
     val settingsDone get() = customizedSettings > 0
@@ -50,6 +51,8 @@ data class NewSocietyCommand(
 
 data class NewSociety(val society: Society, val invitation: IssuedInvitation)
 
+data class WentLive(val checklist: Checklist, val residentInvitations: SendResult?)
+
 @Service
 class OnboardingService(
     private val societyService: SocietyService,
@@ -59,6 +62,7 @@ class OnboardingService(
     private val userRoleRepository: UserRoleRepository,
     private val invitationRepository: InvitationRepository,
     private val invitationService: InvitationService,
+    private val residentImportService: ResidentImportService,
     private val clock: Clock,
 ) {
     @Transactional(readOnly = true)
@@ -72,6 +76,7 @@ class OnboardingService(
             flats = flatRepository.findBySocietyId(societyId).size,
             residents = userRoleRepository.countMembers(societyId, onFlats = true),
             residentInvitations = open.count { it.flat != null },
+            stagedResidents = residentImportService.readyCount(societyId),
             members = userRoleRepository.countMembers(societyId, onFlats = false),
             memberInvitations = open.count { it.flat == null },
             customizedSettings = settingRepository.findBySociety(societyId).size,
@@ -90,10 +95,11 @@ class OnboardingService(
         return NewSociety(society, invitation)
     }
 
-    // Step O3 adds sending the staged resident invitations here.
+    // Going live sends the staged residents sheet (its links are in the result, the only time they exist).
     @Transactional
-    fun goLive(societyId: Long, userId: Long): Checklist {
-        societyService.goLive(societyId, userId, clock.instant())
-        return checklist(societyId)
+    fun goLive(societyId: Long, actor: Access): WentLive {
+        societyService.goLive(societyId, actor.userId, clock.instant())
+        val sent = residentImportService.sendOpen(societyId, actor)
+        return WentLive(checklist(societyId), sent)
     }
 }

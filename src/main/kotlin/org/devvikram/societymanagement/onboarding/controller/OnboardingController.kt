@@ -4,6 +4,7 @@ import jakarta.validation.Valid
 import org.devvikram.societymanagement.authorization.AccessService
 import org.devvikram.societymanagement.authorization.Permissions
 import org.devvikram.societymanagement.authorization.RequiresPermission
+import org.devvikram.societymanagement.onboarding.dto.GoLiveResponse
 import org.devvikram.societymanagement.onboarding.dto.NewSocietyRequest
 import org.devvikram.societymanagement.onboarding.dto.NewSocietyResponse
 import org.devvikram.societymanagement.onboarding.dto.OnboardingResponse
@@ -45,9 +46,9 @@ class OnboardingController(
 
     @PostMapping("/api/societies/{societyId}/go-live")
     @RequiresPermission(Permissions.SOCIETY_SETTINGS_UPDATE)
-    fun goLive(@PathVariable societyId: Long): OnboardingResponse {
+    fun goLive(@PathVariable societyId: Long): GoLiveResponse {
         val access = accessService.current()
         access.requireIn(Permissions.SOCIETY_SETTINGS_UPDATE, societyId)
-        return OnboardingResponse.from(onboardingService.goLive(societyId, access.userId))
+        return GoLiveResponse.from(onboardingService.goLive(societyId, access), webBaseUrl)
     }
 }
