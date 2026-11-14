@@ -136,16 +136,31 @@ Each step ends with the suite passing and its own commit.
     Societies created in code (seeding, tests) default to Live.
   - Logo is `logo_key` in photo storage. Go live needs address, city, state, PIN and contact phone.
 
+- **O2 done (2026-11-14).** V24 adds `society_application` and `SOCIETY.APPLICATION.VIEW/UPDATE`
+  (platform only; SUPER_ADMIN holds every permission).
+  - Platform-led: `POST /api/onboarding/societies` `{name, address?, complexId?, startLive?, secretary {name, phone}}`
+    creates the society and a SECRETARY invitation in one transaction and returns `{society, secretaryInvitation}`
+    (token + link, as for any invitation). It lives in the onboarding module because `society` may not use
+    `invitation`; plain `POST /api/societies` is unchanged.
+  - Public, under `/api/society-applications/public`: `GET /enabled`, `POST` (register; a signed-in caller
+    applies with their own account), `GET /status?number=&phone=`.
+  - Platform: `GET /api/society-applications?status=` (pending first, oldest at the top), `GET /{id}`,
+    `POST /{id}/approve`, `POST /{id}/reject {reason}`.
+  - Approving checks everything first, then creates the society (Setup, `SELF_SIGNUP`, city and contact
+    phone/email from the form), the account from the stored password hash (or adds the role to the signed-in
+    applicant's account) and the SECRETARY role. The hash is dropped once decided. If the phone has got an
+    account since applying, approval is refused; reject and ask them to apply signed in.
+  - A phone with an account must sign in to apply; one pending registration per phone (also a partial
+    unique index); 5 registrations per address per hour (`app.onboarding.applications-per-ip-per-hour`,
+    answered 429); `app.onboarding.self-signup-enabled` (default on) closes registration.
+  - No push on approval (onboarding doesn't use the notification module); the applicant checks the
+    status page, and the super admin's confirmation call tells them.
+
 ## Open questions
 
-1. **Self-signup approval.** Planned as "waits for super-admin approval". Instant self-signup needs OTP
-   and abuse limits; worth it only with subscriptions. OK to keep approval?
-2. **Setup restrictions.** Planned: residents can't sign in or get pushes until Go live. Or should Setup
-   only be a checklist with no restrictions?
-3. **Bulk delivery.** CSV of links + printable QR cards for now. Is an SMS/WhatsApp provider on the
-   roadmap (it would also give OTP)?
-4. **Self-signup on/off.** Planned as a deployment setting (`app.onboarding.self-signup-enabled`, default
-   on) since there is no platform-level settings page yet. Fine?
+All answered 2026-11-14 as planned: self-signup waits for the super admin's approval; Setup restricts flat
+roles (as built in O1); bulk delivery is links CSV + QR cards (no SMS/WhatsApp provider yet); self-signup
+is a deployment property.
 
 ## Not in this round
 

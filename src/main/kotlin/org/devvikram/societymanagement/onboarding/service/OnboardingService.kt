@@ -1,6 +1,11 @@
 package org.devvikram.societymanagement.onboarding.service
 
+import org.devvikram.societymanagement.authorization.Access
 import org.devvikram.societymanagement.invitation.repository.InvitationRepository
+import org.devvikram.societymanagement.invitation.service.CreateInvitationCommand
+import org.devvikram.societymanagement.invitation.service.InvitationService
+import org.devvikram.societymanagement.invitation.service.IssuedInvitation
+import org.devvikram.societymanagement.society.model.SocietyStatus
 import org.devvikram.societymanagement.society.model.Society
 import org.devvikram.societymanagement.society.repository.FlatRepository
 import org.devvikram.societymanagement.society.repository.SocietySettingRepository
@@ -34,6 +39,17 @@ data class Checklist(
     val canGoLive get() = society.isSetup && profileDone
 }
 
+data class NewSocietyCommand(
+    val name: String,
+    val address: String?,
+    val complexId: Long?,
+    val status: SocietyStatus,
+    val secretaryName: String,
+    val secretaryPhone: String,
+)
+
+data class NewSociety(val society: Society, val invitation: IssuedInvitation)
+
 @Service
 class OnboardingService(
     private val societyService: SocietyService,
@@ -42,6 +58,7 @@ class OnboardingService(
     private val settingRepository: SocietySettingRepository,
     private val userRoleRepository: UserRoleRepository,
     private val invitationRepository: InvitationRepository,
+    private val invitationService: InvitationService,
     private val clock: Clock,
 ) {
     @Transactional(readOnly = true)
@@ -59,6 +76,18 @@ class OnboardingService(
             memberInvitations = open.count { it.flat == null },
             customizedSettings = settingRepository.findBySociety(societyId).size,
         )
+    }
+
+    // Platform-led: the super admin creates the society and invites its secretary in one go. If the
+    // invitation is refused (e.g. that phone already holds the role) the society isn't created either.
+    @Transactional
+    fun createWithSecretary(command: NewSocietyCommand, actor: Access): NewSociety {
+        val society = societyService.createSociety(command.name, command.address, command.complexId, command.status)
+        val invitation = invitationService.create(
+            CreateInvitationCommand(society.id!!, command.secretaryPhone, command.secretaryName, "SECRETARY"),
+            actor,
+        )
+        return NewSociety(society, invitation)
     }
 
     // Step O3 adds sending the staged resident invitations here.

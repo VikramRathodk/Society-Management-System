@@ -38,6 +38,10 @@ class GlobalExceptionHandler {
     fun handleStateConflict(ex: ConflictException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.CONFLICT, ex.message, request)
 
+    @ExceptionHandler(TooManyRequestsException::class)
+    fun handleTooMany(ex: TooManyRequestsException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
+        respond(HttpStatus.TOO_MANY_REQUESTS, ex.message, request)
+
     @ExceptionHandler(MaxUploadSizeExceededException::class)
     fun handleTooLarge(ex: MaxUploadSizeExceededException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.CONTENT_TOO_LARGE, "Upload exceeds the size limit", request)
