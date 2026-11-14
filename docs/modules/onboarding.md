@@ -121,6 +121,21 @@ Residents who later need a fresh link get one through the existing resend.
 
 Each step ends with the suite passing and its own commit.
 
+## Progress
+
+- **O1 done (2026-11-14, f1b590a).** V23 adds status/source/went-live and the profile columns to
+  `society`. `PATCH /api/societies/{id}` takes the whole profile (blank clears a field; PIN, phone and
+  email validated); `PUT|GET|DELETE /api/societies/{id}/logo` (JPEG/PNG/WebP, 1 MB, in photo storage);
+  `GET /api/societies/{id}/onboarding` (profile, structure, residents, committee, settings, `canGoLive`);
+  `POST /api/societies/{id}/go-live`. Built differently from the plan above:
+  - Setup is enforced by refusing **flat roles** (account or invitation) until go-live, so residents
+    can't sign in or be pushed to because none exist yet; society-wide roles work as normal.
+  - Profile and go-live use the existing `SOCIETY.SETTINGS.VIEW/UPDATE` permissions (secretary and
+    above, or the platform); no new onboarding permissions.
+  - `POST /api/societies` creates in Setup; `startLive: true` skips it (moving in a running society).
+    Societies created in code (seeding, tests) default to Live.
+  - Logo is `logo_key` in photo storage. Go live needs address, city, state, PIN and contact phone.
+
 ## Open questions
 
 1. **Self-signup approval.** Planned as "waits for super-admin approval". Instant self-signup needs OTP
