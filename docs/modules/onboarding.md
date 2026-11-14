@@ -204,6 +204,23 @@ Each step ends with the suite passing and its own commit.
     with "n of 4 steps done" and Continue (hidden on the setup page).
   - Web tests: 194 pass (35 new); production build passes.
 
+- **O5 done (2026-11-15).** Postman folder **19. Society onboarding** (34 requests; cleanup is now 20):
+  platform-led society with its secretary, join by link, profile, wings and flats preview/generate, a
+  residents sheet staged (raw multipart), send refused in Setup, go live sends it, a resident joins; then a
+  self-signup approved and another rejected with a reason. "Create society" in folder 2 now sends
+  `startLive: true` (the collection adds residents to it). Web e2e `e2e/onboarding.spec.ts` (web c22f121)
+  drives both paths through the UI; `finance.spec.ts` and `reconciliation.spec.ts` create their societies
+  with `startLive: true`, which they needed since O1.
+  - Runs on a test server from this branch (API :8081 with `APPLICATIONS_PER_IP_PER_HOUR=1000`, web :4201
+    proxying to it): newman 294 requests, 456 assertions, 1 failure, the old one (cleanup can't delete the
+    test resident because of their invitation). Playwright: onboarding 2/2; the whole suite 59 passed,
+    7 failed and 10 not run after them, in complaints, maintenance, notices, permissions, screens and
+    visitors. Those 7 fail the same way run on their own and come from the dev database no longer matching
+    `scripts/dev-seed.sql` (Steve Rogers's password isn't the seed's, Happy Hogan also holds a RESIDENT role
+    on a Stark Tower flat, Wanda's flat has ₹14,300 of dues from earlier runs), not from onboarding.
+    Reloading the dev seed should clear them.
+  - Fixed on the way: "Check status" after registering stayed on the thank-you page.
+
 ## Open questions
 
 All answered 2026-11-14 as planned: self-signup waits for the super admin's approval; Setup restricts flat

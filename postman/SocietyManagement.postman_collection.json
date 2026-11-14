@@ -230,6 +230,70 @@
     {
       "key": "smsLineId",
       "value": ""
+    },
+    {
+      "key": "onbStamp",
+      "value": ""
+    },
+    {
+      "key": "onbSecretaryPhone",
+      "value": ""
+    },
+    {
+      "key": "onbSocietyId",
+      "value": ""
+    },
+    {
+      "key": "onbInviteToken",
+      "value": ""
+    },
+    {
+      "key": "onbSecretaryToken",
+      "value": ""
+    },
+    {
+      "key": "onbResidentPhone",
+      "value": ""
+    },
+    {
+      "key": "onbFamilyPhone",
+      "value": ""
+    },
+    {
+      "key": "onbResidentsCsv",
+      "value": ""
+    },
+    {
+      "key": "onbBadRowId",
+      "value": ""
+    },
+    {
+      "key": "onbResidentInviteToken",
+      "value": ""
+    },
+    {
+      "key": "onbApplicantPhone",
+      "value": ""
+    },
+    {
+      "key": "onbApplicationNumber",
+      "value": ""
+    },
+    {
+      "key": "onbSignupSocietyId",
+      "value": ""
+    },
+    {
+      "key": "onbApplicantToken",
+      "value": ""
+    },
+    {
+      "key": "onbRejectPhone",
+      "value": ""
+    },
+    {
+      "key": "onbRejectNumber",
+      "value": ""
     }
   ],
   "item": [
@@ -393,7 +457,7 @@
             "url": "{{baseUrl}}/api/societies",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Test Society\",\n  \"address\": \"Baner, Pune\",\n  \"complexId\": null\n}",
+              "raw": "{\n  \"name\": \"Postman Test Society\",\n  \"address\": \"Baner, Pune\",\n  \"complexId\": null,\n  \"startLive\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -408,6 +472,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"live (startLive)\", () => pm.expect(pm.response.json().status).to.eql(\"LIVE\"));",
                   "if (pm.response.code === 201) {",
                   "    const r = pm.response.json();",
                   "    pm.collectionVariables.set(\"societyId\", r.id);",
@@ -9962,7 +10027,1282 @@
       ]
     },
     {
-      "name": "19. Cleanup (optional, destructive)",
+      "name": "19. Society onboarding",
+      "description": "Both ways in, on fresh societies (left behind: they have residents and invitations). Platform-led: the super admin creates a society with its secretary invitation; the secretary joins, fills in the profile, generates wings and flats, stages a residents sheet and goes live, which sends it. Self-signup: a registration from the public site is approved (society, account, secretary role) and another is rejected with a reason. Each run registers two societies from this address: raise APPLICATIONS_PER_IP_PER_HOUR (default 5) for repeated runs within an hour.",
+      "item": [
+        {
+          "name": "Registration is open (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications/public/enabled",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"self-signup on\", () => pm.expect(pm.response.json().enabled).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super Admin creates a society with its secretary (starts in setup)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/onboarding/societies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Onboarding {{onbStamp}}\",\n  \"address\": \"Hinjewadi, Pune\",\n  \"secretary\": {\n    \"name\": \"Olivia Onboard\",\n    \"phone\": \"{{onbSecretaryPhone}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"onbSecretaryPhone\", \"7\" + String(Math.floor(100000000 + Math.random() * 899999999)));",
+                  "pm.collectionVariables.set(\"onbStamp\", Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"in setup\", () => pm.expect(j.society.status).to.eql(\"SETUP\"));",
+                  "pm.test(\"secretary invitation with a link\", () => {",
+                  "    pm.expect(j.secretaryInvitation.invitation.role).to.eql(\"SECRETARY\");",
+                  "    pm.expect(j.secretaryInvitation.inviteUrl).to.include(j.secretaryInvitation.token);",
+                  "});",
+                  "pm.collectionVariables.set(\"onbSocietyId\", j.society.id);",
+                  "pm.collectionVariables.set(\"onbInviteToken\", j.secretaryInvitation.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary creates a society (expect 403 - platform only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/onboarding/societies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Not allowed\",\n  \"secretary\": {\n    \"name\": \"X\",\n    \"phone\": \"7000000001\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The secretary accepts the invitation as a new user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/invitations/token/{{onbInviteToken}}/accept",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"accepted\", () => pm.expect(pm.response.json().status).to.eql(\"ACCEPTED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The new secretary logs in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{onbSecretaryPhone}}\",\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"onbSecretaryToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Setup checklist: the profile is missing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/onboarding",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"in setup\", () => pm.expect(j.status).to.eql(\"SETUP\"));",
+                  "pm.test(\"profile not done\", () => pm.expect(j.profile.missing).to.include(\"city\"));",
+                  "pm.test(\"cannot go live yet\", () => pm.expect(j.canGoLive).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Go live without the profile (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/go-live",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary fills in the profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city\": \"Pune\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"411057\",\n  \"contactPhone\": \"{{onbSecretaryPhone}}\",\n  \"registrationNumber\": \"PNA/HSG/2026\",\n  \"notes\": \"Lift AMC renews in March\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"saved\", () => pm.expect(pm.response.json().city).to.eql(\"Pune\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Preview wings and flats from a pattern",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/structure/preview",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wings\": [\n    {\n      \"wing\": \"A\",\n      \"floorsFrom\": 1,\n      \"floorsTo\": 3,\n      \"flatsPerFloor\": 2\n    },\n    {\n      \"wing\": \"Shops\",\n      \"floorsFrom\": 0,\n      \"floorsTo\": 0,\n      \"flatsPerFloor\": 0,\n      \"extraUnits\": [\n        \"S1\",\n        \"S2\"\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"A: 101 to 302\", () => pm.expect(j[0].flats.map(f => f.number)).to.eql([\"101\", \"102\", \"201\", \"202\", \"301\", \"302\"]));",
+                  "pm.test(\"8 new flats\", () => pm.expect(j[0].newFlats + j[1].newFlats).to.eql(8));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A numbering that repeats flat numbers (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/structure/preview",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wings\": [\n    {\n      \"wing\": \"B\",\n      \"floorsFrom\": 1,\n      \"floorsTo\": 11,\n      \"flatsPerFloor\": 11,\n      \"numbering\": \"{floor}{n}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"names the repeat\", () => pm.expect(pm.response.json().message).to.include(\"111\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate the wings and flats",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/structure/generate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wings\": [\n    {\n      \"wing\": \"A\",\n      \"floorsFrom\": 1,\n      \"floorsTo\": 3,\n      \"flatsPerFloor\": 2\n    },\n    {\n      \"wing\": \"Shops\",\n      \"floorsFrom\": 0,\n      \"floorsTo\": 0,\n      \"flatsPerFloor\": 0,\n      \"extraUnits\": [\n        \"S1\",\n        \"S2\"\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"8 created\", () => pm.expect(pm.response.json().reduce((n, w) => n + w.newFlats, 0)).to.eql(8));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate again: nothing new",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/structure/generate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wings\": [\n    {\n      \"wing\": \"a\",\n      \"floorsFrom\": 1,\n      \"floorsTo\": 3,\n      \"flatsPerFloor\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const w = pm.response.json()[0];",
+                  "pm.test(\"all skipped\", () => { pm.expect(w.exists).to.eql(true); pm.expect(w.newFlats).to.eql(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload the residents sheet (staged, each row checked)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data; boundary=PostmanResidentsBoundary"
+              }
+            ],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/resident-imports",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "--PostmanResidentsBoundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"residents.csv\"\r\nContent-Type: text/csv\r\n\r\n{{onbResidentsCsv}}\r\n--PostmanResidentsBoundary--\r\n"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"onbResidentPhone\", \"7\" + String(Math.floor(100000000 + Math.random() * 899999999)));",
+                  "pm.collectionVariables.set(\"onbFamilyPhone\", \"7\" + String(Math.floor(100000000 + Math.random() * 899999999)));",
+                  "const p = pm.collectionVariables.get(\"onbResidentPhone\");",
+                  "const f = pm.collectionVariables.get(\"onbFamilyPhone\");",
+                  "pm.collectionVariables.set(\"onbResidentsCsv\", [",
+                  "    \"Wing,Flat No,Resident Name,Mobile,Owner/Tenant\",",
+                  "    `A,101,Meera Shah,+91 ${p},Owner`,",
+                  "    `A,101,Raj Shah,${f},Family`,",
+                  "    \"A,999,Nobody Here,7000000003,Owner\",",
+                  "    \"A,102,Bad Phone,12345,Tenant\"",
+                  "].join(\"\\r\\n\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"columns guessed\", () => pm.expect(j.columns).to.eql({ flat: 2, name: 3, phone: 4, wing: 1, type: 5 }));",
+                  "pm.test(\"2 ready, 2 with problems\", () => { pm.expect(j.sheet.ready).to.eql(2); pm.expect(j.sheet.withErrors).to.eql(2); });",
+                  "pm.test(\"+91 number read as the account form\", () => pm.expect(j.sheet.rows[0].phone).to.eql(pm.collectionVariables.get(\"onbResidentPhone\")));",
+                  "pm.test(\"unknown flat explained\", () => pm.expect(j.sheet.rows[2].error).to.eql(\"No flat A-999 in this society\"));",
+                  "pm.collectionVariables.set(\"onbBadRowId\", j.sheet.rows[2].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send the sheet while in setup (expect 409 - it goes out at go-live)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/resident-imports/current/send",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Leave out the unknown-flat row",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/resident-imports/current/rows/{{onbBadRowId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"3 rows left\", () => pm.expect(pm.response.json().total).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Setup checklist: ready to go live, 2 residents staged",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/onboarding",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"profile done\", () => pm.expect(j.profile.done).to.eql(true));",
+                  "pm.test(\"8 flats\", () => pm.expect(j.structure.flats).to.eql(8));",
+                  "pm.test(\"2 staged\", () => pm.expect(j.residents.staged).to.eql(2));",
+                  "pm.test(\"can go live\", () => pm.expect(j.canGoLive).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary goes live (the sheet is sent)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/go-live",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"live\", () => pm.expect(j.onboarding.status).to.eql(\"LIVE\"));",
+                  "pm.test(\"2 invitations, 1 row skipped\", () => {",
+                  "    pm.expect(j.residentInvitations.sent.length).to.eql(2);",
+                  "    pm.expect(j.residentInvitations.skipped.length).to.eql(1);",
+                  "});",
+                  "const meera = j.residentInvitations.sent.find(s => s.name === \"Meera Shah\");",
+                  "pm.test(\"each has its link\", () => pm.expect(meera.inviteUrl).to.include(meera.token));",
+                  "pm.collectionVariables.set(\"onbResidentInviteToken\", meera.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meera accepts her invitation and joins A-101",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/invitations/token/{{onbResidentInviteToken}}/accept",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"accepted as owner of A-101\", () => {",
+                  "    pm.expect(j.status).to.eql(\"ACCEPTED\");",
+                  "    pm.expect(j.flatLabel).to.eql(\"A-101\");",
+                  "    pm.expect(j.residentType).to.eql(\"OWNER\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Go live again (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSocietyId}}/go-live",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A secretary registers their society (public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/society-applications/public",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"societyName\": \"Postman Self Signup {{onbStamp}}\",\n  \"city\": \"Nashik\",\n  \"address\": \"College Road\",\n  \"approxFlats\": 64,\n  \"applicantName\": \"Sam Signup\",\n  \"applicantPhone\": \"{{onbApplicantPhone}}\",\n  \"password\": \"Pass@1234\",\n  \"message\": \"Call after 6 pm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"onbApplicantPhone\", \"7\" + String(Math.floor(100000000 + Math.random() * 899999999)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"waiting\", () => pm.expect(j.status).to.eql(\"PENDING\"));",
+                  "pm.collectionVariables.set(\"onbApplicationNumber\", j.number);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Same phone again while waiting (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/society-applications/public",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"societyName\": \"Twice\",\n  \"city\": \"Nashik\",\n  \"applicantName\": \"Sam Signup\",\n  \"applicantPhone\": \"{{onbApplicantPhone}}\",\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A phone with an account must sign in to register (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/society-applications/public",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"societyName\": \"Existing\",\n  \"city\": \"Pune\",\n  \"applicantName\": \"Olivia\",\n  \"applicantPhone\": \"{{onbSecretaryPhone}}\",\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The applicant checks their registration (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications/public/status?number={{onbApplicationNumber}}&phone={{onbApplicantPhone}}",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"waiting\", () => pm.expect(pm.response.json().status).to.eql(\"PENDING\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check with another phone (expect 404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications/public/status?number={{onbApplicationNumber}}&phone=7000000002",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A secretary lists registrations (expect 403 - platform only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super Admin lists waiting registrations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications?status=PENDING",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().find(x => x.id === Number(pm.collectionVariables.get(\"onbApplicationNumber\")));",
+                  "pm.test(\"listed with the applicant\", () => {",
+                  "    pm.expect(a.applicantName).to.eql(\"Sam Signup\");",
+                  "    pm.expect(a.existingAccount).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super Admin approves it (society, account and secretary role)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications/{{onbApplicationNumber}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"approved with a society\", () => {",
+                  "    pm.expect(j.status).to.eql(\"APPROVED\");",
+                  "    pm.expect(j.societyId).to.be.a(\"number\");",
+                  "});",
+                  "pm.collectionVariables.set(\"onbSignupSocietyId\", j.societyId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The applicant logs in with the password they chose",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{onbApplicantPhone}}\",\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"onbApplicantToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Their society is in setup, self-signed-up",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{onbSignupSocietyId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{onbApplicantToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test(\"setup\", () => pm.expect(j.status).to.eql(\"SETUP\"));",
+                  "pm.test(\"self-signup\", () => pm.expect(j.source).to.eql(\"SELF_SIGNUP\"));",
+                  "pm.test(\"city from the form\", () => pm.expect(j.city).to.eql(\"Nashik\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve it again (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications/{{onbApplicationNumber}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Another registration, to reject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/society-applications/public",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"societyName\": \"Postman Rejected {{onbStamp}}\",\n  \"city\": \"Pune\",\n  \"applicantName\": \"Rita Reject\",\n  \"applicantPhone\": \"{{onbRejectPhone}}\",\n  \"password\": \"Pass@1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"onbRejectPhone\", \"7\" + String(Math.floor(100000000 + Math.random() * 899999999)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"onbRejectNumber\", pm.response.json().number);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject without a reason (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/society-applications/{{onbRejectNumber}}/reject",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \" \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super Admin rejects it with a reason",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/society-applications/{{onbRejectNumber}}/reject",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Could not reach you on this number\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"rejected\", () => pm.expect(pm.response.json().status).to.eql(\"REJECTED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The applicant sees the reason (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/society-applications/public/status?number={{onbRejectNumber}}&phone={{onbRejectPhone}}",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"reason shown\", () => pm.expect(pm.response.json().reason).to.eql(\"Could not reach you on this number\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "20. Cleanup (optional, destructive)",
       "description": "Removes everything the run created: visitor, flat, wing, the three test users, the society and the complex. Society, complex and user deletes are super-admin only and are refused (409) while history references the record.",
       "item": [
         {
