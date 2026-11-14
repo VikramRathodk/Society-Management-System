@@ -61,6 +61,8 @@ private class InMemoryUserRoleRepository : UserRoleRepository {
     override fun findUserIdsBySocietyIds(societyIds: Collection<Long>): Set<Long> =
         store.values.filter { it.society?.id in societyIds }.map { it.user.id!! }.toSet()
     override fun findByFlatId(flatId: Long): List<UserRole> = store.values.filter { it.flat?.id == flatId }
+    override fun countMembers(societyId: Long, onFlats: Boolean): Long =
+        store.values.filter { it.society?.id == societyId && (it.flat != null) == onFlats }.map { it.user.id }.distinct().size.toLong()
     override fun delete(userRole: UserRole) {
         store.remove(userRole.id)
     }

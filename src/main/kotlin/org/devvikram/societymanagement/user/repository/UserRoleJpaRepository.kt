@@ -26,4 +26,10 @@ interface UserRoleJpaRepository : JpaRepository<UserRole, Long> {
     fun findWithUserByFlatId(@Param("flatId") flatId: Long): List<UserRole>
 
     fun countByRoleId(roleId: Long): Long
+
+    @Query("select count(distinct ur.user.id) from UserRole ur where ur.society.id = :societyId and ur.flat is not null")
+    fun countResidents(@Param("societyId") societyId: Long): Long
+
+    @Query("select count(distinct ur.user.id) from UserRole ur where ur.society.id = :societyId and ur.flat is null")
+    fun countSocietyWide(@Param("societyId") societyId: Long): Long
 }

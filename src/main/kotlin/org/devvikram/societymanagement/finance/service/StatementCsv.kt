@@ -3,10 +3,7 @@ package org.devvikram.societymanagement.finance.service
 import org.devvikram.societymanagement.finance.model.AmountStyle
 import java.math.BigDecimal
 import java.math.RoundingMode
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
-import java.nio.charset.Charset
-import java.nio.charset.CodingErrorAction
+import org.devvikram.societymanagement.common.csv.CsvReader
 import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -76,7 +73,7 @@ data class ParsedStatement(
 
 // Reads bank statement CSVs. Pure: no database, so the parsing rules are unit-tested on their own.
 object StatementCsv {
-    val DELIMITERS = setOf(',', ';', '\t', '|')
+    val DELIMITERS = CsvReader.DELIMITERS
 
     // Formats Indian banks use. Days and months may have one or two digits; month names in any case.
     val DATE_FORMATS = listOf(
@@ -89,67 +86,11 @@ object StatementCsv {
     private val NUMBER = Regex("""^\d+(\.\d{1,2})?$""")
     private val formatters = DATE_FORMATS.associateWith(::formatter)
 
-    // UTF-8 (with or without a byte-order mark); anything that isn't valid UTF-8 is read as Windows-1252,
-    // which is what older bank exports use.
-    fun decode(bytes: ByteArray): String {
-        val body = if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
-            bytes.copyOfRange(3, bytes.size)
-        } else {
-            bytes
-        }
-        return try {
-            Charsets.UTF_8.newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(ByteBuffer.wrap(body)).toString()
-        } catch (_: CharacterCodingException) {
-            String(body, Charset.forName("windows-1252"))
-        }
-    }
+    fun decode(bytes: ByteArray): String = CsvReader.decode(bytes)
 
-    // RFC 4180 records: quoted cells may hold the separator, quotes ("") and line breaks.
-    fun records(text: String, delimiter: Char): List<List<String>> {
-        val rows = mutableListOf<List<String>>()
-        var row = mutableListOf<String>()
-        val cell = StringBuilder()
-        var quoted = false
-        var i = 0
-        while (i < text.length) {
-            val c = text[i]
-            if (quoted) {
-                if (c == '"') {
-                    if (i + 1 < text.length && text[i + 1] == '"') {
-                        cell.append('"'); i++
-                    } else {
-                        quoted = false
-                    }
-                } else {
-                    cell.append(c)
-                }
-            } else when (c) {
-                '"' -> if (cell.isBlank()) { cell.setLength(0); quoted = true } else cell.append(c)
-                delimiter -> { row.add(cell.toString()); cell.setLength(0) }
-                '\r', '\n' -> {
-                    row.add(cell.toString()); cell.setLength(0)
-                    rows.add(row); row = mutableListOf()
-                    if (c == '\r' && i + 1 < text.length && text[i + 1] == '\n') i++
-                }
-                else -> cell.append(c)
-            }
-            i++
-        }
-        if (cell.isNotEmpty() || row.isNotEmpty()) {
-            row.add(cell.toString()); rows.add(row)
-        }
-        return rows
-    }
+    fun records(text: String, delimiter: Char): List<List<String>> = CsvReader.records(text, delimiter)
 
-    // The separator that splits the first lines most consistently into several cells.
-    fun detectDelimiter(text: String): Char {
-        val sample = text.lineSequence().filter { it.isNotBlank() }.take(30).toList()
-        return DELIMITERS.maxByOrNull { d -> sample.count { line -> line.count { it == d } >= 2 } * 100 + sample.sumOf { line -> line.count { it == d } }.coerceAtMost(99) }
-            ?: ','
-    }
+    fun detectDelimiter(text: String): Char = CsvReader.detectDelimiter(text)
 
     fun parse(rows: List<List<String>>, spec: MappingSpec): ParsedStatement {
         val formatter = formatters.getValue(spec.dateFormat)

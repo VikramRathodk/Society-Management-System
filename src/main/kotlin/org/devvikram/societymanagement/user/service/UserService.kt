@@ -26,19 +26,22 @@ class UserService(
     private val passwordEncoder: PasswordEncoder,
 ) {
     @Transactional
-    fun createUser(command: CreateUserCommand): User {
-        require(userRepository.findByPhone(command.phone) == null) {
-            "Phone number ${command.phone} is already in use"
+    fun createUser(command: CreateUserCommand): User =
+        createWithHash(command.name, command.phone, command.email, passwordEncoder.encode(command.rawPassword)!!, command.role)
+
+    // For a password chosen earlier and kept only as its hash (a society application waiting for approval).
+    @Transactional
+    fun createUserWithPasswordHash(name: String, phone: String, email: String?, passwordHash: String, role: AssignRoleCommand): User =
+        createWithHash(name, phone, email, passwordHash, role)
+
+    fun hashPassword(rawPassword: String): String = passwordEncoder.encode(rawPassword)!!
+
+    private fun createWithHash(name: String, phone: String, email: String?, passwordHash: String, role: AssignRoleCommand): User {
+        require(userRepository.findByPhone(phone) == null) {
+            "Phone number $phone is already in use"
         }
-        val user = userRepository.save(
-            User(
-                name = command.name,
-                phone = command.phone,
-                email = command.email,
-                passwordHash = passwordEncoder.encode(command.rawPassword)!!,
-            )
-        )
-        assignRole(user.id!!, command.role)
+        val user = userRepository.save(User(name = name, phone = phone, email = email, passwordHash = passwordHash))
+        assignRole(user.id!!, role)
         return user
     }
 
@@ -70,6 +73,10 @@ class UserService(
         }
         if (flat != null) {
             require(flat.wing.society.id == society?.id) { "Flat ${flat.flatNumber} does not belong to this society" }
+            // Residents join when the society goes live, so none can sign in or be notified during setup.
+            if (society!!.isSetup) {
+                throw ConflictException("${society.name} is still being set up; residents can join once it goes live")
+            }
         }
         require(
             userRoleRepository.findByUserId(userId).none {

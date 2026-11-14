@@ -60,7 +60,9 @@ PostgreSQL above. `ModuleDependencyTest` fails the build if one module uses anot
 
 The Postman collection in [postman/](postman/SocietyManagement.postman_collection.json) walks every
 endpoint in order against the dev seed, with assertions; run it with the Collection Runner or
-`newman run postman/SocietyManagement.postman_collection.json`.
+`newman run postman/SocietyManagement.postman_collection.json`. The onboarding folder registers two
+societies from the public site each run, and self-signup allows 5 per address per hour: for repeated
+runs start the API with `APPLICATIONS_PER_IP_PER_HOUR=1000` (the web e2e suite registers one more).
 
 ## Build
 
