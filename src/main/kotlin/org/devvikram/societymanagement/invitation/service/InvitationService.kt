@@ -61,6 +61,11 @@ class InvitationService(
             requireNotNull(command.residentType) { "${role.name} needs a resident type (owner, family or tenant)" }
             val flat = flatRepository.findById(flatId) ?: throw NoSuchElementException("Flat $flatId not found")
             require(flat.wing.society.id == society.id) { "Flat ${flat.flatNumber} does not belong to this society" }
+            if (society.isSetup) {
+                throw ConflictException(
+                    "${society.name} is still being set up; residents are invited when it goes live (add them on the setup page)"
+                )
+            }
             flat
         } else {
             require(command.flatId == null && command.residentType == null) {

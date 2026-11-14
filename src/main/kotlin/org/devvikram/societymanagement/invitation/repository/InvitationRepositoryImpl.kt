@@ -26,6 +26,8 @@ class InvitationRepositoryImpl(
     override fun findPendingForPhone(phone: String): List<Invitation> =
         jpaRepository.findByPhoneAndStatusOrderByCreatedAtDesc(phone, InvitationStatus.PENDING)
 
+    override fun findOpenBySociety(societyId: Long, now: Instant): List<Invitation> = jpaRepository.findOpenBySociety(societyId, now)
+
     override fun countOpenForFlat(flatId: Long, now: Instant): Long = jpaRepository.countOpenForFlat(flatId, now)
 
     override fun search(search: InvitationSearch): List<Invitation> {

@@ -23,6 +23,7 @@ class ModuleDependencyTest {
         "complaint" to setOf("common", "authorization", "society", "user", "notification"),
         "maintenance" to setOf("common", "authorization", "society", "user", "notification"),
         "invitation" to setOf("common", "authorization", "society", "user", "notification"),
+        "onboarding" to setOf("common", "authorization", "society", "user", "invitation"),
         "finance" to setOf("common", "authorization", "society", "user", "notification", "maintenance"),
     )
 

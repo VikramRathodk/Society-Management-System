@@ -70,6 +70,10 @@ class UserService(
         }
         if (flat != null) {
             require(flat.wing.society.id == society?.id) { "Flat ${flat.flatNumber} does not belong to this society" }
+            // Residents join when the society goes live, so none can sign in or be notified during setup.
+            if (society!!.isSetup) {
+                throw ConflictException("${society.name} is still being set up; residents can join once it goes live")
+            }
         }
         require(
             userRoleRepository.findByUserId(userId).none {

@@ -24,6 +24,8 @@ interface InvitationRepository {
     // The open invitations for exactly this society, role, phone and flat (at most one, by the unique index).
     fun findOpen(societyId: Long, roleId: Long, phone: String, flatId: Long?): List<Invitation>
     fun findPendingForPhone(phone: String): List<Invitation>
+    // Open invitations of a society (waiting for approval, or pending and not expired).
+    fun findOpenBySociety(societyId: Long, now: Instant): List<Invitation>
     // Invitations to the flat that can still be accepted (unexpired PENDING) or are awaiting approval.
     fun countOpenForFlat(flatId: Long, now: Instant): Long
     // Newest first, with society, role, flat, wing and inviter loaded.

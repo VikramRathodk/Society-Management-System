@@ -8,7 +8,14 @@ import org.devvikram.societymanagement.society.dto.CreateSocietyRequest
 import org.devvikram.societymanagement.society.dto.SocietyResponse
 import org.devvikram.societymanagement.society.dto.UpdateSocietyRequest
 import org.devvikram.societymanagement.society.service.SocietyService
+import org.devvikram.societymanagement.society.model.SocietyStatus
+import org.springframework.http.CacheControl
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestPart
+import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -33,7 +40,8 @@ class SocietyController(
     @RequiresPermission(Permissions.SOCIETY_SETTINGS_CREATE)
     fun create(@Valid @RequestBody request: CreateSocietyRequest): SocietyResponse {
         accessService.current().requireOnPlatform(Permissions.SOCIETY_SETTINGS_CREATE)
-        return SocietyResponse.from(societyService.createSociety(request.name, request.address, request.complexId))
+        val status = if (request.startLive) SocietyStatus.LIVE else SocietyStatus.SETUP
+        return SocietyResponse.from(societyService.createSociety(request.name.trim(), request.address, request.complexId, status))
     }
 
     @GetMapping("/{id}")
@@ -54,9 +62,36 @@ class SocietyController(
 
     @PatchMapping("/{id}")
     @RequiresPermission(Permissions.SOCIETY_SETTINGS_UPDATE)
-    fun update(@PathVariable id: Long, @RequestBody request: UpdateSocietyRequest): SocietyResponse {
+    fun update(@PathVariable id: Long, @Valid @RequestBody request: UpdateSocietyRequest): SocietyResponse {
         accessService.current().requireIn(Permissions.SOCIETY_SETTINGS_UPDATE, id)
-        return SocietyResponse.from(societyService.updateSettings(id, request.name, request.address))
+        return SocietyResponse.from(societyService.updateProfile(id, request.toCommand()))
+    }
+
+    // ---- Logo: JPEG, PNG or WebP, up to 1 MB ----
+
+    @PutMapping("/{id}/logo")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_UPDATE)
+    fun setLogo(@PathVariable id: Long, @RequestPart("file") file: MultipartFile): SocietyResponse {
+        accessService.current().requireIn(Permissions.SOCIETY_SETTINGS_UPDATE, id)
+        return SocietyResponse.from(societyService.setLogo(id, file.bytes))
+    }
+
+    @GetMapping("/{id}/logo")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_VIEW)
+    fun logo(@PathVariable id: Long): ResponseEntity<ByteArray> {
+        accessService.current().requireIn(Permissions.SOCIETY_SETTINGS_VIEW, id)
+        val logo = societyService.logo(id) ?: throw NoSuchElementException("Society $id has no logo")
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(logo.contentType))
+            .cacheControl(CacheControl.noStore())
+            .body(logo.data)
+    }
+
+    @DeleteMapping("/{id}/logo")
+    @RequiresPermission(Permissions.SOCIETY_SETTINGS_UPDATE)
+    fun removeLogo(@PathVariable id: Long): SocietyResponse {
+        accessService.current().requireIn(Permissions.SOCIETY_SETTINGS_UPDATE, id)
+        return SocietyResponse.from(societyService.removeLogo(id))
     }
 
     // Platform-only, like create. Refused with 409 while the society has history (see SocietyService.delete).

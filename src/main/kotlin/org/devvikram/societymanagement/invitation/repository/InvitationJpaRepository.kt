@@ -39,4 +39,10 @@ interface InvitationJpaRepository : JpaRepository<Invitation, Long> {
             "(i.status = 'AWAITING_APPROVAL' or (i.status = 'PENDING' and i.expiresAt > :now))"
     )
     fun countOpenForFlat(@Param("flatId") flatId: Long, @Param("now") now: java.time.Instant): Long
+
+    @Query(
+        "select i from Invitation i join fetch i.role where i.society.id = :societyId and " +
+            "(i.status = 'AWAITING_APPROVAL' or (i.status = 'PENDING' and i.expiresAt > :now))"
+    )
+    fun findOpenBySociety(@Param("societyId") societyId: Long, @Param("now") now: java.time.Instant): List<Invitation>
 }

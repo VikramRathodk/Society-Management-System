@@ -21,5 +21,8 @@ class UserRoleRepositoryImpl(
 
     override fun findByFlatId(flatId: Long): List<UserRole> = userRoleJpaRepository.findWithUserByFlatId(flatId)
 
+    override fun countMembers(societyId: Long, onFlats: Boolean): Long =
+        if (onFlats) userRoleJpaRepository.countResidents(societyId) else userRoleJpaRepository.countSocietyWide(societyId)
+
     override fun delete(userRole: UserRole) = userRoleJpaRepository.delete(userRole)
 }
