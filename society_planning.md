@@ -586,7 +586,7 @@ On login, the API returns the resolved permission list (`Set<String>`) alongside
 - `user_role` — one row per role a user holds per scope: `society_id` null only for PLATFORM roles; `flat_id`/`resident_type` only for `requires_flat` roles. A unique index folds NULLs to a sentinel, so the same role can't be held twice in the same scope (including platform scope). An ADMIN of three societies has three rows.
 - `app_user` is identity only (name, phone, email, password, FCM token, active).
 
-**Seeded hierarchy:** `SUPER_ADMIN > ADMIN > SECRETARY > {COMMITTEE > RESIDENT, GUARD}`
+**Seeded hierarchy:** `SUPER_ADMIN > ADMIN > SECRETARY > {CHAIRMAN > COMMITTEE > RESIDENT, GUARD}`
 | Role | Scope | Notes |
 |---|---|---|
 | `SUPER_ADMIN` | PLATFORM | `all_permissions`; creates societies, manages every user and role |

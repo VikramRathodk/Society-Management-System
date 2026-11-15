@@ -79,8 +79,20 @@ class PermissionServiceTest {
     @Test
     fun `subordinates are the roles strictly below`() {
         assertEquals(
-            setOf("SECRETARY", "COMMITTEE", "GUARD", "RESIDENT"),
+            setOf("SECRETARY", "CHAIRMAN", "COMMITTEE", "GUARD", "RESIDENT"),
             permissionService.getSubordinateRoles("ADMIN"),
+        )
+        assertEquals(
+            setOf("COMMITTEE", "RESIDENT"),
+            permissionService.getSubordinateRoles("CHAIRMAN"),
+        )
+        assertTrue(
+            permissionService.getPermissionsForRole("CHAIRMAN")
+                .containsAll(permissionService.getPermissionsForRole("COMMITTEE")),
+        )
+        assertTrue(
+            permissionService.getPermissionsForRole("SECRETARY")
+                .containsAll(permissionService.getPermissionsForRole("CHAIRMAN")),
         )
         assertEquals(emptySet<String>(), permissionService.getSubordinateRoles("RESIDENT"))
 
