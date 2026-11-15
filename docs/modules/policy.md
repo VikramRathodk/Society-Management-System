@@ -187,3 +187,29 @@ Each step ends with the suite passing and its own commit.
     resident type, acknowledged at, last reminded; times in the report zone).
   - Archived or never-published policies take no acknowledgements and have no report (409).
   - Tests: `PolicyAcknowledgementIntegrationTest` (8).
+
+- **P3 done (2026-11-15, web `feature/policy` 18f7ada; backend 683f83a, 0cdbb5f).**
+  - Backend for the web: `GET /api/policies/{id}` (and every response that returns a policy) carries
+    `workflow {approvalRequired, selfApprovalAllowed}`, since drafters may not read society settings.
+    Fixed in P2: the acknowledgement report and the caller's pending list now read in a transaction
+    (they failed outside tests with a lazy-loading error), and `people` counts an owner of two flats
+    once.
+  - `/policies` (Rules in the side nav, `POLICY.RULE.VIEW`): grouped by category, title search,
+    category filter, "In force / Drafts / Awaiting approval / Archived" (`?view=`), a banner and
+    "Please accept / Accepted" badges for residents; secretary manages categories in a dialog
+    (rename, reorder, hide, add).
+  - `/policies/:id`: the text (simple Markdown rendered without HTML), attachment, "takes effect on"
+    note, accept banner; for drafters the change in progress with approve / send back / submit /
+    publish / withdraw / discard as the workflow and roles allow, "See changes" (line diff against the
+    published text); details and history (each version with its changes); archive / restore,
+    rename or move for approvers; "Who has accepted" for the committee.
+  - `/policies/new` and `/policies/:id/edit`: title, category, "residents must accept", text with
+    preview, effective date, change summary, "ask residents to accept again" for later versions,
+    attachment; save draft, or save and submit (or publish when approval is off); unsaved-changes guard.
+  - `/policies/:id/acknowledgements`: totals and progress, not yet / accepted / all flats, members with
+    dates, Remind and Export (CSV).
+  - Dashboard: "Policies to accept" (residents, only when there are some) and "Policies to approve"
+    (chairman and above). Palette action "New policy". Pushes open the policy.
+  - The settings page shows the "Rules & policies" settings group with no web change.
+  - Tests: `policy.api.spec.ts`, `policy-ui.spec.ts` (text parsing, line diff), push routes; web
+    unit suite 202 green. Checked in the browser with the P4 Playwright walkthrough.
