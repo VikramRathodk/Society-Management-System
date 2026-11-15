@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 // "I have read and accept", by one person, against the version that asked for it: the latest published
 // version marked as a material change. Later minor versions keep counting it.
@@ -23,8 +24,9 @@ class PolicyAcknowledgement(
     @Column(name = "flat_id")
     var flatId: Long?,
 
+    // To the microsecond, as Postgres keeps it, so the first answer matches every later read.
     @Column(name = "acknowledged_at", nullable = false)
-    var acknowledgedAt: Instant = Instant.now(),
+    var acknowledgedAt: Instant = Instant.now().truncatedTo(ChronoUnit.MICROS),
 ) {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
