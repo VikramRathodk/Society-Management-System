@@ -200,3 +200,30 @@ Each step ends with the suite passing and its own commit.
   - Voting responses now include `yourFlats [{id, label "B-201", voted}]` so an owner of several flats
     can choose which flat they're voting for.
   - Tests: `MinutesIntegrationTest` (9).
+
+- **G4 done (2026-11-15, web `feature/governance` 5c99634).** `/meetings` (Meetings in the side nav for
+  holders of MEETING.VIEW or COMMITTEE.VIEW): upcoming / past / drafts, kind filter, date tiles, "Vote
+  now" and RSVP badges. `/meetings/new` and `/meetings/:id/edit`: kind, date and time, place and/or
+  link, notes, agenda items (reorder, remove) with optional resolutions; unsaved-changes guard.
+  `/meetings/:id`: agenda with resolutions, proposer/seconder, turnout, results once closed, Vote (a
+  dialog with the flat to vote for when the member has several; secret and final), open/close voting
+  and defer for the secretary; when and where, notice and short-notice reason, quorum, chairperson;
+  RSVP; organiser actions (send notice — asks for a reason when short —, edit, delete draft, cancel,
+  adjourn, mark held, attendance); minutes (read, edit, submit, approve or send back — never the
+  drafter —, corrections, post on the notice board, signed copy). `/meetings/:id/attendance`: tick who is
+  present, live quorum. `/meetings/:id/minutes`: editor with preview, prefilled from the agenda,
+  attendance and results; signed copy upload. `/resolutions`: the register with search and outcome
+  filter. Dashboard cards "Next meeting" and "Resolutions to vote on"; palette action "New meeting";
+  pushes open the meeting. Unit tests: API, minutes template and helpers, push routes (web suite 210).
+  Checked in the browser with a throwaway Playwright walkthrough (not committed).
+- **G5 done (2026-11-15).** Postman folder **21. Meetings & governance** (50 requests; Cleanup is now
+  22): creates its own chairman and member, plans an AGM a few minutes ahead so it can be held in the
+  run, short notice with a reason, RSVP, a committee meeting hidden from members, adjourned and
+  cancelled, a deleted draft, attendance with quorum, held, secret e-vote (final, no running totals),
+  defer, the register, minutes through send-back, approval by the chairman (the drafter refused),
+  correction and notice-board announcement; quorum settings restored at the end. Folders 1–6 + 21:
+  119/119; full collection 636/637 (the one failure is the existing Cleanup "Delete the test resident",
+  caused by folder 16 invitations).
+  - Fixed while running it (9914230): `MeetingAudience` reads members and invitees in a transaction —
+    the running app failed with a lazy-loading error that the `@Transactional` tests can't show.
+- **Module 26 done.** Not merged.
