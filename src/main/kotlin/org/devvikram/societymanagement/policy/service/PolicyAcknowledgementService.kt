@@ -52,7 +52,8 @@ data class AcknowledgementReport(
 ) {
     val doneFlats: Int get() = flats.count { it.done }
     val pendingFlats: Int get() = flats.size - doneFlats
-    val people: Int get() = flats.sumOf { f -> f.members.count { it.acknowledgedAt != null } }
+    // Distinct people: an owner of two flats counts once.
+    val people: Int get() = flats.flatMap { f -> f.members.filter { it.acknowledgedAt != null }.map { it.member.userId } }.toSet().size
 }
 
 data class ReminderResult(val reminded: Int, val skipped: Int)
@@ -89,6 +90,7 @@ class PolicyAcknowledgementService(
 
     // When the caller acknowledged each policy's current text (absent: not yet). Only policies that ask
     // for it; empty for a caller without a flat in the society.
+    @Transactional(readOnly = true)
     fun acknowledgedAt(details: List<PolicyDetails>, access: Access, societyId: Long): Map<Long, Instant?>? {
         if (ownFlats(access, societyId).isEmpty()) return null
         val asking = details.mapNotNull { d -> d.acknowledgementVersion?.let { d.policy.id!! to it.id!! } }.toMap()
@@ -97,12 +99,15 @@ class PolicyAcknowledgementService(
     }
 
     // Published policies the caller still has to acknowledge.
+    @Transactional(readOnly = true)
     fun pendingFor(societyId: Long, access: Access): List<PolicyDetails> {
         val published = policyService.list(societyId, PolicyFilter.PUBLISHED, null, null, readerOf(access))
         val state = acknowledgedAt(published, access, societyId) ?: return emptyList()
         return published.filter { it.policy.id in state && state[it.policy.id] == null }
     }
 
+    // In a transaction: members and flats are read through lazy associations.
+    @Transactional(readOnly = true)
     fun report(policyId: Long): AcknowledgementReport {
         val details = policyService.details(policyId, PolicyActor(0, canDraft = false, canApprove = false))
         val basis = askingVersion(details)

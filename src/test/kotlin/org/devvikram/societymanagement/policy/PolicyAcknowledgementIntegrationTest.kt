@@ -206,6 +206,20 @@ class PolicyAcknowledgementIntegrationTest {
     }
 
     @Test
+    fun `an owner of two flats accepts once for both, and counts as one person`() {
+        val f104 = flatService.addFlat(wingService.listBySociety(societyId).single().id!!, "105").id!!
+        userService.assignRole(owner103.id!!, AssignRoleCommand("RESIDENT", societyId, f104, ResidentType.OWNER))
+        val (policyId, versionId) = publishedPolicy()
+        currentPolicy = policyId
+        acknowledge(owner103, versionId).andExpect(status().isOk)
+
+        report("done")
+            .andExpect(jsonPath("$.doneFlats").value(2))
+            .andExpect(jsonPath("$.people").value(1))
+            .andExpect(jsonPath("$.flats[*].flatNumber").value(org.hamcrest.Matchers.contains("103", "105")))
+    }
+
+    @Test
     fun `a minor change keeps acknowledgements, a material one asks again`() {
         val (policyId, firstVersion) = publishedPolicy()
         currentPolicy = policyId
