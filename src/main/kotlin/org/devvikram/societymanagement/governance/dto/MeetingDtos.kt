@@ -5,10 +5,16 @@ import jakarta.validation.constraints.NotNull
 import org.devvikram.societymanagement.governance.model.AgendaItem
 import org.devvikram.societymanagement.governance.model.MeetingKind
 import org.devvikram.societymanagement.governance.model.MeetingStatus
+import org.devvikram.societymanagement.governance.model.Outcome
 import org.devvikram.societymanagement.governance.model.RsvpResponse
+import org.devvikram.societymanagement.governance.model.VoteChoice
+import org.devvikram.societymanagement.governance.model.VotingStatus
 import org.devvikram.societymanagement.governance.service.AgendaInput
+import org.devvikram.societymanagement.governance.service.AttendanceSheet
+import org.devvikram.societymanagement.governance.service.ItemState
 import org.devvikram.societymanagement.governance.service.MeetingDetails
 import org.devvikram.societymanagement.governance.service.MeetingInput
+import org.devvikram.societymanagement.governance.service.RegisterEntry
 import org.devvikram.societymanagement.governance.service.RsvpSummary
 import java.time.Instant
 
@@ -54,15 +60,47 @@ data class RsvpRequest(@field:NotNull val response: RsvpResponse?)
 
 data class PersonRef(val id: Long, val name: String?)
 
+data class VoteResults(val votesFor: Int, val votesAgainst: Int, val abstained: Int)
+
 data class AgendaItemResponse(
     val id: Long,
     val position: Int,
     val title: String,
     val description: String?,
     val resolutionText: String?,
+    val proposedBy: PersonRef?,
+    val secondedBy: PersonRef?,
+    val votingStatus: VotingStatus,
+    val outcome: Outcome?,
+    val resolutionNumber: String?,
+    // Ballots cast so far, out of `electorate` (member flats or committee members).
+    val turnout: Int,
+    // Only once voting has closed: the ballot is secret and running totals aren't shown.
+    val results: VoteResults?,
+    // The caller has voted (for every flat they vote for).
+    val youVoted: Boolean,
+    val canVote: Boolean,
+    // How many flats the caller votes for (more than one: they choose which when voting).
+    val yourVotes: Int,
 ) {
     companion object {
-        fun from(item: AgendaItem) = AgendaItemResponse(item.id!!, item.position, item.title, item.description, item.resolutionText)
+        fun from(item: AgendaItem, state: ItemState?, names: Map<Long, String>) = AgendaItemResponse(
+            id = item.id!!,
+            position = item.position,
+            title = item.title,
+            description = item.description,
+            resolutionText = item.resolutionText,
+            proposedBy = item.proposedBy?.let { PersonRef(it, names[it]) },
+            secondedBy = item.secondedBy?.let { PersonRef(it, names[it]) },
+            votingStatus = item.votingStatus,
+            outcome = item.outcome,
+            resolutionNumber = item.resolutionNumber,
+            turnout = state?.turnout ?: 0,
+            results = if (item.votingStatus == VotingStatus.CLOSED) VoteResults(item.votesFor, item.votesAgainst, item.votesAbstain) else null,
+            youVoted = state != null && state.voterKeys.isNotEmpty() && state.votedAs.size == state.voterKeys.size,
+            canVote = state?.canVote ?: false,
+            yourVotes = state?.voterKeys?.size ?: 0,
+        )
     }
 }
 
@@ -96,9 +134,22 @@ data class MeetingResponse(
     val rsvpCounts: RsvpCounts?,
     val createdBy: PersonRef,
     val createdAt: Instant,
+    val heldAt: Instant?,
+    val chairperson: PersonRef?,
+    // Member flats (general meetings) or committee members who may vote.
+    val electorate: Int,
+    // Frozen once held: the quorum needed and how many were present.
+    val quorumRequired: Int?,
+    val quorumPresent: Int?,
 ) {
     companion object {
-        fun from(d: MeetingDetails, names: Map<Long, String>, rsvps: RsvpSummary?): MeetingResponse {
+        fun from(
+            d: MeetingDetails,
+            names: Map<Long, String>,
+            rsvps: RsvpSummary?,
+            states: Map<Long, ItemState> = emptyMap(),
+            electorate: Int = 0,
+        ): MeetingResponse {
             val m = d.meeting
             return MeetingResponse(
                 id = m.id!!,
@@ -111,7 +162,7 @@ data class MeetingResponse(
                 place = m.place,
                 onlineLink = m.onlineLink,
                 status = m.status,
-                agenda = d.agenda.map(AgendaItemResponse::from),
+                agenda = d.agenda.map { AgendaItemResponse.from(it, states[it.id], names) },
                 noticeDays = d.noticeDays,
                 noticeSentAt = m.noticeSentAt,
                 noticeSentBy = m.noticeSentBy?.let { PersonRef(it, names[it]) },
@@ -126,6 +177,11 @@ data class MeetingResponse(
                 rsvpCounts = rsvps?.let { RsvpCounts(it.yes, it.no, it.maybe) },
                 createdBy = PersonRef(m.createdBy, names[m.createdBy]),
                 createdAt = m.createdAt,
+                heldAt = m.heldAt,
+                chairperson = m.chairpersonId?.let { PersonRef(it, names[it]) },
+                electorate = electorate,
+                quorumRequired = m.quorumRequired,
+                quorumPresent = m.quorumPresent,
             )
         }
     }
@@ -134,3 +190,68 @@ data class MeetingResponse(
 data class RsvpEntryResponse(val user: PersonRef, val response: RsvpResponse, val updatedAt: Instant)
 
 data class RsvpListResponse(val yes: Int, val no: Int, val maybe: Int, val responses: List<RsvpEntryResponse>)
+
+data class AttendanceRequest(val userIds: List<Long> = emptyList())
+
+data class HoldMeetingRequest(val chairpersonId: Long? = null)
+
+data class OpenVotingRequest(val proposedBy: Long? = null, val secondedBy: Long? = null)
+
+data class VoteRequest(@field:NotNull val choice: VoteChoice?, val flatId: Long? = null)
+
+data class QuorumResponse(val members: Int, val required: Int, val present: Int, val met: Boolean)
+
+data class AttendanceRowResponse(
+    val user: PersonRef,
+    val flatIds: Set<Long>,
+    val committee: Boolean,
+    val present: Boolean,
+    val rsvp: String?,
+)
+
+data class AttendanceSheetResponse(
+    val meetingId: Long,
+    val status: MeetingStatus,
+    val quorum: QuorumResponse,
+    val people: List<AttendanceRowResponse>,
+) {
+    companion object {
+        fun from(sheet: AttendanceSheet) = AttendanceSheetResponse(
+            meetingId = sheet.meeting.id!!,
+            status = sheet.meeting.status,
+            quorum = QuorumResponse(sheet.quorum.members, sheet.quorum.required, sheet.quorum.present, sheet.quorum.met),
+            people = sheet.rows.map { AttendanceRowResponse(PersonRef(it.userId, it.name), it.flats, it.committee, it.present, it.rsvp) },
+        )
+    }
+}
+
+// A decided item in the resolutions register.
+data class ResolutionResponse(
+    val itemId: Long,
+    val resolutionNumber: String?,
+    val title: String,
+    val resolutionText: String?,
+    val outcome: Outcome,
+    val results: VoteResults?,
+    val decidedAt: Instant?,
+    val meetingId: Long,
+    val meetingKind: MeetingKind,
+    val meetingTitle: String,
+    val meetingAt: Instant,
+) {
+    companion object {
+        fun from(e: RegisterEntry) = ResolutionResponse(
+            itemId = e.item.id!!,
+            resolutionNumber = e.item.resolutionNumber,
+            title = e.item.title,
+            resolutionText = e.item.resolutionText,
+            outcome = e.item.outcome!!,
+            results = if (e.item.votingStatus == VotingStatus.CLOSED) VoteResults(e.item.votesFor, e.item.votesAgainst, e.item.votesAbstain) else null,
+            decidedAt = e.item.votingClosedAt,
+            meetingId = e.meeting.id!!,
+            meetingKind = e.meeting.kind,
+            meetingTitle = e.meeting.title,
+            meetingAt = e.meeting.scheduledAt,
+        )
+    }
+}

@@ -146,3 +146,35 @@ Each step ends with the suite passing and its own commit.
     `app.governance.reminder-interval` (default 10 minutes), reminding each announced meeting once when
     it is within its society's `meetingReminderHours` (0 = never).
   - Tests: `MeetingIntegrationTest` (11).
+
+- **G2 done (2026-11-15).** V30 adds attendance, e-voting and numbering: meeting `held_at/by`,
+  `chairperson_id`, `member_count`, `quorum_required`, `quorum_present`; agenda item proposer/seconder,
+  `voting_status`, tallies, `outcome`, `resolution_number`; tables `ballot` (who voted — never how),
+  `meeting_attendance`, `resolution_counter`; permissions `GOVERNANCE.VOTE.CREATE` (RESIDENT) and
+  `GOVERNANCE.MINUTES.CREATE` (SECRETARY and above).
+  - **Members:** a member flat is a flat with an active owner-side holder of VOTE.CREATE (owner, family
+    or no type; tenants don't make or count for a member flat). Committee members: active holders of
+    COMMITTEE.VIEW through a society-wide role.
+  - `GET|PUT /api/meetings/{id}/attendance {userIds}` (MINUTES.CREATE) — the sheet lists every invitee
+    with the flats they vote for, RSVP and presence, plus quorum `{members, required, present, met}`.
+    Recorded from the meeting's day (in the report zone) until minutes are published, also after it is
+    marked held (late arrivals). Quorum: general — member flats with someone owner-side present, required
+    = ceil(members × `generalQuorumPercent` %) capped at `generalQuorumCap` (0 = no cap); committee —
+    members present, required = ceil(members × `committeeQuorumPercent` %).
+  - `POST /api/meetings/{id}/hold {chairpersonId?}` — on or after its day; freezes member count and
+    quorum; status HELD. The chairperson must be an invitee.
+  - `POST /api/agenda-items/{id}/open-voting {proposedBy?, secondedBy?}` (an item with a resolution, the
+    meeting announced or held; proposer ≠ seconder, both invitees), `…/close-voting` (PASSED when for >
+    against, else REJECTED; a passed resolution is numbered `AGM|SGM|MC/<financial year>/<n>`, the year
+    from `financialYearStartMonth`, numbers per society, prefix and year), `…/defer` (DEFERRED, never
+    voted). Pushes `VOTING_OPEN` (those who may vote) and `VOTING_CLOSED` (invitees, with the totals).
+  - `POST /api/agenda-items/{id}/vote {choice: FOR|AGAINST|ABSTAIN, flatId?}` — one vote per member flat
+    (anyone on its owner side, first come) or per committee member; final once cast (409 again); an owner
+    of several flats votes once per flat and names `flatId` unless only one is left. The ballot row and
+    the tally move together with the meeting row locked.
+  - Each agenda item in a meeting response has `votingStatus`, `outcome`, `resolutionNumber`, proposer and
+    seconder, `turnout`, `results` (**only once closed** — no running totals), `youVoted`, `canVote`,
+    `yourVotes`; the meeting has `electorate`, `heldAt`, `chairperson`, `quorumRequired/Present`.
+  - `GET /api/societies/{id}/resolutions?q=&outcome=passed|rejected|deferred|all` — the register,
+    latest first, only meetings the viewer may see.
+  - Tests: `ProceedingsIntegrationTest` (8).

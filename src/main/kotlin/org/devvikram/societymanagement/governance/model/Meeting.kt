@@ -87,6 +87,26 @@ class Meeting(
     @Column(name = "reminder_sent_at")
     var reminderSentAt: Instant? = null
 
+    @Column(name = "held_at")
+    var heldAt: Instant? = null
+
+    @Column(name = "held_by")
+    var heldBy: Long? = null
+
+    @Column(name = "chairperson_id")
+    var chairpersonId: Long? = null
+
+    // Frozen when the meeting is marked held: member flats (general) or committee members, the quorum
+    // needed and how many of them were present.
+    @Column(name = "member_count")
+    var memberCount: Int? = null
+
+    @Column(name = "quorum_required")
+    var quorumRequired: Int? = null
+
+    @Column(name = "quorum_present")
+    var quorumPresent: Int? = null
+
     @Column(name = "updated_at")
     var updatedAt: Instant? = null
 
@@ -115,6 +135,44 @@ class AgendaItem(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null
+
+    @Column(name = "proposed_by")
+    var proposedBy: Long? = null
+
+    @Column(name = "seconded_by")
+    var secondedBy: Long? = null
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "voting_status", nullable = false)
+    var votingStatus: VotingStatus = VotingStatus.NOT_OPEN
+
+    @Column(name = "voting_opened_at")
+    var votingOpenedAt: Instant? = null
+
+    @Column(name = "voting_opened_by")
+    var votingOpenedBy: Long? = null
+
+    @Column(name = "voting_closed_at")
+    var votingClosedAt: Instant? = null
+
+    @Column(name = "voting_closed_by")
+    var votingClosedBy: Long? = null
+
+    // Counts only: which way a voter went is never stored.
+    @Column(name = "votes_for", nullable = false)
+    var votesFor: Int = 0
+
+    @Column(name = "votes_against", nullable = false)
+    var votesAgainst: Int = 0
+
+    @Column(name = "votes_abstain", nullable = false)
+    var votesAbstain: Int = 0
+
+    @Enumerated(EnumType.STRING)
+    var outcome: Outcome? = null
+
+    @Column(name = "resolution_number")
+    var resolutionNumber: String? = null
 }
 
 enum class RsvpResponse { YES, NO, MAYBE }
@@ -141,3 +199,56 @@ class MeetingRsvp(
     var id: Long? = null
 }
 
+enum class VotingStatus { NOT_OPEN, OPEN, CLOSED }
+
+// PASSED when more voted for than against (abstentions don't count); DEFERRED without a vote.
+enum class Outcome { PASSED, REJECTED, DEFERRED }
+
+enum class VoteChoice { FOR, AGAINST, ABSTAIN }
+
+// That a voter (a member flat at general meetings, a committee member at committee meetings) voted on an
+// item — not how.
+@Entity
+@Table(name = "ballot")
+class Ballot(
+    @Column(name = "agenda_item_id", nullable = false)
+    var agendaItemId: Long,
+
+    // "F<flat id>" or "U<user id>".
+    @Column(name = "voter_key", nullable = false)
+    var voterKey: String,
+
+    @Column(name = "flat_id")
+    var flatId: Long?,
+
+    @Column(name = "voted_by", nullable = false)
+    var votedBy: Long,
+
+    @Column(name = "voted_at", nullable = false)
+    var votedAt: Instant,
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
+}
+
+// Someone present at a meeting.
+@Entity
+@Table(name = "meeting_attendance")
+class Attendance(
+    @Column(name = "meeting_id", nullable = false)
+    var meetingId: Long,
+
+    @Column(name = "user_id", nullable = false)
+    var userId: Long,
+
+    @Column(name = "recorded_by", nullable = false)
+    var recordedBy: Long,
+
+    @Column(name = "recorded_at", nullable = false)
+    var recordedAt: Instant,
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
+}

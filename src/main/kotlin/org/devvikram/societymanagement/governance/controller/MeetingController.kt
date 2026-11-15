@@ -19,6 +19,7 @@ import org.devvikram.societymanagement.governance.service.MeetingDetails
 import org.devvikram.societymanagement.governance.service.MeetingService
 import org.devvikram.societymanagement.governance.service.MeetingView
 import org.devvikram.societymanagement.governance.service.MeetingViewer
+import org.devvikram.societymanagement.governance.service.ProceedingsService
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -40,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 class MeetingController(
     private val meetingService: MeetingService,
+    private val proceedings: ProceedingsService,
     private val accessService: AccessService,
 ) {
     @GetMapping("/api/societies/{societyId}/meetings")
@@ -53,8 +55,9 @@ class MeetingController(
             throw AccessDeniedException("Missing permission: ${Permissions.GOVERNANCE_MEETING_VIEW} for this society")
         }
         val details = meetingService.list(societyId, parseView(view), kind, viewer)
-        val names = meetingService.names(details.flatMap { listOfNotNull(it.meeting.createdBy, it.meeting.noticeSentBy) })
-        return details.map { MeetingResponse.from(it, names, rsvpsFor(it, viewer)) }
+        val names = meetingService.names(details.flatMap(::people))
+        val access = accessService.current()
+        return details.map { respond(it, names, viewer, access) }
     }
 
     @PostMapping("/api/societies/{societyId}/meetings")
@@ -139,9 +142,21 @@ class MeetingController(
 
     private fun view(id: Long, viewer: MeetingViewer): MeetingResponse {
         val details = meetingService.details(id, viewer)
-        val names = meetingService.names(listOfNotNull(details.meeting.createdBy, details.meeting.noticeSentBy))
-        return MeetingResponse.from(details, names, rsvpsFor(details, viewer))
+        return respond(details, meetingService.names(people(details)), viewer, accessService.current())
     }
+
+    private fun respond(details: MeetingDetails, names: Map<Long, String>, viewer: MeetingViewer, access: Access) =
+        MeetingResponse.from(
+            details,
+            names,
+            rsvpsFor(details, viewer),
+            proceedings.states(details.meeting, details.agenda, access),
+            proceedings.electorate(details.meeting),
+        )
+
+    private fun people(d: MeetingDetails): List<Long> =
+        listOfNotNull(d.meeting.createdBy, d.meeting.noticeSentBy, d.meeting.chairpersonId) +
+            d.agenda.flatMap { listOfNotNull(it.proposedBy, it.secondedBy) }
 
     private fun rsvpsFor(details: MeetingDetails, viewer: MeetingViewer) =
         if (viewer.organises) meetingService.rsvps(details.meeting.id!!) else null
