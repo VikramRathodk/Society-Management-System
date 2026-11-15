@@ -2,7 +2,7 @@
 
 The society's rule book: by-laws, parking, pets, renovation, move-in/move-out, amenity rules and the
 like, written by the committee, approved, published to everyone, kept with every past version, and
-(where it matters) acknowledged by residents. Planned 2026-11-15 on backend branch `feature/policy`;
+(where it matters) acknowledged by residents. Planned 2026-11-15 on backend branch `feature/policy` (on top of `feature/chairman-role`, which adds the CHAIRMAN role);
 build steps P1–P4 below.
 
 ## Today
@@ -11,7 +11,7 @@ Rules go out as notices. A notice can be edited or deleted with no trace of what
 nobody approves it, it scrolls off the board, and nobody can tell who has read it. Societies keep the
 real by-laws as a PDF in someone's mail.
 
-## Proposed decisions (to confirm, see "Open questions")
+## Decisions (product owner confirmed the proposals 2026-11-15)
 
 1. **A policy has versions.** Title and category belong to the policy; the text, an optional
    attachment (the signed PDF of the by-laws, a parking map) and the effective date belong to a
@@ -19,7 +19,7 @@ real by-laws as a PDF in someone's mail.
    until the new one is published. Every published version is kept and readable, with a change
    summary.
 2. **Approval before publishing,** switched by a per-society setting (on by default). Committee and
-   above draft and submit; secretary and above approve or send back with a reason. An approver can't
+   above draft and submit; the chairman and above approve or send back with a reason. An approver can't
    approve their own draft unless the society allows it (small committees). With approval off, the
    author publishes directly.
 3. **Publishing is like posting a notice:** everyone in the society is pushed (`POLICY_PUBLISHED`)
@@ -41,7 +41,7 @@ real by-laws as a PDF in someone's mail.
 | Read published policies and their history | everyone with a role in the society | `POLICY.RULE.VIEW` |
 | See drafts and pending versions | committee and above | `POLICY.RULE.CREATE` |
 | Draft, edit own draft, submit, withdraw | COMMITTEE and above | `POLICY.RULE.CREATE` / `UPDATE` |
-| Approve, send back, publish, archive, delete a never-published draft | SECRETARY and above | `POLICY.RULE.APPROVE` |
+| Approve, send back, publish, archive, delete a never-published draft | CHAIRMAN and above | `POLICY.RULE.APPROVE` |
 | Acknowledge | anyone with a flat role | `POLICY.ACKNOWLEDGEMENT.CREATE` |
 | See acknowledgements, remind, export | COMMITTEE and above | `POLICY.ACKNOWLEDGEMENT.VIEW` |
 | Manage categories | SECRETARY and above | `SOCIETY.SETTINGS.UPDATE` |
@@ -69,7 +69,7 @@ DRAFT ──submit──▶ PENDING ──approve──▶ PUBLISHED ──newer
 - `policy.self-approval-allowed` — default off; an approver may approve a draft they wrote.
 - `policy.acknowledgement-reminder-days` — default 7; earliest repeat reminder to the same flat.
 
-## Data (V26)
+## Data (V27)
 
 - `policy_category`: society, name, position, hidden; defaults inserted for each society (existing
   and new).
@@ -113,14 +113,14 @@ Nothing is pushed to residents while the society is in Setup (no flat roles exis
 
 | Step | What | Done when |
 |---|---|---|
-| P1 | V26, categories with defaults, policies and versions, approval workflow with the settings, publish/supersede/effective date, archive, attachment, pushes | Tests: one open version per policy; approval on/off; self-approval refused unless allowed; published versions immutable; future effective date keeps the old version in force |
+| P1 | V27, categories with defaults, policies and versions, approval workflow with the settings, publish/supersede/effective date, archive, attachment, pushes | Tests: one open version per policy; approval on/off; self-approval refused unless allowed; published versions immutable; future effective date keeps the old version in force |
 | P2 | Acknowledgements: acknowledge, per-flat report, remind with the limit, CSV, material change resets, caller's pending list | Tests: duplicate acknowledge harmless; minor version keeps acknowledgements; reminder limit; only flat roles acknowledge |
 | P3 | Web: Rules page by category with search, policy page with version history and diff of text, editor with attachment, approvals queue, acknowledge banner + dashboard tile, acknowledgement report, categories and settings | Unit tests, build |
 | P4 | Postman folder, Playwright e2e (draft → approve → publish → acknowledge → new material version), docs | Full Postman run; e2e green |
 
 Each step ends with the suite passing and its own commit.
 
-## Open questions
+## Answered questions (2026-11-15: all as proposed)
 
 1. **Approval:** is one approver (secretary or above) enough, or should some policies (by-laws) need
    more than one, e.g. secretary *and* chairman, or a committee vote? Proposed: one approver now;
@@ -133,3 +133,33 @@ Each step ends with the suite passing and its own commit.
    push and a "New / updated" badge on the Rules page are enough; no notice.
 5. **Fines for breaking a rule** (link a rule to a maintenance charge head)? Proposed: out of scope
    for this module; revisit with violations / incidents (module 21).
+
+## Progress
+
+- **P1 done (2026-11-15).** V27 adds every table of the module (acknowledgement and reminder tables are
+  used from P2), the six permissions and the "Rules & policies" settings group (`policyApprovalRequired`,
+  `policySelfApprovalAllowed`, `policyReminderDays`). Built differently from the plan above:
+  - **Approvers are CHAIRMAN and above** (`POLICY.RULE.APPROVE` on CHAIRMAN; SECRETARY and ADMIN inherit
+    it), using the role added on `feature/chairman-role`. Drafting is COMMITTEE and above; reading is
+    RESIDENT and GUARD (and everyone above).
+  - Approving publishes: there is no separate publish after approval. `POST …/publish` is only for a
+    society with approval off (it also publishes a version submitted before approval was turned off).
+  - A draft is saved whole: `PUT /api/policy-versions/{id}` `{body, changeSummary, effectiveFrom,
+    materialChange}` (effectiveFrom null = the day it is published). `DELETE /api/policy-versions/{id}`
+    drops a draft; for a never-published policy that deletes the policy.
+  - Attachment: `PUT|DELETE|GET /api/policy-versions/{id}/attachment` (one file per version, PDF or
+    image, 5 MB). A new version starts with its own copy of the current file.
+  - List: `GET /api/societies/{id}/policies?filter=published|archived|drafts|awaiting-approval&categoryId=&q=`
+    (drafts and awaiting-approval for drafters only; `q` matches every word of the title), ordered by
+    category then title. Each row has `currentVersion`, `inForceVersion` and `takesEffectOn` when a
+    published change starts later.
+  - Who may: the author or an approver edits, attaches to or drops a draft; only the author submits or
+    withdraws; before the first publication the author or an approver renames, recategorises or deletes
+    the policy, after it approvers only. An archived policy takes no new version or publication until
+    restored. A never-published policy answers 404 to everyone but drafters.
+  - Categories: `GET|POST /api/societies/{id}/policy-categories`, `PATCH /api/policy-categories/{id}`
+    `{name?, position?, hidden?}`; the eleven defaults are added the first time a society's categories
+    are read; names are unique ignoring case; a hidden category can't be chosen for a policy.
+  - Pushes after commit: `POLICY_SUBMITTED` (approvers), `POLICY_SENT_BACK` and `POLICY_APPROVED`
+    (author), `POLICY_PUBLISHED` (everyone in the society but the publisher and author).
+  - Tests: `PolicyIntegrationTest` (18).
