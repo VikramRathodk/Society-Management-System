@@ -22,6 +22,8 @@ data class AgendaItemRequest(
     @field:NotBlank val title: String?,
     val description: String? = null,
     val resolutionText: String? = null,
+    // A policy of the society the resolution refers to.
+    val policyId: Long? = null,
 )
 
 // Create a meeting, or replace a draft whole.
@@ -41,7 +43,7 @@ data class MeetingRequest(
         scheduledAt = scheduledAt!!,
         place = place,
         onlineLink = onlineLink,
-        agenda = agenda.map { AgendaInput(it.title ?: "", it.description, it.resolutionText) },
+        agenda = agenda.map { AgendaInput(it.title ?: "", it.description, it.resolutionText, it.policyId) },
     )
 }
 
@@ -82,9 +84,13 @@ data class AgendaItemResponse(
     val canVote: Boolean,
     // How many flats the caller votes for (more than one: they choose which when voting).
     val yourVotes: Int,
+    // General meetings: the caller's flats, labelled, and whether each has voted.
+    val yourFlats: List<VoterFlatResponse>,
+    // The policy the resolution refers to, if any.
+    val policy: PolicyRef?,
 ) {
     companion object {
-        fun from(item: AgendaItem, state: ItemState?, names: Map<Long, String>) = AgendaItemResponse(
+        fun from(item: AgendaItem, state: ItemState?, names: Map<Long, String>, policies: Map<Long, String> = emptyMap()) = AgendaItemResponse(
             id = item.id!!,
             position = item.position,
             title = item.title,
@@ -100,6 +106,8 @@ data class AgendaItemResponse(
             youVoted = state != null && state.voterKeys.isNotEmpty() && state.votedAs.size == state.voterKeys.size,
             canVote = state?.canVote ?: false,
             yourVotes = state?.voterKeys?.size ?: 0,
+            yourFlats = state?.flats.orEmpty().map { VoterFlatResponse(it.id, it.label, it.voted) },
+            policy = item.policyId?.let { PolicyRef(it, policies[it]) },
         )
     }
 }
@@ -149,6 +157,7 @@ data class MeetingResponse(
             rsvps: RsvpSummary?,
             states: Map<Long, ItemState> = emptyMap(),
             electorate: Int = 0,
+            policies: Map<Long, String> = emptyMap(),
         ): MeetingResponse {
             val m = d.meeting
             return MeetingResponse(
@@ -162,7 +171,7 @@ data class MeetingResponse(
                 place = m.place,
                 onlineLink = m.onlineLink,
                 status = m.status,
-                agenda = d.agenda.map { AgendaItemResponse.from(it, states[it.id], names) },
+                agenda = d.agenda.map { AgendaItemResponse.from(it, states[it.id], names, policies) },
                 noticeDays = d.noticeDays,
                 noticeSentAt = m.noticeSentAt,
                 noticeSentBy = m.noticeSentBy?.let { PersonRef(it, names[it]) },
@@ -255,3 +264,7 @@ data class ResolutionResponse(
         )
     }
 }
+
+data class VoterFlatResponse(val id: Long, val label: String, val voted: Boolean)
+
+data class PolicyRef(val id: Long, val title: String?)

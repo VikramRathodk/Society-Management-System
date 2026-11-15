@@ -173,6 +173,10 @@ class AgendaItem(
 
     @Column(name = "resolution_number")
     var resolutionNumber: String? = null
+
+    // A policy the resolution refers to ("adopts version 3 of the Parking rules"): a reference only.
+    @Column(name = "policy_id")
+    var policyId: Long? = null
 }
 
 enum class RsvpResponse { YES, NO, MAYBE }

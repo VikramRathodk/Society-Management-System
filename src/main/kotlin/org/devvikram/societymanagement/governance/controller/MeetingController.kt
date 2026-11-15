@@ -20,6 +20,7 @@ import org.devvikram.societymanagement.governance.service.MeetingService
 import org.devvikram.societymanagement.governance.service.MeetingView
 import org.devvikram.societymanagement.governance.service.MeetingViewer
 import org.devvikram.societymanagement.governance.service.ProceedingsService
+import org.devvikram.societymanagement.policy.service.PolicyService
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -42,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController
 class MeetingController(
     private val meetingService: MeetingService,
     private val proceedings: ProceedingsService,
+    private val policyService: PolicyService,
     private val accessService: AccessService,
 ) {
     @GetMapping("/api/societies/{societyId}/meetings")
@@ -152,6 +154,8 @@ class MeetingController(
             rsvpsFor(details, viewer),
             proceedings.states(details.meeting, details.agenda, access),
             proceedings.electorate(details.meeting),
+            details.agenda.mapNotNull { it.policyId }.distinct()
+                .mapNotNull { id -> runCatching { id to policyService.get(id).title }.getOrNull() }.toMap(),
         )
 
     private fun people(d: MeetingDetails): List<Long> =

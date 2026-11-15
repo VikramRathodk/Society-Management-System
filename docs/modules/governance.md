@@ -178,3 +178,25 @@ Each step ends with the suite passing and its own commit.
   - `GET /api/societies/{id}/resolutions?q=&outcome=passed|rejected|deferred|all` — the register,
     latest first, only meetings the viewer may see.
   - Tests: `ProceedingsIntegrationTest` (8).
+
+- **G3 done (2026-11-15).** V31 adds `meeting_minutes` (one per meeting), `minutes_addendum`,
+  `agenda_item.policy_id` and `GOVERNANCE.MINUTES.APPROVE` (CHAIRMAN, so SECRETARY and ADMIN too).
+  `governance` may now use `notice` and `policy`.
+  - `GET|PUT /api/meetings/{id}/minutes {body}` — SECRETARY and above (MINUTES.CREATE) write the draft
+    of a **held** meeting (the first save starts the minutes); `PUT|DELETE|GET …/minutes/attachment`
+    (signed copy: PDF or image, 5 MB). Drafts and pending minutes are visible only to MINUTES.CREATE
+    and MINUTES.APPROVE holders; published minutes to whoever sees the meeting (committee meeting
+    minutes stay with the committee). Otherwise 404.
+  - `POST …/minutes/submit` (text or an attachment needed) → PENDING, push `MINUTES_SUBMITTED` to
+    approvers; `…/send-back {reason}` → DRAFT with the reason, push `MINUTES_SENT_BACK` to the drafter;
+    `…/approve` by a MINUTES.APPROVE holder **who isn't the drafter** (a secretary who drafted needs the
+    chairman or an admin) → PUBLISHED, the meeting becomes MINUTES_PUBLISHED (attendance and voting
+    close), push `MINUTES_PUBLISHED` to whoever sees the meeting.
+  - Published minutes are never edited: `POST …/minutes/addenda {text}` adds a dated correction.
+  - `POST …/minutes/announce` posts "Minutes published: <title>" on the notice board (general meetings,
+    once; the notice id is kept).
+  - Agenda items take `policyId` (one of the society's policies, else 400); responses show
+    `policy {id, title}`. A reference only: nothing is approved or published by it.
+  - Voting responses now include `yourFlats [{id, label "B-201", voted}]` so an owner of several flats
+    can choose which flat they're voting for.
+  - Tests: `MinutesIntegrationTest` (9).

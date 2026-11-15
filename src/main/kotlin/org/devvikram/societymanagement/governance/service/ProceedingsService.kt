@@ -17,6 +17,7 @@ import org.devvikram.societymanagement.governance.repository.BallotRepository
 import org.devvikram.societymanagement.governance.repository.MeetingRepository
 import org.devvikram.societymanagement.governance.repository.ResolutionCounter
 import org.devvikram.societymanagement.governance.repository.RsvpRepository
+import org.devvikram.societymanagement.society.repository.FlatRepository
 import org.devvikram.societymanagement.society.service.SocietySettingKeys
 import org.devvikram.societymanagement.society.service.SocietySettingsService
 import org.springframework.beans.factory.annotation.Value
@@ -51,7 +52,16 @@ data class AttendanceSheet(val meeting: Meeting, val rows: List<SheetRow>, val q
 
 // Per item, what the viewer sees: turnout always, totals only once closed (in the item itself), and
 // whether they have voted / can vote.
-data class ItemState(val turnout: Int, val votedAs: Set<String>, val canVote: Boolean, val voterKeys: Set<String>)
+data class ItemState(
+    val turnout: Int,
+    val votedAs: Set<String>,
+    val canVote: Boolean,
+    val voterKeys: Set<String>,
+    // General meetings: the flats the viewer votes for, labelled, and whether each has voted.
+    val flats: List<VoterFlat> = emptyList(),
+)
+
+data class VoterFlat(val id: Long, val label: String, val voted: Boolean)
 
 data class RegisterEntry(val meeting: Meeting, val item: AgendaItem)
 
@@ -65,6 +75,7 @@ class ProceedingsService(
     private val ballotRepository: BallotRepository,
     private val rsvpRepository: RsvpRepository,
     private val counter: ResolutionCounter,
+    private val flatRepository: FlatRepository,
     private val audience: MeetingAudience,
     private val settings: SocietySettingsService,
     private val events: ApplicationEventPublisher,
@@ -238,6 +249,11 @@ class ProceedingsService(
     fun states(meeting: Meeting, items: List<AgendaItem>, access: Access): Map<Long, ItemState> {
         val ballots = ballotRepository.findByItems(items.mapNotNull { it.id }).groupBy { it.agendaItemId }
         val keys = voterKeys(meeting, access)
+        val labels = if (meeting.kind.general && keys.isNotEmpty()) {
+            flatRepository.findBySocietyId(meeting.societyId).associate { it.id!! to "${it.wing.name}-${it.flatNumber}" }
+        } else {
+            emptyMap()
+        }
         return items.associate { item ->
             val cast = ballots[item.id].orEmpty().map { it.voterKey }.toSet()
             val mine = keys intersect cast
@@ -246,6 +262,10 @@ class ProceedingsService(
                 votedAs = mine,
                 canVote = item.votingStatus == VotingStatus.OPEN && (keys - cast).isNotEmpty(),
                 voterKeys = keys,
+                flats = keys.filter { it.startsWith("F") }.map { key ->
+                    val id = key.substring(1).toLong()
+                    VoterFlat(id, labels[id] ?: "Flat $id", key in cast)
+                }.sortedBy { it.label },
             )
         }
     }

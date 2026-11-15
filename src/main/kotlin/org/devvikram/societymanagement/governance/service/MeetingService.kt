@@ -10,6 +10,7 @@ import org.devvikram.societymanagement.governance.model.RsvpResponse
 import org.devvikram.societymanagement.governance.repository.AgendaRepository
 import org.devvikram.societymanagement.governance.repository.MeetingRepository
 import org.devvikram.societymanagement.governance.repository.RsvpRepository
+import org.devvikram.societymanagement.policy.service.PolicyService
 import org.devvikram.societymanagement.society.service.SocietyService
 import org.devvikram.societymanagement.society.service.SocietySettingKeys
 import org.devvikram.societymanagement.society.service.SocietySettingsService
@@ -44,7 +45,12 @@ data class MeetingViewer(
         if (meeting.status == MeetingStatus.DRAFT) organises else organises || invitedTo(meeting.kind)
 }
 
-data class AgendaInput(val title: String, val description: String? = null, val resolutionText: String? = null)
+data class AgendaInput(
+    val title: String,
+    val description: String? = null,
+    val resolutionText: String? = null,
+    val policyId: Long? = null,
+)
 
 // The whole editable meeting (replaced together while it is a draft).
 data class MeetingInput(
@@ -79,6 +85,7 @@ class MeetingService(
     private val societyService: SocietyService,
     private val settings: SocietySettingsService,
     private val userRepository: UserRepository,
+    private val policyService: PolicyService,
     private val events: ApplicationEventPublisher,
     private val clock: Clock,
     @Value("\${app.report.zone}") private val zone: ZoneId,
@@ -91,6 +98,7 @@ class MeetingService(
     fun create(societyId: Long, input: MeetingInput, userId: Long): Long {
         societyService.getById(societyId)
         validate(input)
+        checkPolicies(societyId, input.agenda)
         val meeting = meetingRepository.save(
             Meeting(
                 societyId = societyId,
@@ -113,6 +121,7 @@ class MeetingService(
         val meeting = lock(meetingId)
         requireDraft(meeting, "A meeting can be edited only until its notice is sent; adjourn or cancel it instead")
         validate(input)
+        checkPolicies(meeting.societyId, input.agenda)
         meeting.kind = input.kind
         meeting.title = input.title.trim()
         meeting.description = clean(input.description)
@@ -201,7 +210,9 @@ class MeetingService(
         )
         agendaRepository.replace(
             next.id!!,
-            agendaRepository.findByMeeting(meetingId).map { AgendaItem(next.id!!, it.position, it.title, it.description, it.resolutionText) },
+            agendaRepository.findByMeeting(meetingId).map {
+                AgendaItem(next.id!!, it.position, it.title, it.description, it.resolutionText).apply { policyId = it.policyId }
+            },
         )
         meeting.status = MeetingStatus.ADJOURNED
         meeting.adjournedToId = next.id
@@ -371,7 +382,15 @@ class MeetingService(
     }
 
     private fun agendaOf(meetingId: Long, items: List<AgendaInput>) = items.mapIndexed { i, it ->
-        AgendaItem(meetingId, i + 1, it.title.trim(), clean(it.description), clean(it.resolutionText))
+        AgendaItem(meetingId, i + 1, it.title.trim(), clean(it.description), clean(it.resolutionText)).apply { policyId = it.policyId }
+    }
+
+    // Policies referred to must be the society's own.
+    private fun checkPolicies(societyId: Long, items: List<AgendaInput>) {
+        items.mapNotNull { it.policyId }.distinct().forEach { id ->
+            val policy = runCatching { policyService.get(id) }.getOrNull()
+            require(policy != null && policy.societyId == societyId) { "Policy $id is not one of this society's" }
+        }
     }
 
     private fun clean(text: String?): String? = text?.trim()?.ifEmpty { null }
