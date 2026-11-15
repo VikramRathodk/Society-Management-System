@@ -213,3 +213,19 @@ Each step ends with the suite passing and its own commit.
   - The settings page shows the "Rules & policies" settings group with no web change.
   - Tests: `policy.api.spec.ts`, `policy-ui.spec.ts` (text parsing, line diff), push routes; web
     unit suite 202 green. Checked in the browser with the P4 Playwright walkthrough.
+
+- **P4 done (2026-11-15).** Postman folder **20. Rules & policies** (68 requests; Cleanup is now 21).
+  Creates its own CHAIRMAN (the approver) and a resident on a new flat and leaves them behind, since
+  published policies are history. Covers categories (defaults, add, duplicate, hide), drafting,
+  permissions (resident 403s, hidden category 400), send back and resubmit, the secretary unable to
+  approve their own draft, approve, the rules page and pending list, accepting (twice keeps the first
+  time; a guard can't), the per-flat report, remind (then nothing to remind), CSV, a minor version
+  that keeps acceptances, a material one 10 days ahead (in force stays on v2, resident asked again,
+  old version refused), a backdated change refused, discard, rename, archive/restore, publishing
+  with approval off, deleting a never-published draft. Attachments are not in the run.
+  - Folders 1–6 + 20: 144/144 assertions. Full collection: 554/555; the one failure is in Cleanup
+    ("Delete the test resident" gets 409 because that resident sent invitations in folder 16), not
+    from this module.
+  - Fixed while running it: acknowledgement times are kept to the microsecond, so accepting twice
+    answers with exactly the first time.
+  - No Playwright spec committed in this step (the product owner chose Postman only).
