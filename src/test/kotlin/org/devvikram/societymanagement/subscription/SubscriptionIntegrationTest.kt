@@ -35,7 +35,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 // Plans and subscriptions with platform billing switched on. Real local Postgres, rolled back after each test.
-@SpringBootTest(properties = ["app.billing.enabled=true"])
+@SpringBootTest(properties = ["app.billing.enabled=true", "app.billing.platform-gstin=27ABCDE1234F1Z5", "app.billing.state=Maharashtra"])
 @AutoConfigureMockMvc
 @Transactional
 class SubscriptionIntegrationTest {

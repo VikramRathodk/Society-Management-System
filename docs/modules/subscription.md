@@ -154,7 +154,26 @@ for the sending domain.
   - A period's charge: monthly max(flats × per-flat monthly, minimum); yearly max(flats × per-flat yearly,
     12 × minimum).
   - Tests: `SubscriptionIntegrationTest` (8, with billing switched on).
-- **Next:** S2 invoices (GST split by state, numbering per year, discount, credit notes, manual payments,
-  printable invoice) — no accounts needed; S3 Razorpay and S4 email need a Razorpay test account and an
+- **S2 done (2026-11-15).** V33 adds `platform_invoice` (everything printed frozen at issue: plan, rate,
+  minimum, flats, discount, taxable value, CGST/SGST/IGST, total, society name/address/state, platform
+  GSTIN), `platform_payment` (receipts; `gateway_payment_id` unique for S3), `platform_credit_note`,
+  `platform_counter` (numbers per kind and April–March year).
+  - `POST /api/societies/{id}/subscription/invoices/issue-due` (platform) issues the next period's invoice
+    once it is due (204 if not yet): period = next invoice date … + 1 month/year − 1 day; a pending plan
+    or cycle applies now; a discount applies and counts down; a trial becomes ACTIVE; due in
+    `app.billing.invoice-due-days` (15). One invoice per subscription period (unique index).
+  - GST: with `app.billing.platform-gstin` set, `app.billing.gst-percent` (18) split CGST + SGST when the
+    society's state equals `app.billing.state`, IGST otherwise; without a GSTIN, no tax.
+  - Numbers: `SAH/2026-27/0042` (invoices), `SAH-R/…` (receipts), `SAH-CN/…` (credit notes); prefix
+    `app.billing.number-prefix`.
+  - `POST /api/platform-invoices/{id}/payments {amount, mode: BANK_TRANSFER|UPI|CHEQUE|CASH, reference?,
+    paidOn?}` (at most the balance, not in the future) and `…/credit-notes {amount, reason}`; status
+    ISSUED → PARTLY_PAID → PAID. A PAST_DUE or SUSPENDED society with nothing overdue left becomes ACTIVE.
+  - `GET /api/societies/{id}/subscription/invoices` (the society), `GET /api/platform/invoices?status=&overdue=`
+    (platform), `GET /api/platform-invoices/{id}` (either; everything for a printable invoice, with the
+    seller's legal name, GSTIN, address and state).
+  - Pushes `PLATFORM_INVOICE` and `PLATFORM_PAYMENT` to the billing contact, or else SECRETARY and above.
+  - Tests: `InvoiceIntegrationTest` (7).
+- **Next:** S3 Razorpay and S4 email need a Razorpay test account and an
   SMTP account; then S5 daily run and suspension, S6 module enforcement (`SubscriptionService.modulesOf`
   is ready), S7 web, S8 Postman.
