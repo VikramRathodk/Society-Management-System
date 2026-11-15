@@ -43,7 +43,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 23 | Communication | — | — | In-app chat/messaging is out of MVP scope. |
 | 24 | Rules & Policies | `policy` | ✅ | Built 2026-11-15 on `feature/policy` (V27): categories, versioned policies with approval by the chairman and above, publish with push, effective dates, archive, attachment. P2 acknowledgements, per-flat report, reminders, CSV; P3 web screens; P4 Postman folder 20. See [policy](modules/policy.md). |
 | 25 | Document Management | *`document`* | — | Could build on `common/storage/PhotoStorage`. |
-| 26 | Meeting & Governance | *`governance`* | — | |
+| 26 | Meeting & Governance | *`governance`* | ⏳ | Planned 2026-11-15 on `feature/governance`: AGM/SGM/committee meetings, notices with notice periods, attendance and quorum, resolutions with votes and a register, minutes approved by the chairman. See [governance](modules/governance.md) (steps G1–G5, open questions). |
 | 27 | Notification Management | `notification` | 🟡 | Delivery only (`PushNotifier`, FCM). Each module decides who to notify. Preferences, in-app inbox and history not built. |
 | 28 | Reporting & Analytics | *`reporting`* | 🟡 | CSV exports live in `visitor` / `complaint` (shared `common/export/Csv`). Dashboard (`DASHBOARD.OVERVIEW.VIEW`) is Phase 2. |
 | 29 | Audit & Activity Logs | *`audit`* | 🟡 | Only module-local history so far (complaint timeline, `updated_by`, visitor override flag). Global audit log (`AUDIT_LOG.VIEW`) is Phase 2. |
