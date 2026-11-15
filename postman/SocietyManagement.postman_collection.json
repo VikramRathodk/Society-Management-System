@@ -294,6 +294,98 @@
     {
       "key": "onbRejectNumber",
       "value": ""
+    },
+    {
+      "key": "polChairmanPhone",
+      "value": ""
+    },
+    {
+      "key": "polChairmanId",
+      "value": ""
+    },
+    {
+      "key": "polChairmanToken",
+      "value": ""
+    },
+    {
+      "key": "polFlatNumber",
+      "value": ""
+    },
+    {
+      "key": "polFlatId",
+      "value": ""
+    },
+    {
+      "key": "polResidentPhone",
+      "value": ""
+    },
+    {
+      "key": "polResidentId",
+      "value": ""
+    },
+    {
+      "key": "polResidentToken",
+      "value": ""
+    },
+    {
+      "key": "polCategoryId",
+      "value": ""
+    },
+    {
+      "key": "polStamp",
+      "value": ""
+    },
+    {
+      "key": "polNewCategoryId",
+      "value": ""
+    },
+    {
+      "key": "policyId",
+      "value": ""
+    },
+    {
+      "key": "policyVersionId",
+      "value": ""
+    },
+    {
+      "key": "polAcknowledgedAt",
+      "value": ""
+    },
+    {
+      "key": "polReminded",
+      "value": ""
+    },
+    {
+      "key": "polLaterDate",
+      "value": ""
+    },
+    {
+      "key": "polOldVersionId",
+      "value": ""
+    },
+    {
+      "key": "polDraftVersionId",
+      "value": ""
+    },
+    {
+      "key": "polYesterday",
+      "value": ""
+    },
+    {
+      "key": "polSecondVersionId",
+      "value": ""
+    },
+    {
+      "key": "polScrapId",
+      "value": ""
+    },
+    {
+      "key": "polChairVersionId",
+      "value": ""
+    },
+    {
+      "key": "polSelfVersionId",
+      "value": ""
     }
   ],
   "item": [
@@ -11302,7 +11394,2585 @@
       ]
     },
     {
-      "name": "20. Cleanup (optional, destructive)",
+      "name": "20. Rules & policies",
+      "description": "Module 24, in the society from folders 2–5. Creates its own CHAIRMAN (the approver) and a resident on a new flat, and leaves them and the policies behind: policies are history and are never deleted once published, so cleanup could not remove those users. The secretary drafts; the chairman sends back and approves; the chairman cannot approve their own draft, while the secretary (and above, POLICY.RULE.SELF_APPROVE) approves their own straight from the draft; the resident accepts; the secretary sees who has accepted, reminds and exports; a typo fix keeps acceptances, a material change asks again, a change can take effect later; archive and restore; with approval turned off the secretary publishes directly; a never-published draft is deleted. Attachments (PUT /api/policy-versions/{id}/attachment, multipart \"file\") are not in the run.",
+      "item": [
+        {
+          "name": "Super admin creates a chairman (the approver)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chitra Chairman\",\n  \"phone\": \"{{polChairmanPhone}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"CHAIRMAN\",\n  \"societyId\": {{societyId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"polChairmanId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"polChairmanPhone\", \"7\" + Math.floor(100000000 + Math.random() * 900000000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as the chairman",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{polChairmanPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"polChairmanToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary adds a flat for this folder's resident",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flatNumber\": \"{{polFlatNumber}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/wings/{{wingId}}/flats",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"polFlatId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"polFlatNumber\", \"P\" + Math.floor(100 + Math.random() * 900));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin creates a resident (owner) of that flat",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Priya Policy\",\n  \"phone\": \"{{polResidentPhone}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"RESIDENT\",\n  \"societyId\": {{societyId}},\n  \"flatId\": {{polFlatId}},\n  \"residentType\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"polResidentId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"polResidentPhone\", \"7\" + Math.floor(100000000 + Math.random() * 900000000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as that resident",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{polResidentPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"polResidentToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary: policies need approval, no self-approval (the defaults)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyApprovalRequired\": true,\n  \"policySelfApprovalAllowed\": false,\n  \"policyReminderDays\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/settings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const group = pm.response.json().groups.find(g => g.key === \"POLICIES\");",
+                  "pm.test(\"Rules & policies settings group\", () => pm.expect(group.settings.map(s => s.key)).to.include.members([\"policyApprovalRequired\", \"policySelfApprovalAllowed\", \"policyReminderDays\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident lists categories (the defaults appear on first read)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policy-categories",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test(\"defaults include Parking and Pets\", () => pm.expect(list.map(c => c.name)).to.include.members([\"By-laws\", \"Parking\", \"Pets\", \"Other\"]));",
+                  "pm.collectionVariables.set(\"polCategoryId\", list.find(c => c.name === \"Noise & timings\").id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary adds a category",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Swimming pool {{polStamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policy-categories",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"polNewCategoryId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"polStamp\", Date.now().toString().slice(-6));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Same name again, other case → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"SWIMMING POOL {{polStamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policy-categories",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary hides the new category",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hidden\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-categories/{{polNewCategoryId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"hidden\", () => pm.expect(pm.response.json().hidden).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident cannot add a category → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gym\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policy-categories",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident cannot draft a policy → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"My rule\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A hidden category cannot be chosen → 400",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polNewCategoryId}},\n  \"title\": \"Pool timings\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts a policy residents must accept",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Quiet hours {{polStamp}}\",\n  \"requiresAcknowledgement\": true,\n  \"body\": \"# Quiet hours\\nNo loud music after 10 pm.\\n\\n- Drilling only 10 am to 6 pm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"draft, version 1, approval needed\", () => {",
+                  "    pm.expect(p.summary.status).to.eql(\"DRAFT\");",
+                  "    pm.expect(p.open.number).to.eql(1);",
+                  "    pm.expect(p.open.status).to.eql(\"DRAFT\");",
+                  "    pm.expect(p.current).to.eql(null);",
+                  "    pm.expect(p.workflow.approvalRequired).to.eql(true);",
+                  "});",
+                  "pm.collectionVariables.set(\"policyId\", p.summary.id);",
+                  "pm.collectionVariables.set(\"policyVersionId\", p.open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident cannot see the draft → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary saves the whole draft",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"# Quiet hours\\nNo loud music after 10 pm.\\n\\n- Drilling only 10 am to 6 pm\\n- Sundays: no drilling\",\n  \"changeSummary\": \"First rules\",\n  \"effectiveFrom\": null,\n  \"materialChange\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"change summary saved\", () => pm.expect(pm.response.json().open.changeSummary).to.eql(\"First rules\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary submits for approval",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"pending\", () => pm.expect(pm.response.json().open.status).to.eql(\"PENDING\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editing a submitted draft → 409 (withdraw first)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Changed\",\n  \"materialChange\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman sees it awaiting approval",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies?filter=awaiting-approval",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const id = pm.collectionVariables.get(\"policyId\");",
+                  "pm.test(\"listed\", () => pm.expect(pm.response.json().map(p => p.id)).to.include(Number(id)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident cannot list drafts → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies?filter=drafts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman sends it back with a reason",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Say what happens on festivals\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/send-back",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const o = pm.response.json().open;",
+                  "pm.test(\"back to draft with the reason\", () => {",
+                  "    pm.expect(o.status).to.eql(\"DRAFT\");",
+                  "    pm.expect(o.reviewReason).to.eql(\"Say what happens on festivals\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary edits and resubmits",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"# Quiet hours\\nNo loud music after 10 pm.\\n\\n- Drilling only 10 am to 6 pm\\n- Sundays: no drilling\\n- Festivals: until 11 pm\",\n  \"changeSummary\": \"First rules\",\n  \"materialChange\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary submits again",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman approves → published",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"active, version 1 in force\", () => {",
+                  "    pm.expect(p.summary.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(p.current.number).to.eql(1);",
+                  "    pm.expect(p.current.inForce).to.eql(true);",
+                  "    pm.expect(p.open).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman drafts a policy of their own",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Lift use {{polStamp}}\",\n  \"body\": \"No children alone in the lift.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"polChairVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman cannot approve their own draft → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary cannot approve someone else's unsubmitted draft → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman submits it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary approves the chairman's policy",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"published\", () => pm.expect(pm.response.json().summary.status).to.eql(\"ACTIVE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts a policy of their own",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Pets in lifts {{polStamp}}\",\n  \"body\": \"Pets on a leash in the lift.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"polSelfVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary approves their own draft straight away (no submission)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polSelfVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"published by the secretary, never submitted\", () => {",
+                  "    pm.expect(p.summary.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(p.current.publishedBy.id).to.eql(Number(pm.collectionVariables.get(\"secretaryId\")));",
+                  "    pm.expect(p.current.submittedAt).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident reads the rules page (asked to accept)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies?q=quiet {{polStamp}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json().find(x => x.id === Number(pm.collectionVariables.get(\"policyId\")));",
+                  "pm.test(\"listed, not accepted yet\", () => {",
+                  "    pm.expect(p.inForceVersion).to.eql(1);",
+                  "    pm.expect(p.yourAcknowledgement.version).to.eql(1);",
+                  "    pm.expect(p.yourAcknowledgement.acknowledgedAt).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident reads version 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/versions/1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"the text\", () => pm.expect(pm.response.json().body).to.include(\"Festivals\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident's policies to accept",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies/pending-acknowledgements",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"includes the policy\", () => pm.expect(pm.response.json().map(p => p.id)).to.include(Number(pm.collectionVariables.get(\"policyId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard cannot accept (no flat) → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/acknowledge",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident accepts",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/acknowledge",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"version 1\", () => pm.expect(pm.response.json().version).to.eql(1));",
+                  "pm.collectionVariables.set(\"polAcknowledgedAt\", pm.response.json().acknowledgedAt);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accepting again keeps the first time",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/acknowledge",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"same time\", () => pm.expect(pm.response.json().acknowledgedAt).to.eql(pm.collectionVariables.get(\"polAcknowledgedAt\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who has accepted (per flat)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/acknowledgements",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "const flat = r.flats.find(f => f.flatId === Number(pm.collectionVariables.get(\"polFlatId\")));",
+                  "pm.test(\"this folder's flat is done\", () => {",
+                  "    pm.expect(flat.done).to.eql(true);",
+                  "    pm.expect(r.doneFlats).to.be.at.least(1);",
+                  "    pm.expect(r.version).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident cannot see the report → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/acknowledgements",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remind flats that haven't accepted",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/acknowledgements/remind",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"the first test resident flat is still to accept\", () => pm.expect(r.reminded).to.be.at.least(1));",
+                  "pm.collectionVariables.set(\"polReminded\", r.reminded);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reminding again at once skips them all",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/acknowledgements/remind",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"none reminded twice\", () => {",
+                  "    pm.expect(pm.response.json().reminded).to.eql(0);",
+                  "    pm.expect(pm.response.json().skipped).to.eql(Number(pm.collectionVariables.get(\"polReminded\")));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export who has accepted (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/acknowledgements.csv",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"csv with a header\", () => {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/csv\");",
+                  "    pm.expect(pm.response.text().split(\"\\r\\n\")[0]).to.eql(\"Wing,Flat,Flat status,Name,Resident,Acknowledged at,Last reminded\");",
+                  "    pm.expect(pm.response.text()).to.include(\"Priya Policy\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary starts version 2 from the current text",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/versions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const o = pm.response.json().open;",
+                  "pm.test(\"version 2 draft\", () => pm.expect(o.number).to.eql(2));",
+                  "pm.collectionVariables.set(\"policyVersionId\", o.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A second change at once → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/versions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary fixes a typo (not a material change)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"# Quiet hours\\nNo loud music after 10 pm.\\n\\n- Drilling only from 10 am to 6 pm\\n- Sundays: no drilling\\n- Festivals: until 11 pm\",\n  \"changeSummary\": \"Wording\",\n  \"materialChange\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit version 2",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman approves version 2",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"v2 current, v1 replaced\", () => {",
+                  "    pm.expect(p.current.number).to.eql(2);",
+                  "    pm.expect(p.versions.find(v => v.number === 1).status).to.eql(\"SUPERSEDED\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A minor change keeps the acceptance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies/pending-acknowledgements",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"not asked again\", () => pm.expect(pm.response.json().map(p => p.id)).to.not.include(Number(pm.collectionVariables.get(\"policyId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary starts version 3",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/versions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"policyVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Version 3: stricter, from 10 days ahead (material)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"# Quiet hours\\nNo loud music after 9 pm.\",\n  \"changeSummary\": \"Quiet from 9 pm\",\n  \"effectiveFrom\": \"{{polLaterDate}}\",\n  \"materialChange\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = new Date(Date.now() + 5.5 * 3600 * 1000); // the society's day (Asia/Kolkata)",
+                  "d.setUTCDate(d.getUTCDate() + (10));",
+                  "pm.collectionVariables.set(\"polLaterDate\", d.toISOString().slice(0, 10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit version 3",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman approves version 3",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"v3 published, v2 still in force until then\", () => {",
+                  "    pm.expect(p.current.number).to.eql(3);",
+                  "    pm.expect(p.current.inForce).to.eql(false);",
+                  "    pm.expect(p.summary.inForceVersion).to.eql(2);",
+                  "    pm.expect(p.summary.takesEffectOn).to.eql(pm.collectionVariables.get(\"polLaterDate\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A material change asks the resident again",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies/pending-acknowledgements",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"asked again\", () => pm.expect(pm.response.json().map(p => p.id)).to.include(Number(pm.collectionVariables.get(\"policyId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accepting an old version → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polOldVersionId}}/acknowledge",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Look up version 2's id, which is no longer the current text.",
+                  "pm.sendRequest({",
+                  "    url: pm.collectionVariables.get(\"baseUrl\") + \"/api/policies/\" + pm.collectionVariables.get(\"policyId\"),",
+                  "    header: { Authorization: \"Bearer \" + pm.collectionVariables.get(\"polResidentToken\") },",
+                  "}, (err, res) => {",
+                  "    pm.collectionVariables.set(\"polOldVersionId\", res.json().versions.find(v => v.number === 2).id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident accepts version 3",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/acknowledge",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"counts for version 3\", () => pm.expect(pm.response.json().version).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary starts version 4",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/versions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"polDraftVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Backdated before the current text → 400 on submit",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Backdated\",\n  \"effectiveFrom\": \"{{polYesterday}}\",\n  \"materialChange\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policy-versions/{{polDraftVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = new Date(Date.now() + 5.5 * 3600 * 1000); // the society's day (Asia/Kolkata)",
+                  "d.setUTCDate(d.getUTCDate() + (-1));",
+                  "pm.collectionVariables.set(\"polYesterday\", d.toISOString().slice(0, 10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit the backdated change → 400",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polDraftVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary discards version 4",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polDraftVersionId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman renames the published policy",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Quiet hours and noise {{polStamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/policies/{{policyId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"renamed\", () => pm.expect(pm.response.json().summary.title).to.include(\"noise\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman archives it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/archive",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"archived\", () => pm.expect(pm.response.json().summary.status).to.eql(\"ARCHIVED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archived: no longer on the rules page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies?q={{polStamp}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"not listed\", () => pm.expect(pm.response.json().map(p => p.id)).to.not.include(Number(pm.collectionVariables.get(\"policyId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archived: under filter=archived",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies?filter=archived&q={{polStamp}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"listed\", () => pm.expect(pm.response.json().map(p => p.id)).to.include(Number(pm.collectionVariables.get(\"policyId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archived: no new version → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/versions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman restores it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}/restore",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"active\", () => pm.expect(pm.response.json().summary.status).to.eql(\"ACTIVE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary turns approval off",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyApprovalRequired\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/settings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts a second policy",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Gym timings {{polStamp}}\",\n  \"body\": \"Open 6 am to 10 pm.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"no approval needed\", () => pm.expect(pm.response.json().workflow.approvalRequired).to.eql(false));",
+                  "pm.collectionVariables.set(\"polSecondVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submitting without approval → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polSecondVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary publishes directly",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polSecondVersionId}}/publish",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"published by the secretary\", () => {",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.summary.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(p.current.publishedBy.id).to.eql(Number(pm.collectionVariables.get(\"secretaryId\")));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary turns approval back on",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policyApprovalRequired\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/settings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts a third policy",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Scrapped idea {{polStamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"polScrapId\", pm.response.json().summary.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary deletes it (never published)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{polScrapId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{polScrapId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A published policy cannot be deleted → 409",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/policies/{{policyId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "21. Cleanup (optional, destructive)",
       "description": "Removes everything the run created: visitor, flat, wing, the three test users, the society and the complex. Society, complex and user deletes are super-admin only and are refused (409) while history references the record.",
       "item": [
         {

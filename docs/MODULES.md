@@ -12,7 +12,7 @@ A package is created only when its module's first feature is built, and is then 
 Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints, permissions, tables):
 [auth](modules/auth.md) · [authorization](modules/authorization.md) · [user](modules/user.md) ·
 [society](modules/society.md) · [visitor](modules/visitor.md) · [notice](modules/notice.md) ·
-[complaint](modules/complaint.md) · [maintenance](modules/maintenance.md) · [finance](modules/finance.md) · [notification](modules/notification.md).
+[complaint](modules/complaint.md) · [maintenance](modules/maintenance.md) · [finance](modules/finance.md) · [policy](modules/policy.md) · [notification](modules/notification.md).
 
 **Status:** ✅ built · 🟡 partly built / folded into another module · ⏳ planned (blocked or deferred) · — not started
 
@@ -32,7 +32,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 12 | Vendor Management | *`vendor`* | — | |
 | 13 | Complaint Management | `complaint` | ✅ | M5. Flat-owned tickets, status workflow, activity timeline, CSV export, push. |
 | 14 | Maintenance Management | `maintenance` | ✅ | M7a–M7c: settings and charge heads, billing cycles, bills with frozen lines, waive, offline payments with receipts and void, late fees, opening balances, dues/defaulters reports and reminders, CSV exports, push; advance payments kept as credit and refunds of credit (V21). Web screens (dues, bills, payments and receipts, cycles, opening balances, settings) and a Postman folder. See [maintenance.md](modules/maintenance.md). |
-| 15 | Finance & Accounting | `finance` | 🟡 | Backend built, web next (plan: [finance](modules/finance.md), 6 steps). Steps 1–5 done: chart of accounts with groups, bank accounts, openings, ledgers, audit log (V19); receipts, payments, transfers, journals, approval, void by reversal, lock date, documents, day book, cash & bank summary (V20). Step 3: maintenance credit and refunds (V21). Step 4: maintenance posts to the books automatically, maintenance check. Step 5: trial balance, I&E, R&P, balance sheet, resident summary, CSV. |
+| 15 | Finance & Accounting | `finance` | ✅ | All 6 steps done, backend and web: chart of accounts with groups, bank accounts, openings, ledgers, audit log (V19); receipts, payments, transfers, journals, approval, void by reversal, lock date, documents, day book, cash & bank summary (V20); maintenance credit and refunds (V21); maintenance posts to the books automatically, maintenance check; trial balance, I&E, R&P, balance sheet, resident summary, CSV. Bank reconciliation (V22, [finance-reconciliation](modules/finance-reconciliation.md)). V1.1 upgrades on hold. See [finance](modules/finance.md). |
 | 16 | Payment Management | *`payment`* | — | Phase 2. |
 | 17 | Parking Management | *`parking`* | 🟡 | `ParkingSlot` entity sits in `society` as schema only; workflow is Phase 2. Move it out when built. |
 | 18 | Facility & Amenities | *`facility`* | — | Phase 2 (amenity/clubhouse booking). |
@@ -41,7 +41,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 21 | Incident & Emergency Management | *`incident`* | — | |
 | 22 | Notice & Announcement | `notice` | ✅ | M4. Notice board, own-post rule, moderation, push. (Was the `communication` package until 2026-10-30.) |
 | 23 | Communication | — | — | In-app chat/messaging is out of MVP scope. |
-| 24 | Rules & Policies | *`policy`* | ⏳ | Deferred until after the MVP; reuses notice publishing, approval workflow undefined. |
+| 24 | Rules & Policies | `policy` | ✅ | Built 2026-11-15 on `feature/policy` (V27): categories, versioned policies with approval by the chairman and above, publish with push, effective dates, archive, attachment. P2 acknowledgements, per-flat report, reminders, CSV; P3 web screens; P4 Postman folder 20. See [policy](modules/policy.md). |
 | 25 | Document Management | *`document`* | — | Could build on `common/storage/PhotoStorage`. |
 | 26 | Meeting & Governance | *`governance`* | — | |
 | 27 | Notification Management | `notification` | 🟡 | Delivery only (`PushNotifier`, FCM). Each module decides who to notify. Preferences, in-app inbox and history not built. |

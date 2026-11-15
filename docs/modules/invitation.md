@@ -18,8 +18,9 @@ Rule: you can invite a role **strictly below your own**, in a society where you 
 | Inviter | Can invite |
 |---|---|
 | SUPER_ADMIN | ADMIN of any society (how a new society gets its first admin) |
-| ADMIN | SECRETARY, COMMITTEE, GUARD, RESIDENT (any flat, any resident type) |
-| SECRETARY | COMMITTEE, GUARD, RESIDENT (any flat, any resident type) |
+| ADMIN | SECRETARY, CHAIRMAN, COMMITTEE, GUARD, RESIDENT (any flat, any resident type) |
+| SECRETARY | CHAIRMAN, COMMITTEE, GUARD, RESIDENT (any flat, any resident type) |
+| CHAIRMAN | COMMITTEE, RESIDENT (any flat, any resident type) |
 | COMMITTEE | RESIDENT (any flat, any resident type) |
 | RESIDENT · OWNER | RESIDENT on own flat as FAMILY or TENANT |
 | RESIDENT · TENANT | RESIDENT on own flat as TENANT (their household; keeps them off the bills) |

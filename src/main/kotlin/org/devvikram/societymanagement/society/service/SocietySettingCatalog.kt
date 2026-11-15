@@ -9,6 +9,7 @@ enum class SettingGroup(val label: String) {
     MAINTENANCE("Maintenance"),
     MEMBERSHIP("Membership & invitations"),
     FINANCE("Finance & accounts"),
+    POLICIES("Rules & policies"),
 }
 
 // What one setting is. Values are stored as text: "true"/"false", a whole number, or the string itself.
@@ -82,6 +83,9 @@ object SocietySettingKeys {
     const val FINANCE_APPROVAL_ABOVE = "financeApprovalAbove"
     const val RESIDENTS_SEE_FINANCE_SUMMARY = "residentsSeeFinanceSummary"
     const val RECONCILIATION_MATCH_DAYS = "reconciliationMatchDays"
+    const val POLICY_APPROVAL_REQUIRED = "policyApprovalRequired"
+    const val POLICY_SELF_APPROVAL_ALLOWED = "policySelfApprovalAllowed"
+    const val POLICY_REMINDER_DAYS = "policyReminderDays"
 }
 
 // Every society setting. To add one: add a definition here (and a key constant if code reads it).
@@ -187,6 +191,35 @@ object SocietySettingCatalog {
             defaultValue = "3",
             min = 0,
             max = 15,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.POLICY_APPROVAL_REQUIRED,
+            group = SettingGroup.POLICIES,
+            label = "Policies need approval",
+            description = "On: a policy or a change to one is published only after the chairman, secretary or " +
+                "an admin approves it. Off: its author publishes it directly.",
+            type = SettingType.BOOLEAN,
+            defaultValue = "true",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.POLICY_SELF_APPROVAL_ALLOWED,
+            group = SettingGroup.POLICIES,
+            label = "The chairman may approve their own policies",
+            description = "The secretary and above always approve and publish their own policies. Off: a policy the " +
+                "chairman drafts waits for the secretary or an admin. On (for small committees): the chairman " +
+                "approves their own too.",
+            type = SettingType.BOOLEAN,
+            defaultValue = "false",
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.POLICY_REMINDER_DAYS,
+            group = SettingGroup.POLICIES,
+            label = "Days between acknowledgement reminders",
+            description = "A flat that hasn't acknowledged a policy is reminded again only after this many days.",
+            type = SettingType.INTEGER,
+            defaultValue = "7",
+            min = 1,
+            max = 60,
         ),
     )
 

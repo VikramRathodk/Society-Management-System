@@ -9,7 +9,8 @@ Dynamic roles and hierarchical permission codes. Status: ✅ built (M1, dynamic 
 - **Roles** are rows in `role`: scope `PLATFORM` or `SOCIETY`, optional `requires_flat` (e.g. RESIDENT),
   `all_permissions` (SUPER_ADMIN). Custom roles can be created per platform.
 - **Inheritance** (`role_inheritance`): a role gets the permissions of the roles below it.
-  Built-in: `SUPER_ADMIN > ADMIN > SECRETARY > COMMITTEE > RESIDENT`, and `SECRETARY > GUARD`.
+  Built-in: `SUPER_ADMIN > ADMIN > SECRETARY > CHAIRMAN > COMMITTEE > RESIDENT`, and `SECRETARY > GUARD`
+  (CHAIRMAN added in V26; it holds COMMITTEE's permissions, no direct grants yet).
 - **Scope**: a user holds a role per society (`user_role`). Flat-tied roles act only on their flat's
   records; other society roles act society-wide. `Access` answers `can`, `canSocietyWide`, `canOnFlat`,
   `flatsWith`, and rank checks (`outranks`, `canGrant`, `canManage`).
