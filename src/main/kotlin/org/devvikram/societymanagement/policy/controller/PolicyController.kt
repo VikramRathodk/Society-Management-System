@@ -8,6 +8,7 @@ import org.devvikram.societymanagement.authorization.RequiresPermission
 import org.devvikram.societymanagement.policy.dto.CreatePolicyRequest
 import org.devvikram.societymanagement.policy.dto.PolicyResponse
 import org.devvikram.societymanagement.policy.dto.PolicySummaryResponse
+import org.devvikram.societymanagement.policy.dto.PolicyWorkflow
 import org.devvikram.societymanagement.policy.dto.ReasonRequest
 import org.devvikram.societymanagement.policy.dto.SaveDraftRequest
 import org.devvikram.societymanagement.policy.dto.UpdatePolicyRequest
@@ -20,6 +21,8 @@ import org.devvikram.societymanagement.policy.service.PolicyActor
 import org.devvikram.societymanagement.policy.service.PolicyFilter
 import org.devvikram.societymanagement.policy.service.PolicyService
 import org.devvikram.societymanagement.policy.service.UpdatePolicyCommand
+import org.devvikram.societymanagement.society.service.SocietySettingKeys
+import org.devvikram.societymanagement.society.service.SocietySettingsService
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -50,6 +53,7 @@ class PolicyController(
     private val policyService: PolicyService,
     private val acknowledgementService: PolicyAcknowledgementService,
     private val accessService: AccessService,
+    private val settings: SocietySettingsService,
 ) {
     // ---- Policies ----
 
@@ -227,7 +231,12 @@ class PolicyController(
     private fun view(policyId: Long, actor: PolicyActor): PolicyResponse {
         val details = policyService.details(policyId, actor)
         val acknowledged = acknowledgementService.acknowledgedAt(listOf(details), accessService.current(), details.policy.societyId)
-        return PolicyResponse.from(details, policyService.names(peopleOf(details)), acknowledged)
+        val societyId = details.policy.societyId
+        val workflow = PolicyWorkflow(
+            approvalRequired = settings.boolean(societyId, SocietySettingKeys.POLICY_APPROVAL_REQUIRED),
+            selfApprovalAllowed = settings.boolean(societyId, SocietySettingKeys.POLICY_SELF_APPROVAL_ALLOWED),
+        )
+        return PolicyResponse.from(details, policyService.names(peopleOf(details)), acknowledged, workflow)
     }
 
     private fun onVersion(versionId: Long, permission: String, action: (PolicyActor) -> Unit): PolicyResponse {

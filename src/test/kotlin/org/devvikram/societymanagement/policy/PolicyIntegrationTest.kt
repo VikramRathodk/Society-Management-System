@@ -285,10 +285,14 @@ class PolicyIntegrationTest {
 
     @Test
     fun `with approval off the author publishes directly, and submitting is refused`() {
-        val (_, versionId) = draft()
+        val (policyId, versionId) = draft()
+        call(committee, HttpMethod.GET, "/api/policies/$policyId")
+            .andExpect(jsonPath("$.workflow.approvalRequired").value(true))
+            .andExpect(jsonPath("$.workflow.selfApprovalAllowed").value(false))
         call(committee, HttpMethod.POST, "/api/policy-versions/$versionId/publish").andExpect(status().isConflict)
 
         setting(SocietySettingKeys.POLICY_APPROVAL_REQUIRED, false)
+        call(committee, HttpMethod.GET, "/api/policies/$policyId").andExpect(jsonPath("$.workflow.approvalRequired").value(false))
         call(committee, HttpMethod.POST, "/api/policy-versions/$versionId/submit").andExpect(status().isConflict)
         call(user("COMMITTEE"), HttpMethod.POST, "/api/policy-versions/$versionId/publish").andExpect(status().isForbidden)
         call(committee, HttpMethod.POST, "/api/policy-versions/$versionId/publish")

@@ -181,9 +181,15 @@ data class PolicyResponse(
     val createdBy: PersonRef,
     val createdAt: Instant,
     val archivedAt: Instant?,
+    val workflow: PolicyWorkflow? = null,
 ) {
     companion object {
-        fun from(d: PolicyDetails, names: Map<Long, String>, acknowledged: Map<Long, Instant?>? = null) = PolicyResponse(
+        fun from(
+            d: PolicyDetails,
+            names: Map<Long, String>,
+            acknowledged: Map<Long, Instant?>? = null,
+            workflow: PolicyWorkflow? = null,
+        ) = PolicyResponse(
             summary = PolicySummaryResponse.from(d, names, acknowledged),
             current = d.current?.let { VersionResponse.from(it, it === d.inForce, names) },
             open = d.open?.let { VersionResponse.from(it, false, names) },
@@ -191,6 +197,7 @@ data class PolicyResponse(
             createdBy = PersonRef(d.policy.createdBy, names[d.policy.createdBy]),
             createdAt = d.policy.createdAt,
             archivedAt = d.policy.archivedAt,
+            workflow = workflow,
         )
     }
 }
@@ -262,3 +269,6 @@ data class AcknowledgementReportResponse(
 }
 
 data class ReminderResponse(val reminded: Int, val skipped: Int)
+
+// How the society publishes policies, for the screens that offer "Submit" or "Publish".
+data class PolicyWorkflow(val approvalRequired: Boolean, val selfApprovalAllowed: Boolean)
