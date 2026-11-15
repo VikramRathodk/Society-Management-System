@@ -33,6 +33,8 @@ data class PolicyActor(
     val canDraft: Boolean,
     // POLICY.RULE.APPROVE.
     val canApprove: Boolean,
+    // POLICY.RULE.SELF_APPROVE (secretary and above): approves their own drafts, straight from the draft.
+    val canSelfApprove: Boolean = false,
 )
 
 data class CreatePolicyCommand(
@@ -316,12 +318,13 @@ class PolicyService(
     fun approve(versionId: Long, actor: PolicyActor) {
         requireApprover(actor)
         val (policy, version) = lockVersion(versionId)
-        if (version.status != VersionStatus.PENDING) throw ConflictException("The version isn't waiting for approval")
-        if (version.createdBy == actor.userId &&
-            !settings.boolean(policy.societyId, SocietySettingKeys.POLICY_SELF_APPROVAL_ALLOWED)
-        ) {
+        val own = version.createdBy == actor.userId
+        if (own && !mayApproveOwn(policy.societyId, actor)) {
             throw AccessDeniedException("Another approver must approve a policy you drafted")
         }
+        // Approving your own draft needs no submission first; anyone else's must have been submitted.
+        val approvable = version.status == VersionStatus.PENDING || (own && version.status == VersionStatus.DRAFT)
+        if (!approvable) throw ConflictException("The version isn't waiting for approval")
         version.reviewedAt = Instant.now()
         version.reviewedBy = actor.userId
         version.reviewReason = null
@@ -446,6 +449,10 @@ class PolicyService(
         if (userIds.isEmpty()) emptyMap() else userRepository.findAllById(userIds.toSet()).associate { it.id!! to it.name }
 
     // ---- Helpers ----
+
+    // Secretary and above always; other approvers (the chairman) only when the society allows it.
+    private fun mayApproveOwn(societyId: Long, actor: PolicyActor) =
+        actor.canSelfApprove || settings.boolean(societyId, SocietySettingKeys.POLICY_SELF_APPROVAL_ALLOWED)
 
     private fun approvalRequired(societyId: Long) = settings.boolean(societyId, SocietySettingKeys.POLICY_APPROVAL_REQUIRED)
 

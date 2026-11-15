@@ -284,6 +284,23 @@ class PolicyIntegrationTest {
     }
 
     @Test
+    fun `the secretary approves their own draft straight away, the chairman cannot`() {
+        val (_, secretaryDraft) = draft(author = secretary, title = "Pet rules")
+        call(secretary, HttpMethod.POST, "/api/policy-versions/$secretaryDraft/approve")
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.summary.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.current.publishedBy.id").value(secretary.id!!))
+            .andExpect(jsonPath("$.current.submittedAt").doesNotExist())
+
+        val (_, chairmanDraft) = draft(author = chairman, title = "Gym rules")
+        call(chairman, HttpMethod.POST, "/api/policy-versions/$chairmanDraft/approve").andExpect(status().isForbidden)
+        // Someone else's draft still has to be submitted first.
+        call(secretary, HttpMethod.POST, "/api/policy-versions/$chairmanDraft/approve").andExpect(status().isConflict)
+        call(chairman, HttpMethod.POST, "/api/policy-versions/$chairmanDraft/submit").andExpect(status().isOk)
+        call(secretary, HttpMethod.POST, "/api/policy-versions/$chairmanDraft/approve").andExpect(status().isOk)
+    }
+
+    @Test
     fun `with approval off the author publishes directly, and submitting is refused`() {
         val (policyId, versionId) = draft()
         call(committee, HttpMethod.GET, "/api/policies/$policyId")

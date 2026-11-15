@@ -260,6 +260,7 @@ class PolicyController(
         userId = access.userId,
         canDraft = access.canSocietyWide(Permissions.POLICY_RULE_CREATE, societyId),
         canApprove = access.canSocietyWide(Permissions.POLICY_RULE_APPROVE, societyId),
+        canSelfApprove = access.canSocietyWide(Permissions.POLICY_RULE_SELF_APPROVE, societyId),
     )
 
     private fun parseFilter(raw: String): PolicyFilter =

@@ -19,9 +19,10 @@ real by-laws as a PDF in someone's mail.
    until the new one is published. Every published version is kept and readable, with a change
    summary.
 2. **Approval before publishing,** switched by a per-society setting (on by default). Committee and
-   above draft and submit; the chairman and above approve or send back with a reason. An approver can't
-   approve their own draft unless the society allows it (small committees). With approval off, the
-   author publishes directly.
+   above draft and submit; the chairman and above approve or send back with a reason. **The secretary
+   and above approve their own drafts** (`POLICY.RULE.SELF_APPROVE`, product owner 2026-11-15), straight
+   from the draft; the chairman's own drafts wait for the secretary or an admin unless the society turns
+   on `policySelfApprovalAllowed` (small committees). With approval off, the author publishes directly.
 3. **Publishing is like posting a notice:** everyone in the society is pushed (`POLICY_PUBLISHED`)
    and the policy appears on a Rules page grouped by category. Archiving takes a policy out of force
    without deleting its history.
@@ -42,6 +43,7 @@ real by-laws as a PDF in someone's mail.
 | See drafts and pending versions | committee and above | `POLICY.RULE.CREATE` |
 | Draft, edit own draft, submit, withdraw | COMMITTEE and above | `POLICY.RULE.CREATE` / `UPDATE` |
 | Approve, send back, publish, archive, delete a never-published draft | CHAIRMAN and above | `POLICY.RULE.APPROVE` |
+| Approve and publish one's own draft (no submission needed) | SECRETARY and above (chairman only if the society allows it) | `POLICY.RULE.SELF_APPROVE` |
 | Acknowledge | anyone with a flat role | `POLICY.ACKNOWLEDGEMENT.CREATE` |
 | See acknowledgements, remind, export | COMMITTEE and above | `POLICY.ACKNOWLEDGEMENT.VIEW` |
 | Manage categories | SECRETARY and above | `SOCIETY.SETTINGS.UPDATE` |
@@ -66,7 +68,8 @@ DRAFT ──submit──▶ PENDING ──approve──▶ PUBLISHED ──newer
 ## Settings (new group "Rules & policies" in society settings)
 
 - `policy.approval-required` — default on.
-- `policy.self-approval-allowed` — default off; an approver may approve a draft they wrote.
+- `policySelfApprovalAllowed` — default off; when on, the chairman (and any approver without
+  `POLICY.RULE.SELF_APPROVE`) may approve a draft they wrote. The secretary and above always may.
 - `policy.acknowledgement-reminder-days` — default 7; earliest repeat reminder to the same flat.
 
 ## Data (V27)
@@ -229,3 +232,14 @@ Each step ends with the suite passing and its own commit.
   - Fixed while running it: acknowledgement times are kept to the microsecond, so accepting twice
     answers with exactly the first time.
   - No Playwright spec committed in this step (the product owner chose Postman only).
+
+- **Self-approval for the secretary and above (2026-11-15, product owner).** V28 adds
+  `POLICY.RULE.SELF_APPROVE`, granted to SECRETARY (ADMIN inherits it, SUPER_ADMIN holds everything; it
+  can be given to other roles on the Roles page). Its holders approve their own draft directly with
+  `POST /api/policy-versions/{id}/approve` — no submission first, so other approvers get no push — or a
+  submitted one. Someone else's draft must still be submitted. The chairman's own drafts still need
+  another approver unless `policySelfApprovalAllowed` is on (its label now says so). Web: the secretary
+  sees "Approve and publish" on their own draft and "Save and publish" in the editor instead of
+  "Submit". Postman folder 20 (74 requests): the chairman refused on their own draft, the secretary
+  refused on an unsubmitted draft of someone else's, then approving it once submitted, and approving
+  their own straight from the draft; folders 1–6 + 20: 152/152.

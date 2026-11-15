@@ -204,8 +204,10 @@ object SocietySettingCatalog {
         SettingDefinition(
             key = SocietySettingKeys.POLICY_SELF_APPROVAL_ALLOWED,
             group = SettingGroup.POLICIES,
-            label = "Approvers may approve their own policies",
-            description = "For small committees. Off: a policy drafted by an approver waits for another approver.",
+            label = "The chairman may approve their own policies",
+            description = "The secretary and above always approve and publish their own policies. Off: a policy the " +
+                "chairman drafts waits for the secretary or an admin. On (for small committees): the chairman " +
+                "approves their own too.",
             type = SettingType.BOOLEAN,
             defaultValue = "false",
         ),

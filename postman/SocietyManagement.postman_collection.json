@@ -378,6 +378,14 @@
     {
       "key": "polScrapId",
       "value": ""
+    },
+    {
+      "key": "polChairVersionId",
+      "value": ""
+    },
+    {
+      "key": "polSelfVersionId",
+      "value": ""
     }
   ],
   "item": [
@@ -11387,7 +11395,7 @@
     },
     {
       "name": "20. Rules & policies",
-      "description": "Module 24, in the society from folders 2–5. Creates its own CHAIRMAN (the approver) and a resident on a new flat, and leaves them and the policies behind: policies are history and are never deleted once published, so cleanup could not remove those users. The secretary drafts; the chairman sends back and approves (no one approves their own draft); the resident accepts; the secretary sees who has accepted, reminds and exports; a typo fix keeps acceptances, a material change asks again, a change can take effect later; archive and restore; with approval turned off the secretary publishes directly; a never-published draft is deleted. Attachments (PUT /api/policy-versions/{id}/attachment, multipart \"file\") are not in the run.",
+      "description": "Module 24, in the society from folders 2–5. Creates its own CHAIRMAN (the approver) and a resident on a new flat, and leaves them and the policies behind: policies are history and are never deleted once published, so cleanup could not remove those users. The secretary drafts; the chairman sends back and approves; the chairman cannot approve their own draft, while the secretary (and above, POLICY.RULE.SELF_APPROVE) approves their own straight from the draft; the resident accepts; the secretary sees who has accepted, reminds and exports; a typo fix keeps acceptances, a material change asks again, a change can take effect later; archive and restore; with approval turned off the secretary publishes directly; a never-published draft is deleted. Attachments (PUT /api/policy-versions/{id}/attachment, multipart \"file\") are not in the run.",
       "item": [
         {
           "name": "Super admin creates a chairman (the approver)",
@@ -12167,35 +12175,6 @@
           ]
         },
         {
-          "name": "Secretary cannot approve their own draft → 403",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{baseUrl}}/api/policy-versions/{{policyVersionId}}/approve",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{secretaryToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "Chairman sends it back with a reason",
           "request": {
             "method": "POST",
@@ -12335,6 +12314,236 @@
                   "    pm.expect(p.current.number).to.eql(1);",
                   "    pm.expect(p.current.inForce).to.eql(true);",
                   "    pm.expect(p.open).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman drafts a policy of their own",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Lift use {{polStamp}}\",\n  \"body\": \"No children alone in the lift.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"polChairVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman cannot approve their own draft → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary cannot approve someone else's unsubmitted draft → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman submits it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{polChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary approves the chairman's policy",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polChairVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"published\", () => pm.expect(pm.response.json().summary.status).to.eql(\"ACTIVE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts a policy of their own",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": {{polCategoryId}},\n  \"title\": \"Pets in lifts {{polStamp}}\",\n  \"body\": \"Pets on a leash in the lift.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"polSelfVersionId\", pm.response.json().open.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary approves their own draft straight away (no submission)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/policy-versions/{{polSelfVersionId}}/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"published by the secretary, never submitted\", () => {",
+                  "    pm.expect(p.summary.status).to.eql(\"ACTIVE\");",
+                  "    pm.expect(p.current.publishedBy.id).to.eql(Number(pm.collectionVariables.get(\"secretaryId\")));",
+                  "    pm.expect(p.current.submittedAt).to.eql(null);",
                   "});"
                 ]
               }
