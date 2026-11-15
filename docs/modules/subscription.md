@@ -124,3 +124,37 @@ change often.
 
 Still needed before S3 and S4: a Razorpay account (test keys are enough to build) and an SMTP account
 for the sending domain.
+
+## Progress
+
+- **Branch:** `feature/subscription` now sits on top of `feature/governance` (so its migrations follow
+  V29–V31); merge governance first, or both together.
+- **S1 done (2026-11-15).** V32 adds `plan` (seeded BASIC ₹10/flat/month, ₹100/year, min ₹500, MAINTENANCE;
+  STANDARD ₹20 / ₹200 / ₹1,000, + FINANCE, POLICIES, GOVERNANCE; PREMIUM ₹30 / ₹300 / ₹1,500, ALL — every
+  plan a 30-day trial; the prices are placeholders to set before launch), `subscription` (one per society:
+  plan, cycle, status, trial end, current period, next invoice date, pending plan/cycle, billing contact,
+  discount), `subscription_event` (history) and permissions `PLATFORM.BILLING.VIEW/UPDATE` (super admin)
+  and `SOCIETY.SUBSCRIPTION.VIEW/UPDATE` (SECRETARY and above).
+  - The society module publishes `SocietyWentLive` (on go-live, and when a society is created live); with
+    `app.billing.enabled=true` (default **false** — nothing starts until billing is switched on) the
+    society starts a trial on `app.billing.default-plan` (STANDARD): status TRIAL, period today …
+    today + trial days − 1, first invoice the day after.
+  - `GET /api/plans` (active plans; all of them for the platform); `POST /api/platform/plans`,
+    `PUT /api/platform/plans/{id}` (code unique, prices 0–99,999.99, trial 0–365 days, modules).
+  - `GET /api/platform/subscriptions`; `POST /api/platform/subscriptions/start-all` (trial for every live
+    society without one — how existing societies get theirs); `POST /api/societies/{id}/subscription
+    {planId?, cycle}` (one society).
+  - `PATCH /api/societies/{id}/subscription/plan {planId?, cycle?}` — during a trial at once; otherwise
+    pending until the next period (the next invoice applies it). A plan whose `maxFlats` is below the
+    society's flats is refused.
+  - `PUT …/subscription/discount {percent, periods, note}`, `POST …/subscription/cancel {note}`.
+  - The society's own: `GET /api/societies/{id}/subscription` (plan, dates, flats, charge per period at
+    today's numbers, history), `PUT …/billing-contact {userId}` (an active society-wide member),
+    `POST …/request-change {planId?, cycle?, note}` (recorded for the platform; nothing changes by itself).
+  - A period's charge: monthly max(flats × per-flat monthly, minimum); yearly max(flats × per-flat yearly,
+    12 × minimum).
+  - Tests: `SubscriptionIntegrationTest` (8, with billing switched on).
+- **Next:** S2 invoices (GST split by state, numbering per year, discount, credit notes, manual payments,
+  printable invoice) — no accounts needed; S3 Razorpay and S4 email need a Razorpay test account and an
+  SMTP account; then S5 daily run and suspension, S6 module enforcement (`SubscriptionService.modulesOf`
+  is ready), S7 web, S8 Postman.
