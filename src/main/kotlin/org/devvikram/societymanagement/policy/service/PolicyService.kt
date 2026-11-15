@@ -75,6 +75,13 @@ data class PolicyDetails(
     val inForce: PolicyVersion? = versions.lastOrNull { it.status.published && !it.effectiveFrom!!.isAfter(today) }
 
     val open: PolicyVersion? = versions.firstOrNull { it.status.open }
+
+    // The version acknowledgements are recorded against: the latest published one marked as a material
+    // change (the first always is), so a minor correction keeps the acknowledgements already given.
+    // Null when the policy doesn't ask for acknowledgement or isn't published.
+    val acknowledgementVersion: PolicyVersion? =
+        if (!policy.requiresAcknowledgement) null
+        else current?.let { cur -> versions.last { it.status.published && it.number <= cur.number && (it.materialChange || it.number == 1) } }
 }
 
 // Policies, their versions and the approval workflow. A version is drafted, submitted for approval and

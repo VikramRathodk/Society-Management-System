@@ -15,6 +15,7 @@ import org.devvikram.societymanagement.policy.dto.VersionResponse
 import org.devvikram.societymanagement.policy.dto.peopleOf
 import org.devvikram.societymanagement.policy.service.CreatePolicyCommand
 import org.devvikram.societymanagement.policy.service.DraftCommand
+import org.devvikram.societymanagement.policy.service.PolicyAcknowledgementService
 import org.devvikram.societymanagement.policy.service.PolicyActor
 import org.devvikram.societymanagement.policy.service.PolicyFilter
 import org.devvikram.societymanagement.policy.service.PolicyService
@@ -47,6 +48,7 @@ import org.springframework.web.multipart.MultipartFile
 @RestController
 class PolicyController(
     private val policyService: PolicyService,
+    private val acknowledgementService: PolicyAcknowledgementService,
     private val accessService: AccessService,
 ) {
     // ---- Policies ----
@@ -64,7 +66,8 @@ class PolicyController(
         val actor = actor(Permissions.POLICY_RULE_VIEW, societyId)
         val details = policyService.list(societyId, parseFilter(filter), categoryId, q, actor)
         val names = policyService.names(details.flatMap { d -> d.open?.let { listOf(it.createdBy) }.orEmpty() })
-        return details.map { PolicySummaryResponse.from(it, names) }
+        val acknowledged = acknowledgementService.acknowledgedAt(details, accessService.current(), societyId)
+        return details.map { PolicySummaryResponse.from(it, names, acknowledged) }
     }
 
     @PostMapping("/api/societies/{societyId}/policies")
@@ -223,7 +226,8 @@ class PolicyController(
 
     private fun view(policyId: Long, actor: PolicyActor): PolicyResponse {
         val details = policyService.details(policyId, actor)
-        return PolicyResponse.from(details, policyService.names(peopleOf(details)))
+        val acknowledged = acknowledgementService.acknowledgedAt(listOf(details), accessService.current(), details.policy.societyId)
+        return PolicyResponse.from(details, policyService.names(peopleOf(details)), acknowledged)
     }
 
     private fun onVersion(versionId: Long, permission: String, action: (PolicyActor) -> Unit): PolicyResponse {

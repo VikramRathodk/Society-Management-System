@@ -163,3 +163,27 @@ Each step ends with the suite passing and its own commit.
   - Pushes after commit: `POLICY_SUBMITTED` (approvers), `POLICY_SENT_BACK` and `POLICY_APPROVED`
     (author), `POLICY_PUBLISHED` (everyone in the society but the publisher and author).
   - Tests: `PolicyIntegrationTest` (18).
+
+- **P2 done (2026-11-15).** Acknowledgements on the V27 tables, no new migration.
+  - `POST /api/policy-versions/{id}/acknowledge` takes only the latest published version of an active
+    policy that asks for it, from someone holding `POLICY.ACKNOWLEDGEMENT.CREATE` through a **flat role**
+    (committee or guards without a flat get 403). Acknowledging twice keeps the first time. Answers
+    `{policyId, version, acknowledgedAt}`, where `version` is the version the acknowledgement counts for.
+  - That version is the latest published one marked as a material change (version 1 always is), so a
+    minor change keeps the acknowledgements and a material one asks everyone again. Turning
+    `requiresAcknowledgement` on after publication asks from then, against that same version.
+  - Residents see `yourAcknowledgement {version, acknowledgedAt}` on each policy row and on the policy
+    (absent for anyone without a flat, or a policy that doesn't ask); `GET /api/societies/{id}/policies/pending-acknowledgements`
+    lists what they still have to accept (for a dashboard tile).
+  - `GET /api/policies/{id}/acknowledgements?state=all|pending|done` (`POLICY.ACKNOWLEDGEMENT.VIEW`,
+    committee and above): per flat with members, by wing then flat number, with totals for every flat.
+    Flats nobody lives in are left out. **A flat is done** when its tenant has acknowledged (if it has a
+    tenant), otherwise its owner (a member without a type counts as the owner); a family-only flat when
+    anyone has. Deactivated accounts don't count.
+  - `POST /api/policies/{id}/acknowledgements/remind` → `{reminded, skipped}`: pushes
+    `POLICY_ACKNOWLEDGEMENT_REMINDER` to the members of pending flats who haven't acknowledged, skipping
+    flats reminded within `policyReminderDays` (default 7).
+  - `GET /api/policies/{id}/acknowledgements.csv`: one row per person (wing, flat, flat status, name,
+    resident type, acknowledged at, last reminded; times in the report zone).
+  - Archived or never-published policies take no acknowledgements and have no report (409).
+  - Tests: `PolicyAcknowledgementIntegrationTest` (8).

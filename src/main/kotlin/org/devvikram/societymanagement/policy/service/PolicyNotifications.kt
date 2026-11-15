@@ -34,6 +34,8 @@ data class PolicyPublished(
     val exceptUserIds: Set<Long>,
 )
 
+data class PolicyReminderSent(val policyId: Long, val title: String, val userIds: Set<Long>)
+
 // After commit, best-effort: a failed push is logged, never surfaced to whoever acted. Nothing reaches
 // residents of a society still in setup, since flat roles exist only after go-live.
 @Component
@@ -98,6 +100,16 @@ class PolicyNotificationListener(
                 "policyId" to event.policyId.toString(),
                 "version" to event.number.toString(),
             ),
+        )
+    }
+
+    @TransactionalEventListener
+    fun onReminder(event: PolicyReminderSent) = safely("reminder", event.policyId) {
+        send(
+            event.userIds,
+            title = "Please read and accept",
+            body = event.title,
+            data = mapOf("type" to "POLICY_ACKNOWLEDGEMENT_REMINDER", "policyId" to event.policyId.toString()),
         )
     }
 

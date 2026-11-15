@@ -6,6 +6,8 @@ import org.devvikram.societymanagement.policy.model.PolicyCategory
 import org.devvikram.societymanagement.policy.model.PolicyStatus
 import org.devvikram.societymanagement.policy.model.PolicyVersion
 import org.devvikram.societymanagement.policy.model.VersionStatus
+import org.devvikram.societymanagement.policy.service.AcknowledgementReport
+import org.devvikram.societymanagement.policy.service.FlatAcknowledgement
 import org.devvikram.societymanagement.policy.service.PolicyDetails
 import java.time.Instant
 import java.time.LocalDate
@@ -144,9 +146,11 @@ data class PolicySummaryResponse(
     // Only for those who see drafts.
     val openVersion: VersionSummaryResponse?,
     val updatedAt: Instant?,
+    // For a resident, when the policy asks them to acknowledge its current text: when they did (null: not yet).
+    val yourAcknowledgement: YourAcknowledgement?,
 ) {
     companion object {
-        fun from(d: PolicyDetails, names: Map<Long, String>): PolicySummaryResponse {
+        fun from(d: PolicyDetails, names: Map<Long, String>, acknowledged: Map<Long, Instant?>? = null): PolicySummaryResponse {
             val current = d.current
             return PolicySummaryResponse(
                 id = d.policy.id!!,
@@ -162,6 +166,7 @@ data class PolicySummaryResponse(
                 publishedAt = current?.publishedAt,
                 openVersion = d.open?.let { VersionSummaryResponse.from(it, names) },
                 updatedAt = d.policy.updatedAt ?: d.policy.createdAt,
+                yourAcknowledgement = acknowledged?.takeIf { d.policy.id in it }?.let { YourAcknowledgement(d.acknowledgementVersion!!.number, it[d.policy.id]) },
             )
         }
     }
@@ -178,8 +183,8 @@ data class PolicyResponse(
     val archivedAt: Instant?,
 ) {
     companion object {
-        fun from(d: PolicyDetails, names: Map<Long, String>) = PolicyResponse(
-            summary = PolicySummaryResponse.from(d, names),
+        fun from(d: PolicyDetails, names: Map<Long, String>, acknowledged: Map<Long, Instant?>? = null) = PolicyResponse(
+            summary = PolicySummaryResponse.from(d, names, acknowledged),
             current = d.current?.let { VersionResponse.from(it, it === d.inForce, names) },
             open = d.open?.let { VersionResponse.from(it, false, names) },
             versions = d.versions.reversed().map { VersionSummaryResponse.from(it, names) },
@@ -193,3 +198,67 @@ data class PolicyResponse(
 // Everyone a response names, so names are looked up once.
 fun peopleOf(d: PolicyDetails): Set<Long> =
     (d.versions.flatMap { listOfNotNull(it.createdBy, it.publishedBy, it.reviewedBy) } + d.policy.createdBy).toSet()
+
+// The version whose acknowledgement counts (the latest material change) and when the caller gave it.
+data class YourAcknowledgement(val version: Int, val acknowledgedAt: Instant?)
+
+data class AcknowledgementResponse(val policyId: Long, val version: Int, val acknowledgedAt: Instant)
+
+data class MemberAcknowledgementResponse(
+    val userId: Long,
+    val name: String,
+    val residentType: String?,
+    val acknowledgedAt: Instant?,
+)
+
+data class FlatAcknowledgementResponse(
+    val flatId: Long,
+    val wing: String,
+    val flatNumber: String,
+    val done: Boolean,
+    val lastRemindedAt: Instant?,
+    val members: List<MemberAcknowledgementResponse>,
+) {
+    companion object {
+        fun from(f: FlatAcknowledgement) = FlatAcknowledgementResponse(
+            flatId = f.flatId,
+            wing = f.wing,
+            flatNumber = f.flatNumber,
+            done = f.done,
+            lastRemindedAt = f.lastRemindedAt,
+            members = f.members.map {
+                MemberAcknowledgementResponse(it.member.userId, it.member.name, it.member.residentType?.name, it.acknowledgedAt)
+            },
+        )
+    }
+}
+
+// Who has acknowledged the version that counts, per flat. `flats` is filtered by `state`; the counts
+// are always for every flat.
+data class AcknowledgementReportResponse(
+    val policyId: Long,
+    val title: String,
+    val version: Int,
+    val currentVersion: Int,
+    val totalFlats: Int,
+    val doneFlats: Int,
+    val pendingFlats: Int,
+    val people: Int,
+    val flats: List<FlatAcknowledgementResponse>,
+) {
+    companion object {
+        fun from(r: AcknowledgementReport, flats: List<FlatAcknowledgement>) = AcknowledgementReportResponse(
+            policyId = r.details.policy.id!!,
+            title = r.details.policy.title,
+            version = r.details.acknowledgementVersion!!.number,
+            currentVersion = r.details.current!!.number,
+            totalFlats = r.flats.size,
+            doneFlats = r.doneFlats,
+            pendingFlats = r.pendingFlats,
+            people = r.people,
+            flats = flats.map(FlatAcknowledgementResponse::from),
+        )
+    }
+}
+
+data class ReminderResponse(val reminded: Int, val skipped: Int)
