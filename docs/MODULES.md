@@ -41,7 +41,7 @@ Each built module has its own doc in [docs/modules/](modules/) (rules, endpoints
 | 21 | Incident & Emergency Management | *`incident`* | — | |
 | 22 | Notice & Announcement | `notice` | ✅ | M4. Notice board, own-post rule, moderation, push. (Was the `communication` package until 2026-10-30.) |
 | 23 | Communication | — | — | In-app chat/messaging is out of MVP scope. |
-| 24 | Rules & Policies | `policy` | 🟡 | P1 built 2026-11-15 on `feature/policy` (V27): categories, versioned policies with approval by the chairman and above, publish with push, effective dates, archive, attachment. P2 acknowledgements, per-flat report, reminders, CSV; P3 web screens; P4 Postman folder 20. See [policy](modules/policy.md). |
+| 24 | Rules & Policies | `policy` | ✅ | Built 2026-11-15 on `feature/policy` (V27): categories, versioned policies with approval by the chairman and above, publish with push, effective dates, archive, attachment. P2 acknowledgements, per-flat report, reminders, CSV; P3 web screens; P4 Postman folder 20. See [policy](modules/policy.md). |
 | 25 | Document Management | *`document`* | — | Could build on `common/storage/PhotoStorage`. |
 | 26 | Meeting & Governance | *`governance`* | — | |
 | 27 | Notification Management | `notification` | 🟡 | Delivery only (`PushNotifier`, FCM). Each module decides who to notify. Preferences, in-app inbox and history not built. |
