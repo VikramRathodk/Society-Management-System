@@ -116,3 +116,33 @@ Each step ends with the suite passing and its own commit.
    (settings).
 6. **Elections:** later, not in this module.
 7. **Testing:** Postman folder only (as for policies).
+
+## Progress
+
+- **G1 done (2026-11-15).** V29 adds `meeting`, `agenda_item`, `meeting_rsvp` and four permissions:
+  `GOVERNANCE.MEETING.VIEW` (RESIDENT, so everyone above too), `GOVERNANCE.COMMITTEE.VIEW` (COMMITTEE and
+  above), `GOVERNANCE.MEETING.CREATE` / `UPDATE` (SECRETARY and above). Guards see no meetings. The
+  "Meetings & governance" settings group has the notice periods, quorum rules (used from G2) and
+  `meetingReminderHours`.
+  - `GET /api/societies/{id}/meetings?view=upcoming|past|drafts&kind=` — upcoming: announced, not before
+    today, soonest first; past: the rest (held, cancelled, adjourned, or a day gone by), latest first;
+    drafts: organisers only. `POST` creates a draft with its agenda.
+  - `GET|PUT|DELETE /api/meetings/{id}` — a draft is replaced whole (agenda included) and can be deleted;
+    once the notice is sent the meeting changes only by `POST …/cancel {reason}` or
+    `POST …/adjourn {scheduledAt, place?, onlineLink?, reason}`, which creates the new meeting (agenda
+    copied, announced at once without a notice period, `adjournedFromId` / `adjournedToId`).
+  - `POST /api/meetings/{id}/send-notice {shortNoticeReason?}` — needs a future time, at least one
+    agenda item, and a reason when the meeting is fewer days away than the kind's notice setting
+    (days counted in the report zone); the reason is kept on the meeting.
+  - `PUT /api/meetings/{id}/rsvp {response: YES|NO|MAYBE}` — invitees of an announced meeting before it
+    starts; `GET …/rsvps` lists replies for organisers; organisers also get `rsvpCounts` on every meeting.
+  - A meeting needs a place, an online link (http/https) or both; at most 50 agenda items.
+  - Visibility: drafts only to organisers; AGMs/SGMs to MEETING.VIEW holders; committee meetings to
+    COMMITTEE.VIEW through a society-wide role. Anything else answers 404.
+  - Pushes after commit to the invitees (same rules), never to whoever acted: `MEETING_NOTICE`,
+    `MEETING_CANCELLED`, `MEETING_ADJOURNED` (with the new meeting's id), `MEETING_REMINDER`.
+  - The backend's **first scheduled job**: `common/config/SchedulingConfig` turns on scheduling
+    (`app.scheduling.enabled`, default on; one instance assumed), and `MeetingReminderJob` runs every
+    `app.governance.reminder-interval` (default 10 minutes), reminding each announced meeting once when
+    it is within its society's `meetingReminderHours` (0 = never).
+  - Tests: `MeetingIntegrationTest` (11).

@@ -10,6 +10,7 @@ enum class SettingGroup(val label: String) {
     MEMBERSHIP("Membership & invitations"),
     FINANCE("Finance & accounts"),
     POLICIES("Rules & policies"),
+    GOVERNANCE("Meetings & governance"),
 }
 
 // What one setting is. Values are stored as text: "true"/"false", a whole number, or the string itself.
@@ -86,6 +87,13 @@ object SocietySettingKeys {
     const val POLICY_APPROVAL_REQUIRED = "policyApprovalRequired"
     const val POLICY_SELF_APPROVAL_ALLOWED = "policySelfApprovalAllowed"
     const val POLICY_REMINDER_DAYS = "policyReminderDays"
+    const val AGM_NOTICE_DAYS = "agmNoticeDays"
+    const val SGM_NOTICE_DAYS = "sgmNoticeDays"
+    const val COMMITTEE_NOTICE_DAYS = "committeeNoticeDays"
+    const val GENERAL_QUORUM_PERCENT = "generalQuorumPercent"
+    const val GENERAL_QUORUM_CAP = "generalQuorumCap"
+    const val COMMITTEE_QUORUM_PERCENT = "committeeQuorumPercent"
+    const val MEETING_REMINDER_HOURS = "meetingReminderHours"
 }
 
 // Every society setting. To add one: add a definition here (and a key constant if code reads it).
@@ -220,6 +228,79 @@ object SocietySettingCatalog {
             defaultValue = "7",
             min = 1,
             max = 60,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.AGM_NOTICE_DAYS,
+            group = SettingGroup.GOVERNANCE,
+            label = "AGM notice (days)",
+            description = "The notice of an annual general meeting goes out at least this many days before it. " +
+                "Sending it later needs a reason, which is kept with the meeting.",
+            type = SettingType.INTEGER,
+            defaultValue = "14",
+            min = 0,
+            max = 60,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.SGM_NOTICE_DAYS,
+            group = SettingGroup.GOVERNANCE,
+            label = "Special general meeting notice (days)",
+            description = "The shortest notice for a special general meeting; later needs a reason.",
+            type = SettingType.INTEGER,
+            defaultValue = "7",
+            min = 0,
+            max = 60,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.COMMITTEE_NOTICE_DAYS,
+            group = SettingGroup.GOVERNANCE,
+            label = "Committee meeting notice (days)",
+            description = "The shortest notice for a managing committee meeting; later needs a reason.",
+            type = SettingType.INTEGER,
+            defaultValue = "2",
+            min = 0,
+            max = 30,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.GENERAL_QUORUM_PERCENT,
+            group = SettingGroup.GOVERNANCE,
+            label = "General meeting quorum (% of member flats)",
+            description = "A general meeting has quorum when this share of member flats is present, or the " +
+                "number below, whichever is less.",
+            type = SettingType.INTEGER,
+            defaultValue = "67",
+            min = 1,
+            max = 100,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.GENERAL_QUORUM_CAP,
+            group = SettingGroup.GOVERNANCE,
+            label = "General meeting quorum (at most, flats)",
+            description = "Quorum never needs more member flats than this. 0 means no cap: only the percentage counts.",
+            type = SettingType.INTEGER,
+            defaultValue = "20",
+            min = 0,
+            max = 10_000,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.COMMITTEE_QUORUM_PERCENT,
+            group = SettingGroup.GOVERNANCE,
+            label = "Committee meeting quorum (% of members)",
+            description = "A managing committee meeting has quorum when at least this share of its members " +
+                "is present (51 = more than half).",
+            type = SettingType.INTEGER,
+            defaultValue = "51",
+            min = 1,
+            max = 100,
+        ),
+        SettingDefinition(
+            key = SocietySettingKeys.MEETING_REMINDER_HOURS,
+            group = SettingGroup.GOVERNANCE,
+            label = "Meeting reminder (hours before)",
+            description = "Invitees get a reminder this many hours before a meeting. 0 means no reminder.",
+            type = SettingType.INTEGER,
+            defaultValue = "24",
+            min = 0,
+            max = 168,
         ),
     )
 
