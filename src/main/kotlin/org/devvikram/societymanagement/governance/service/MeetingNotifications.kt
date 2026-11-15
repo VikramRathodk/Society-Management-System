@@ -11,6 +11,7 @@ import org.devvikram.societymanagement.user.repository.UserRoleRepository
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.event.TransactionalEventListener
 import java.time.Instant
 import java.time.ZoneId
@@ -84,11 +85,14 @@ class MeetingAudience(
     private val userRoleRepository: UserRoleRepository,
     private val accessService: AccessService,
 ) {
+    // Every read here runs in a transaction: roles and users are read through lazy associations.
+    @Transactional(readOnly = true)
     fun invitees(societyId: Long, kind: MeetingKind): Set<Long> =
         people(societyId).filter { if (kind.general) it.seesGeneral else it.committee }.map { it.userId }.toSet()
 
     // Member flats and who may vote for each: active holders of GOVERNANCE.VOTE.CREATE through a flat role
     // on the owner side (owner, family, or no type; not tenants).
+    @Transactional(readOnly = true)
     fun memberFlats(societyId: Long): Map<Long, Set<Long>> =
         people(societyId).filter { it.active }
             .flatMap { p -> p.voterFlats.map { it to p.userId } }
@@ -96,6 +100,7 @@ class MeetingAudience(
             .mapValues { (_, users) -> users.toSet() }
 
     // Active committee members: holders of GOVERNANCE.COMMITTEE.VIEW through a society-wide role.
+    @Transactional(readOnly = true)
     fun committeeMembers(societyId: Long): Set<Long> =
         people(societyId).filter { it.active && it.committee }.map { it.userId }.toSet()
 
@@ -108,6 +113,7 @@ class MeetingAudience(
         val voterFlats: Set<Long>,
     )
 
+    @Transactional(readOnly = true)
     fun people(societyId: Long): List<Person> {
         val roles = userRoleRepository.findByUserIds(userRoleRepository.findUserIdsBySocietyIds(listOf(societyId)))
         return roles.groupBy { it.user.id!! }.map { (userId, userRoles) ->
