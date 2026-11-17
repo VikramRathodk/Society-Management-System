@@ -238,5 +238,23 @@ for the sending domain.
   - Tests: `BillingEmailIntegrationTest` (4, recording mailer).
   - Real mail needs an SMTP sender account (e.g. Gmail with an app password); the product owner's test
     recipient is noted outside the repo.
-- **Next:** S7 web (platform Billing, society Subscription page with Razorpay Checkout, banner, hidden
-  modules), S8 Postman.
+- **S7 (web), 2026-11-18**, on web branch `feature/subscription`: society **Subscription** page (plan, period,
+  charge, invoices with "Pay" through Razorpay Checkout, billing contact, ask for another plan, history;
+  `/subscription?invoice=<id>` from email links), printable **invoice** page `/subscription/invoices/:id`
+  (GST lines, receipts, credit notes; the platform records payments and credit notes there), platform
+  **Billing** page `/billing` (totals; societies with change plan / discount / issue due invoice / cancel;
+  invoices with an overdue filter; plans), "Run billing now" and "Start trials". Paid modules outside the
+  plan are hidden from the nav and their routes (`SubscriptionAccessStore`, `planModuleGuard`; never for the
+  platform); a red banner on every page while suspended or cancelled; any 402 refreshes it. Billing pushes
+  open the invoice or the subscription page.
+- **S8 done (2026-11-18), Postman** folder **22. Subscription & billing** (57 requests; Cleanup is now 23).
+  Run with billing off (the default): plans (create, duplicate 409, edit, 400, 403); the main society on a
+  Basic trial (finance, meetings and policies 402; maintenance and the platform unaffected), billing contact,
+  change request, Premium at once during the trial; a second society on a no-trial plan: invoice with the
+  minimum charge and GST as configured, 204 when nothing is due, part payment, overpayment 400, credit note,
+  paid in full, 409 when settled; Razorpay order (409 without keys), webhook with a bad signature 400, a
+  signed webhook (needs `RAZORPAY_WEBHOOK_SECRET` = the `razorpayWebhookSecret` variable,
+  `postman_webhook_secret`) for an unknown order and its duplicate; platform lists and the billing run;
+  cancelling makes the society read-only (402 on writes). Full run 2026-11-18: 728/729 assertions, the one
+  failure being the old Cleanup "Delete the test resident" check.
+- **Module done** apart from trying Razorpay with real test keys and SMTP with a real account.

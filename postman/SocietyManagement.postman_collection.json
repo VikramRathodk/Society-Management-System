@@ -462,6 +462,70 @@
     {
       "key": "govSgmId",
       "value": ""
+    },
+    {
+      "key": "subStamp",
+      "value": ""
+    },
+    {
+      "key": "basicPlanId",
+      "value": ""
+    },
+    {
+      "key": "standardPlanId",
+      "value": ""
+    },
+    {
+      "key": "premiumPlanId",
+      "value": ""
+    },
+    {
+      "key": "subPlanId",
+      "value": ""
+    },
+    {
+      "key": "billSocietyId",
+      "value": ""
+    },
+    {
+      "key": "billWingId",
+      "value": ""
+    },
+    {
+      "key": "billSecretaryPhone",
+      "value": ""
+    },
+    {
+      "key": "billSecretaryId",
+      "value": ""
+    },
+    {
+      "key": "billSecretaryToken",
+      "value": ""
+    },
+    {
+      "key": "billInvoiceId",
+      "value": ""
+    },
+    {
+      "key": "billBalance",
+      "value": ""
+    },
+    {
+      "key": "rzpBody",
+      "value": ""
+    },
+    {
+      "key": "rzpSignature",
+      "value": ""
+    },
+    {
+      "key": "rzpEventId",
+      "value": ""
+    },
+    {
+      "key": "razorpayWebhookSecret",
+      "value": "postman_webhook_secret"
     }
   ],
   "item": [
@@ -15890,7 +15954,2067 @@
       ]
     },
     {
-      "name": "22. Cleanup (optional, destructive)",
+      "name": "22. Subscription & billing",
+      "description": "Platform billing (module 30). Run against a backend with billing switched off (the default, BILLING_ENABLED unset): trials are started here explicitly. The main society gets a Basic trial (paid modules answer 402), then Premium. A second society on a no-trial plan is invoiced, part paid, credited and paid. Razorpay order creation answers 409 without RAZORPAY_KEY_ID/SECRET; signed webhooks need RAZORPAY_WEBHOOK_SECRET equal to the razorpayWebhookSecret variable (otherwise they are refused and the tests accept that). Suspension by date is covered by the backend tests.",
+      "item": [
+        {
+          "name": "Plans on offer (any signed-in user)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/plans",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const plans = pm.response.json();",
+                  "pm.test(\"Basic, Standard and Premium are offered\", () => pm.expect(plans.map(p => p.code)).to.include.members([\"BASIC\", \"STANDARD\", \"PREMIUM\"]));",
+                  "pm.test(\"only active plans for societies\", () => pm.expect(plans.every(p => p.active)).to.be.true);",
+                  "for (const p of plans) if ([\"BASIC\",\"STANDARD\",\"PREMIUM\"].includes(p.code)) pm.collectionVariables.set(p.code.toLowerCase() + \"PlanId\", p.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin creates a plan without a trial",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/plans",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"description\": \"Made by the Postman run\",\n  \"pricePerFlatMonthly\": 15,\n  \"pricePerFlatYearly\": 150,\n  \"minimumMonthly\": 100,\n  \"trialDays\": 0,\n  \"modules\": [\"MAINTENANCE\", \"FINANCE\"],\n  \"active\": true,\n  \"sortOrder\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const p = pm.response.json();",
+                  "pm.test(\"modules kept\", () => pm.expect(p.modules).to.have.members([\"MAINTENANCE\", \"FINANCE\"]));",
+                  "pm.test(\"no trial\", () => pm.expect(p.trialDays).to.eql(0));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"subPlanId\", p.id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subStamp\", Date.now().toString(36).toUpperCase());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Same plan code again (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/plans",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Duplicate\",\n  \"pricePerFlatMonthly\": 1,\n  \"pricePerFlatYearly\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin edits the plan (new prices apply to new invoices)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/plans/{{subPlanId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"pricePerFlatMonthly\": 12.5,\n  \"pricePerFlatYearly\": 125,\n  \"minimumMonthly\": 100,\n  \"trialDays\": 0,\n  \"modules\": [\"MAINTENANCE\", \"FINANCE\"],\n  \"active\": true,\n  \"sortOrder\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"price changed\", () => pm.expect(pm.response.json().pricePerFlatMonthly).to.eql(12.5));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Price out of range (expect 400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/plans/{{subPlanId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Too dear\",\n  \"pricePerFlatMonthly\": 100000,\n  \"pricePerFlatYearly\": 125\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary creates a plan - platform only (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/plans",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"NOPE\",\n  \"name\": \"Nope\",\n  \"pricePerFlatMonthly\": 1,\n  \"pricePerFlatYearly\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin starts the society's trial on Basic",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": {{basicPlanId}},\n  \"cycle\": \"MONTHLY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"on a Basic trial\", () => { pm.expect(s.status).to.eql(\"TRIAL\"); pm.expect(s.plan.code).to.eql(\"BASIC\"); pm.expect(s.trialEndsOn).to.be.a(\"string\"); });",
+                  "pm.test(\"history starts\", () => pm.expect(s.events[0].kind).to.eql(\"STARTED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start it again (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary reads the subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"flats counted\", () => pm.expect(s.flats).to.be.above(0));",
+                  "pm.test(\"at least the minimum a month\", () => pm.expect(s.chargePerPeriod).to.be.at.least(s.plan.minimumMonthly));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident reads the subscription (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resident reads what the plan allows",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription/access",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json();",
+                  "pm.test(\"billing on, Basic: maintenance only\", () => { pm.expect(a.billing).to.be.true; pm.expect(a.modules).to.eql([\"MAINTENANCE\"]); pm.expect(a.readOnly).to.be.false; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Basic: secretary opens finance (expect 402)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/finance/accounts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", () => pm.response.to.have.status(402));",
+                  "pm.test(\"says the plan doesn't include it\", () => pm.expect(pm.response.json().message).to.include(\"Basic\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Basic: resident opens meetings (expect 402)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/meetings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", () => pm.response.to.have.status(402));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Basic: secretary opens policies (expect 402)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/policies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", () => pm.response.to.have.status(402));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Basic: maintenance still works",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/maintenance/charge-heads",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The platform is never gated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/finance/accounts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary becomes the billing contact",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription/billing-contact",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{secretaryId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"contact set\", () => pm.expect(pm.response.json().billingContactId).to.eql(Number(pm.collectionVariables.get(\"secretaryId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A resident as billing contact (expect 400)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription/billing-contact",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{residentId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary asks for Premium, yearly",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription/request-change",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": {{premiumPlanId}},\n  \"cycle\": \"YEARLY\",\n  \"note\": \"We need meetings and policies\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json().events;",
+                  "pm.test(\"request recorded, nothing changed by itself\", () => { pm.expect(e[e.length - 1].kind).to.eql(\"CHANGE_REQUESTED\"); pm.expect(pm.response.json().plan.code).to.eql(\"BASIC\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "During a trial a plan change applies at once (Premium)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription/plan",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": {{premiumPlanId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"Premium now\", () => { pm.expect(s.plan.code).to.eql(\"PREMIUM\"); pm.expect(s.pendingPlan).to.be.null; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Premium: finance opens again",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/finance/accounts",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin creates a live society to bill",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Billing Postman {{subStamp}}\",\n  \"address\": \"Aundh, Pune\",\n  \"startLive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"billSocietyId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Its profile: in Maharashtra (GST is split CGST + SGST when the platform is too)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city\": \"Pune\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"411007\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A wing",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/wings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"A\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"billWingId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Flat 101",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/wings/{{billWingId}}/flats",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flatNumber\": \"101\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Flat 102",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/wings/{{billWingId}}/flats",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flatNumber\": \"102\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Its secretary",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bina Billing\",\n  \"phone\": \"{{billSecretaryPhone}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"SECRETARY\",\n  \"societyId\": {{billSocietyId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"billSecretaryId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"billSecretaryPhone\", \"7\" + Math.floor(100000000 + Math.random() * 900000000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as that secretary",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{billSecretaryPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"billSecretaryToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Starts on the Postman plan: no trial, active at once",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": {{subPlanId}},\n  \"cycle\": \"MONTHLY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"active, first invoice today\", () => { pm.expect(s.status).to.eql(\"ACTIVE\"); pm.expect(s.nextInvoiceOn).to.eql(s.currentPeriodStart); });",
+                  "pm.test(\"2 flats × ₹12.50 is below the ₹100 minimum\", () => pm.expect(s.chargePerPeriod).to.eql(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The platform issues the due invoice",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/invoices/issue-due",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const i = pm.response.json();",
+                  "pm.test(\"numbered per financial year\", () => pm.expect(i.summary.number).to.match(/\\/\\d{4}-\\d{2}\\/\\d{4}$/));",
+                  "pm.test(\"the minimum charge\", () => { pm.expect(i.amount).to.eql(100); pm.expect(i.taxableValue).to.eql(100); });",
+                  "pm.test(\"GST as configured\", () => {",
+                  "  if (!i.seller.gstin) { pm.expect(i.cgst + i.sgst + i.igst).to.eql(0); pm.expect(i.total).to.eql(100); }",
+                  "  else if (i.seller.state === \"Maharashtra\") { pm.expect(i.cgst).to.eql(i.sgst); pm.expect(i.igst).to.eql(0); }",
+                  "  else { pm.expect(i.cgst).to.eql(0); pm.expect(i.igst).to.be.above(0); }",
+                  "  pm.expect(i.total).to.eql(Math.round((i.taxableValue + i.cgst + i.sgst + i.igst) * 100) / 100);",
+                  "});",
+                  "pm.test(\"unpaid, due later\", () => { pm.expect(i.summary.status).to.eql(\"ISSUED\"); pm.expect(i.summary.overdue).to.be.false; });",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set(\"billInvoiceId\", i.summary.id); pm.collectionVariables.set(\"billBalance\", i.summary.balance); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Nothing more is due today (204)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/invoices/issue-due",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Its secretary sees the society's invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/invoices",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"the new invoice is listed\", () => pm.expect(pm.response.json().map(i => i.id)).to.include(Number(pm.collectionVariables.get(\"billInvoiceId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Its secretary opens the invoice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"seller printed\", () => pm.expect(pm.response.json().seller.legalName).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Another society's secretary opens it (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Its secretary starts paying online (Razorpay order, or 409 without keys)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/razorpay-order",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"an order for the amount due, or online payment not set up\", () => {",
+                  "  if (pm.response.code === 200) {",
+                  "    const o = pm.response.json();",
+                  "    pm.expect(o.orderId).to.match(/^order_/);",
+                  "    pm.expect(o.amount).to.eql(Math.round(Number(pm.collectionVariables.get(\"billBalance\")) * 100));",
+                  "    pm.expect(o.currency).to.eql(\"INR\");",
+                  "  } else {",
+                  "    pm.expect(pm.response.code).to.eql(409);",
+                  "    pm.expect(pm.response.json().message).to.include(\"isn't set up\");",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A resident starts paying (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/razorpay-order",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{residentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The society records a payment itself - platform only (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10,\n  \"mode\": \"UPI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin records a part payment by bank transfer",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 40,\n  \"mode\": \"BANK_TRANSFER\",\n  \"reference\": \"NEFT-PM-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const i = pm.response.json();",
+                  "pm.test(\"part paid, with a receipt\", () => { pm.expect(i.summary.status).to.eql(\"PARTLY_PAID\"); pm.expect(i.payments[0].receiptNumber).to.match(/-R\\//); pm.expect(i.payments[0].mode).to.eql(\"BANK_TRANSFER\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "More than is left to pay (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000000,\n  \"mode\": \"UPI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A credit note for ₹10",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/credit-notes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10,\n  \"reason\": \"Goodwill credit (Postman)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const i = pm.response.json();",
+                  "pm.test(\"credited\", () => { pm.expect(i.creditedAmount).to.eql(10); pm.expect(i.creditNotes[0].number).to.match(/-CN\\//); });",
+                  "if (pm.response.code === 201) pm.collectionVariables.set(\"billBalance\", i.summary.balance);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pays the rest by UPI",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {{billBalance}},\n  \"mode\": \"UPI\",\n  \"reference\": \"UPI-PM-2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const i = pm.response.json();",
+                  "pm.test(\"paid\", () => { pm.expect(i.summary.status).to.eql(\"PAID\"); pm.expect(i.summary.balance).to.eql(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Paying a settled invoice (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform-invoices/{{billInvoiceId}}/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1,\n  \"mode\": \"CASH\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Razorpay webhook with a bad signature (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Razorpay-Signature",
+                "value": "forged"
+              },
+              {
+                "key": "X-Razorpay-Event-Id",
+                "value": "evt_forged"
+              }
+            ],
+            "url": "{{baseUrl}}/api/webhooks/razorpay",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"payment.captured\",\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_forged\",\n        \"order_id\": \"order_forged\",\n        \"amount\": 100\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Signed webhook for an order the platform never made",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Razorpay-Signature",
+                "value": "{{rzpSignature}}"
+              },
+              {
+                "key": "X-Razorpay-Event-Id",
+                "value": "{{rzpEventId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/webhooks/razorpay",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{rzpBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Needs RAZORPAY_WEBHOOK_SECRET on the server equal to the razorpayWebhookSecret variable; without it every webhook is refused.",
+                  "if (pm.response.code === 400) {",
+                  "  pm.test(\"server has no matching webhook secret: refused\", () => pm.expect(pm.response.json().message).to.include(\"signature\"));",
+                  "} else {",
+                  "  pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "  pm.test(\"ignored as unknown\", () => pm.expect(pm.response.json().outcome).to.include(\"unknown order\"));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const stamp = pm.collectionVariables.get(\"subStamp\");",
+                  "const body = JSON.stringify({ event: \"payment.captured\", payload: { payment: { entity: { id: \"pay_pm_\" + stamp, order_id: \"order_pm_\" + stamp, amount: 10000, status: \"captured\" } } } });",
+                  "pm.collectionVariables.set(\"rzpBody\", body);",
+                  "pm.collectionVariables.set(\"rzpEventId\", \"evt_pm_\" + stamp);",
+                  "pm.collectionVariables.set(\"rzpSignature\", CryptoJS.HmacSHA256(body, pm.collectionVariables.get(\"razorpayWebhookSecret\")).toString(CryptoJS.enc.Hex));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The same event again is handled once",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Razorpay-Signature",
+                "value": "{{rzpSignature}}"
+              },
+              {
+                "key": "X-Razorpay-Event-Id",
+                "value": "{{rzpEventId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/webhooks/razorpay",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{rzpBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 400) {",
+                  "  pm.test(\"server has no matching webhook secret: refused\", () => pm.expect(pm.response.json().message).to.include(\"signature\"));",
+                  "} else {",
+                  "  pm.test(\"duplicate\", () => pm.expect(pm.response.json().outcome).to.eql(\"duplicate\"));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Platform lists every subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/subscriptions",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "const bill = list.find(s => s.societyId === Number(pm.collectionVariables.get(\"billSocietyId\")));",
+                  "const main = list.find(s => s.societyId === Number(pm.collectionVariables.get(\"societyId\")));",
+                  "pm.test(\"both societies listed\", () => { pm.expect(bill.status).to.eql(\"ACTIVE\"); pm.expect(main.plan.code).to.eql(\"PREMIUM\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Platform lists paid invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/invoices?status=PAID",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"ours is paid\", () => pm.expect(pm.response.json().map(i => i.id)).to.include(Number(pm.collectionVariables.get(\"billInvoiceId\"))));",
+                  "pm.test(\"only paid\", () => pm.expect(pm.response.json().every(i => i.status === \"PAID\")).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Platform lists overdue invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/invoices?overdue=true",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"only overdue\", () => pm.expect(pm.response.json().every(i => i.overdue)).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary lists platform invoices (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/invoices",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Run billing now (the 06:00 pass, safe to repeat)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/billing/run",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"counts\", () => [\"invoiced\", \"reminded\", \"pastDue\", \"suspended\"].forEach(k => pm.expect(r[k]).to.be.a(\"number\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary runs billing (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/billing/run",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20% off the next 2 invoices",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/discount",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"percent\": 20,\n  \"periods\": 2,\n  \"note\": \"Launch offer (Postman)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"discount set\", () => { pm.expect(pm.response.json().discountPercent).to.eql(20); pm.expect(pm.response.json().discountPeriodsLeft).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The society leaves: platform cancels",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/cancel",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Moved to another provider (Postman)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"cancelled\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELLED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelled: its secretary adds a charge head (expect 402)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/maintenance/charge-heads",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maintenance\",\n  \"calcType\": \"FIXED\",\n  \"amount\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", () => pm.response.to.have.status(402));",
+                  "pm.test(\"says it is read-only\", () => pm.expect(pm.response.json().message).to.include(\"cancelled\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelled: reading still works",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/maintenance/charge-heads",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelled: the app is told to show it read-only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/access",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{billSecretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"read-only\", () => { pm.expect(pm.response.json().readOnly).to.be.true; pm.expect(pm.response.json().status).to.eql(\"CANCELLED\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel again (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{billSocietyId}}/subscription/cancel",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Again\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "23. Cleanup (optional, destructive)",
       "description": "Removes everything the run created: visitor, flat, wing, the three test users, the society and the complex. Society, complex and user deletes are super-admin only and are refused (409) while history references the record.",
       "item": [
         {
