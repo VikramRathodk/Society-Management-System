@@ -206,5 +206,37 @@ for the sending domain.
   - Tests: `BillingRunIntegrationTest` (7): transitions by date, reminders once each, catch-up, paid up is
     never gated, suspended society refused paid work but guards log visitors and paying lifts it, Basic gets
     402 on finance/policies/meetings, outsiders can't read the access state.
-- **Next:** S3 Razorpay and S4 email (built against a fake gateway and the logging mailer; real test keys
-  and an SMTP account are needed only to try them for real), S7 web, S8 Postman.
+- **S3 done (2026-11-17), Razorpay.** V35 adds `razorpay_order` (invoice, Razorpay order id, amount in paise,
+  CREATED | PAID | FAILED, payment id, error) and `razorpay_webhook_event` (once per event id, with what was
+  done).
+  - Settings `app.razorpay.key-id/key-secret/webhook-secret` (`RAZORPAY_*`) and `app.razorpay.mode`
+    (`test`; `live` refuses to start without all three and a `rzp_live_` key). Without keys, "Pay now"
+    answers 409 "Online payment isn't set up yet".
+  - `POST /api/platform-invoices/{id}/razorpay-order` (SECRETARY and above, or the platform): an order for
+    the amount due (an open order for the same amount is reused) → `{keyId, orderId, amount (paise),
+    currency, invoiceId, invoiceNumber, merchantName}` for Checkout.
+  - `POST /api/platform-invoices/{id}/razorpay-verify {orderId, paymentId, signature}`: HMAC-SHA256 of
+    `orderId|paymentId` with the key secret; records the payment (mode RAZORPAY, receipt) → the invoice.
+    400 on a bad signature; 409 when it can't be recorded (below).
+  - `POST /api/webhooks/razorpay` (public; `X-Razorpay-Signature` = HMAC of the raw body with the webhook
+    secret, else 400; `X-Razorpay-Event-Id` makes it idempotent): `payment.captured` records the payment if
+    the checkout return didn't; `payment.failed` marks the order FAILED; others ignored. Always 200 with
+    `{outcome}` once the signature is valid, so Razorpay stops retrying.
+  - Recorded once per Razorpay payment id (the order row is locked, `gateway_payment_id` unique). Not
+    recorded, and noted on the order for a refund in the Razorpay dashboard: an amount that differs from
+    the order's, or more than the invoice still asks for (paid another way meanwhile).
+  - Tests: `RazorpayIntegrationTest` (8, gateway faked, signatures computed with test secrets).
+- **S4 done (2026-11-17), email.** `notification.Mailer` (best-effort, never throws) with `LoggingMailer`
+  (`MAIL_PROVIDER=log`, default) and `SmtpMailer` (`MAIL_PROVIDER=smtp`: `SMTP_HOST/PORT/USERNAME/PASSWORD`,
+  `MAIL_FROM`; any SMTP endpoint). V36 `email_log` (to, user, society, subject, kind INVOICE | RECEIPT |
+  REMINDER | STATUS, related id, SENT | FAILED | SKIPPED, error), written in its own transaction.
+  - `BillingEmails` (after commit, next to the pushes) mails the billing contact, or else SECRETARY and
+    above: new invoice (amount, due date, "View and pay" link `<web>/subscription?invoice=<id>`), receipt,
+    reminders (due soon / today / overdue), suspension and reactivation. Plain text + simple HTML.
+  - Someone without an email is logged SKIPPED (push only); an SMTP failure is logged FAILED and never
+    blocks billing.
+  - Tests: `BillingEmailIntegrationTest` (4, recording mailer).
+  - Real mail needs an SMTP sender account (e.g. Gmail with an app password); the product owner's test
+    recipient is noted outside the repo.
+- **Next:** S7 web (platform Billing, society Subscription page with Razorpay Checkout, banner, hidden
+  modules), S8 Postman.

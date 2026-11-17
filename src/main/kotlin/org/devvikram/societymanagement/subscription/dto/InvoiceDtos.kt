@@ -122,3 +122,9 @@ data class InvoiceResponse(
         }
     }
 }
+
+data class RazorpayVerifyRequest(
+    @field:jakarta.validation.constraints.NotBlank val orderId: String?,
+    @field:jakarta.validation.constraints.NotBlank val paymentId: String?,
+    @field:jakarta.validation.constraints.NotBlank val signature: String?,
+)
