@@ -14,6 +14,9 @@ import org.devvikram.societymanagement.subscription.dto.PlanResponse
 import org.devvikram.societymanagement.subscription.dto.StartAllResponse
 import org.devvikram.societymanagement.subscription.dto.StartTrialRequest
 import org.devvikram.societymanagement.subscription.dto.SubscriptionResponse
+import org.devvikram.societymanagement.subscription.dto.SubscriptionAccessResponse
+import org.devvikram.societymanagement.subscription.model.PlanModule
+import org.devvikram.societymanagement.subscription.service.SubscriptionGate
 import org.devvikram.societymanagement.subscription.service.SubscriptionService
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.AccessDeniedException
@@ -34,6 +37,7 @@ class SubscriptionController(
     private val subscriptionService: SubscriptionService,
     private val societyService: SocietyService,
     private val accessService: AccessService,
+    private val gate: SubscriptionGate,
 ) {
     // ---- Plans ----
 
@@ -125,6 +129,29 @@ class SubscriptionController(
         return view(societyId)
     }
 
+    // Any member of the society: which paid modules to show and whether paid work is paused (the banner).
+    @GetMapping("/api/societies/{societyId}/subscription/access")
+    fun access(@PathVariable societyId: Long): SubscriptionAccessResponse {
+        val access = accessService.current()
+        if (access.grants.none { it.societyId == societyId } && !access.canOnPlatform(Permissions.PLATFORM_BILLING_VIEW)) {
+            throw AccessDeniedException("You are not a member of this society")
+        }
+        val state = gate.stateOf(societyId)
+            ?: return SubscriptionAccessResponse(false, null, null, PAID_MODULES, false, null, null, null, null, null)
+        return SubscriptionAccessResponse(
+            billing = true,
+            status = state.status,
+            planName = state.plan.name,
+            modules = PAID_MODULES.filter(state.plan::includes).toSet(),
+            readOnly = state.readOnly,
+            trialEndsOn = subscriptionService.view(societyId)?.subscription?.trialEndsOn,
+            overdueInvoiceId = state.overdue?.id,
+            overdueInvoiceNumber = state.overdue?.number,
+            overdueBalance = state.overdue?.balance,
+            overdueSince = state.overdue?.dueOn,
+        )
+    }
+
     // ---- Helpers ----
 
     private fun view(societyId: Long): SubscriptionResponse {
@@ -146,5 +173,9 @@ class SubscriptionController(
             throw AccessDeniedException("Missing permission: $permission for this society")
         }
         return access
+    }
+
+    companion object {
+        private val PAID_MODULES = PlanModule.entries.filter { it != PlanModule.ALL }.toSet()
     }
 }

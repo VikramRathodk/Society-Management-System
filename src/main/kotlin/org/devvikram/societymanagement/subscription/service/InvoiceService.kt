@@ -225,6 +225,7 @@ class InvoiceService(
             subscription.status = SubscriptionStatus.ACTIVE
             subscriptionRepository.save(subscription)
             record(subscription, SubscriptionEventKind.STATUS_CHANGED, from.name, SubscriptionStatus.ACTIVE.name, "Paid up", null)
+            events.publishEvent(SubscriptionStatusChanged(invoice.societyId, from, SubscriptionStatus.ACTIVE, subscription.billingContactId))
         }
     }
 

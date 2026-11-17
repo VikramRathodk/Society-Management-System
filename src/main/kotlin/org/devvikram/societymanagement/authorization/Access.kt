@@ -1,6 +1,9 @@
 package org.devvikram.societymanagement.authorization
 
+import org.devvikram.societymanagement.common.exception.PAYMENT_REQUIRED_REASON
 import org.springframework.security.access.AccessDeniedException
+import org.springframework.web.context.request.RequestAttributes
+import org.springframework.web.context.request.RequestContextHolder
 
 // What one user may do, resolved from their role assignments. Platform grants apply in every society.
 class Access(
@@ -14,9 +17,12 @@ class Access(
     // records, every other society role acts on the whole society.
     private val societyWidePermissions: Map<Long, Set<String>>,
     private val flatPermissions: Map<Long, Set<String>>,
+    // The subscription's say on society permissions (the signed-in caller's access only; audiences
+    // computed for notifications skip it).
+    private val gate: SocietyGate? = null,
 ) {
     fun can(code: String, societyId: Long): Boolean =
-        code in platformPermissions || code in societyPermissions[societyId].orEmpty()
+        code in platformPermissions || passes(code, societyId, code in societyPermissions[societyId].orEmpty())
 
     fun canOnPlatform(code: String): Boolean = code in platformPermissions
 
@@ -30,13 +36,13 @@ class Access(
     // For flat-owned records (visitors, later complaints): the permission across the whole society,
     // from a platform grant or a society role that is not tied to a flat.
     fun canSocietyWide(code: String, societyId: Long): Boolean =
-        canOnPlatform(code) || code in societyWidePermissions[societyId].orEmpty()
+        canOnPlatform(code) || passes(code, societyId, code in societyWidePermissions[societyId].orEmpty())
 
     // Flats whose records the user may act on through a flat-tied role (e.g. a resident's own flat).
     fun flatsWith(code: String): Set<Long> = flatPermissions.filterValues { code in it }.keys
 
     fun canOnFlat(code: String, societyId: Long, flatId: Long): Boolean =
-        canSocietyWide(code, societyId) || flatId in flatsWith(code)
+        canSocietyWide(code, societyId) || (flatId in flatsWith(code) && passes(code, societyId, true))
 
     // Higher roles may hand out only roles below them, and only where they hold them.
     fun outranks(roleCode: String, societyId: Long?): Boolean =
@@ -59,6 +65,15 @@ class Access(
 
     fun requireIn(code: String, societyId: Long) {
         if (!can(code, societyId)) throw AccessDeniedException("Missing permission: $code for this society")
+    }
+
+    // A role grants the permission; the subscription may still refuse it: outside the plan throws 402,
+    // paused (suspended) answers false and remembers why, so the request's refusal says so (402).
+    private fun passes(code: String, societyId: Long, held: Boolean): Boolean {
+        if (!held || gate == null) return held
+        val reason = gate.check(societyId, code) ?: return true
+        RequestContextHolder.getRequestAttributes()?.setAttribute(PAYMENT_REQUIRED_REASON, reason, RequestAttributes.SCOPE_REQUEST)
+        return false
     }
 
     fun requireOnPlatform(code: String) {

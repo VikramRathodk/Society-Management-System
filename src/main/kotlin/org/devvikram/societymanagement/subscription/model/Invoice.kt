@@ -60,6 +60,10 @@ class PlatformInvoice(
     @Column(nullable = false)
     var status: InvoiceStatus = InvoiceStatus.ISSUED
 
+    // The day of the last payment reminder (the billing run never reminds twice in a day).
+    @Column(name = "last_reminded_on")
+    var lastRemindedOn: LocalDate? = null
+
     // What is still to pay.
     val balance: BigDecimal get() = total.subtract(paidAmount).subtract(creditedAmount)
 

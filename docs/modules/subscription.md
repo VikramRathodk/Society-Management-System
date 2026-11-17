@@ -174,6 +174,37 @@ for the sending domain.
     seller's legal name, GSTIN, address and state).
   - Pushes `PLATFORM_INVOICE` and `PLATFORM_PAYMENT` to the billing contact, or else SECRETARY and above.
   - Tests: `InvoiceIntegrationTest` (7).
-- **Next:** S3 Razorpay and S4 email need a Razorpay test account and an
-  SMTP account; then S5 daily run and suspension, S6 module enforcement (`SubscriptionService.modulesOf`
-  is ready), S7 web, S8 Postman.
+- **S5 and S6 done (2026-11-17)**, built before S3/S4 because they need no outside accounts.
+  - V34 adds `platform_invoice.last_reminded_on`. `BillingRunService.run(day)` goes through every
+    subscription that isn't cancelled, each in its own transaction (one failing never stops the others):
+    issues every invoice that is due (catching up missed periods), reminds on the days in
+    `app.billing.reminder-days` (`-3,1,7` relative to the due date, at most once a day per invoice), moves
+    ACTIVE → PAST_DUE the day after an invoice's due date and → SUSPENDED once it is still unpaid after
+    `app.billing.grace-days` (15). Paying (S2) makes the society ACTIVE again at once. `BillingRunJob` runs it
+    at `app.billing.run-cron` (06:00 in the report zone) when billing is on; `POST /api/platform/billing/run`
+    (platform) runs it on demand and answers the counts.
+  - Pushes: `PLATFORM_INVOICE_REMINDER` (due soon / due today / overdue) and `SUBSCRIPTION_STATUS`
+    (PAST_DUE, SUSPENDED, ACTIVE again) to the billing contact, or else SECRETARY and above.
+  - **Gate (S5 suspension + S6 plan modules)** — one place, no change in the other modules: the
+    authorization module has a `SocietyGate` hook that every per-society permission check of the signed-in
+    caller (`can`, `canSocietyWide`, `canOnFlat`, `requireIn`) passes through, and `SubscriptionGate`
+    implements it. Permissions map to modules by prefix (MAINTENANCE, FINANCE, POLICY → POLICIES,
+    GOVERNANCE).
+    - A module outside the plan answers **402** ("Finance and accounts isn't part of the Basic plan …") for
+      reads and writes.
+    - SUSPENDED or CANCELLED: the paid modules' writes (any permission not ending in VIEW/EXPORT) are refused
+      with **402** "Your subscription is suspended. Pay invoice SAH/… (₹… due since …) to continue"; flags
+      such as `canDraft` simply turn false. Residents' own actions stay open
+      (`app.billing.suspended-allowed`: `POLICY.ACKNOWLEDGEMENT.CREATE,GOVERNANCE.VOTE.CREATE`). Reads,
+      exports, core modules (visitors, complaints, notices, structure, residents) and the subscription
+      itself always work.
+    - Platform grants (super admin) never pass through the gate; nor do audiences computed for
+      notifications; societies without a subscription (billing off) are never gated.
+  - `GET /api/societies/{id}/subscription/access` (any member of the society): `billing`, `status`,
+    `planName`, `modules` (paid modules in the plan), `readOnly`, `trialEndsOn`, and the overdue invoice
+    (`overdueInvoiceId/Number/Balance/Since`) — what the web needs to hide modules and show the banner.
+  - Tests: `BillingRunIntegrationTest` (7): transitions by date, reminders once each, catch-up, paid up is
+    never gated, suspended society refused paid work but guards log visitors and paying lifts it, Basic gets
+    402 on finance/policies/meetings, outsiders can't read the access state.
+- **Next:** S3 Razorpay and S4 email (built against a fake gateway and the logging mailer; real test keys
+  and an SMTP account are needed only to try them for real), S7 web, S8 Postman.

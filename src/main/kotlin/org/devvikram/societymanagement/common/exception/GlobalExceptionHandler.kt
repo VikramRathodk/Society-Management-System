@@ -74,8 +74,15 @@ class GlobalExceptionHandler {
         respond(HttpStatus.UNAUTHORIZED, "Authentication required", request)
 
     @ExceptionHandler(AccessDeniedException::class)
-    fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
-        respond(HttpStatus.FORBIDDEN, ex.message, request)
+    fun handleAccessDenied(ex: AccessDeniedException, request: HttpServletRequest): ResponseEntity<ErrorResponse> {
+        // The permission was held but paused by the subscription: say that, not "missing permission".
+        val reason = request.getAttribute(PAYMENT_REQUIRED_REASON) as? String
+        return if (reason != null) respond(HttpStatus.PAYMENT_REQUIRED, reason, request) else respond(HttpStatus.FORBIDDEN, ex.message, request)
+    }
+
+    @ExceptionHandler(PaymentRequiredException::class)
+    fun handlePaymentRequired(ex: PaymentRequiredException, request: HttpServletRequest): ResponseEntity<ErrorResponse> =
+        respond(HttpStatus.PAYMENT_REQUIRED, ex.message, request)
 
     private fun unreadableMessage(ex: HttpMessageNotReadableException): String {
         val cause = ex.cause as? JacksonException

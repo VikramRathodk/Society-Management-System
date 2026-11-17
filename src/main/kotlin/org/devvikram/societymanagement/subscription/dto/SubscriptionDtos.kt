@@ -119,3 +119,19 @@ data class SubscriptionResponse(
         )
     }
 }
+
+// What the society's members' app needs to know: which paid modules to show, and whether to show the
+// "suspended — pay invoice …" banner. Without billing, everything is on.
+data class SubscriptionAccessResponse(
+    val billing: Boolean,
+    val status: SubscriptionStatus?,
+    val planName: String?,
+    // The paid modules the society may use (ALL expanded); core modules are always on.
+    val modules: Set<PlanModule>,
+    val readOnly: Boolean,
+    val trialEndsOn: LocalDate?,
+    val overdueInvoiceId: Long?,
+    val overdueInvoiceNumber: String?,
+    val overdueBalance: BigDecimal?,
+    val overdueSince: LocalDate?,
+)
