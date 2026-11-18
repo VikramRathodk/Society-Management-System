@@ -48,6 +48,10 @@ class SubscriptionController(
         return subscriptionService.plans().filter { it.active || access.canOnPlatform(Permissions.PLATFORM_BILLING_VIEW) }.map(PlanResponse::from)
     }
 
+    // Public (the landing page's pricing): the plans on offer, no sign-in needed.
+    @GetMapping("/api/public/plans")
+    fun publicPlans(): List<PlanResponse> = subscriptionService.plans().filter { it.active }.map(PlanResponse::from)
+
     @PostMapping("/api/platform/plans")
     @ResponseStatus(HttpStatus.CREATED)
     fun createPlan(@Valid @RequestBody request: PlanRequest): PlanResponse {

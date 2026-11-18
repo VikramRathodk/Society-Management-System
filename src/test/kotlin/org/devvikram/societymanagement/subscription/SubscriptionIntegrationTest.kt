@@ -91,6 +91,20 @@ class SubscriptionIntegrationTest {
     private fun standard() = planRepository.findByCode("STANDARD")!!
     private fun basic() = planRepository.findByCode("BASIC")!!
 
+    @Test
+    fun `the plans on offer are public, without sign-in, and only active ones`() {
+        val hidden = basic()
+        hidden.active = false
+        planRepository.save(hidden)
+        mockMvc.perform(request(HttpMethod.GET, "/api/public/plans"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.code == 'STANDARD')]").exists())
+            .andExpect(jsonPath("$[?(@.code == 'BASIC')]").doesNotExist())
+        // Only reading is public.
+        mockMvc.perform(request(HttpMethod.POST, "/api/public/plans"))
+            .andExpect(status().isUnauthorized)
+    }
+
     // ---- Starting ----
 
     @Test
