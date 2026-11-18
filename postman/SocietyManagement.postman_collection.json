@@ -386,6 +386,82 @@
     {
       "key": "polSelfVersionId",
       "value": ""
+    },
+    {
+      "key": "govChairmanPhone",
+      "value": ""
+    },
+    {
+      "key": "govChairmanId",
+      "value": ""
+    },
+    {
+      "key": "govChairmanToken",
+      "value": ""
+    },
+    {
+      "key": "govFlatNumber",
+      "value": ""
+    },
+    {
+      "key": "govFlatId",
+      "value": ""
+    },
+    {
+      "key": "govResidentPhone",
+      "value": ""
+    },
+    {
+      "key": "govResidentId",
+      "value": ""
+    },
+    {
+      "key": "govResidentToken",
+      "value": ""
+    },
+    {
+      "key": "govSoon",
+      "value": ""
+    },
+    {
+      "key": "govStamp",
+      "value": ""
+    },
+    {
+      "key": "govMeetingId",
+      "value": ""
+    },
+    {
+      "key": "govItem1",
+      "value": ""
+    },
+    {
+      "key": "govItem2",
+      "value": ""
+    },
+    {
+      "key": "govCommitteeAt",
+      "value": ""
+    },
+    {
+      "key": "govCommitteeId",
+      "value": ""
+    },
+    {
+      "key": "govAdjournedAt",
+      "value": ""
+    },
+    {
+      "key": "govAdjournedId",
+      "value": ""
+    },
+    {
+      "key": "govSgmAt",
+      "value": ""
+    },
+    {
+      "key": "govSgmId",
+      "value": ""
     }
   ],
   "item": [
@@ -13972,7 +14048,1849 @@
       ]
     },
     {
-      "name": "21. Cleanup (optional, destructive)",
+      "name": "21. Meetings & governance",
+      "description": "Module 26, in the society from folders 2–5. Creates its own CHAIRMAN and a member (owner of a new flat) and leaves them, the meetings and the minutes behind (history). Plans an AGM for a few minutes from now so it can be held in the same run (short notice with a reason), RSVPs, hides a committee meeting from members, adjourns and cancels it, deletes a draft, takes attendance with a quorum of one flat for the run, marks the AGM held, runs a secret e-vote, defers an item, searches the register, and takes the minutes through send-back, approval by the chairman, a correction and the notice-board announcement. Run close to midnight (India time), the AGM may fall on the next day and attendance is refused until then.",
+      "item": [
+        {
+          "name": "Super admin creates a chairman",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Girish Chairman\",\n  \"phone\": \"{{govChairmanPhone}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"CHAIRMAN\",\n  \"societyId\": {{societyId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govChairmanId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govChairmanPhone\", \"7\" + Math.floor(100000000 + Math.random() * 900000000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as the chairman",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{govChairmanPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govChairmanToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary adds a flat for this folder's member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flatNumber\": \"{{govFlatNumber}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/wings/{{wingId}}/flats",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govFlatId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govFlatNumber\", \"G\" + Math.floor(100 + Math.random() * 900));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Super admin creates the owner of that flat",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Meera Member\",\n  \"phone\": \"{{govResidentPhone}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"RESIDENT\",\n  \"societyId\": {{societyId}},\n  \"flatId\": {{govFlatId}},\n  \"residentType\": \"OWNER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govResidentId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govResidentPhone\", \"7\" + Math.floor(100000000 + Math.random() * 900000000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as the member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{govResidentPhone}}\",\n  \"password\": \"Pass@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govResidentToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary: quorum of one flat for this run",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"generalQuorumCap\": 1,\n  \"committeeQuorumPercent\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/settings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const g = pm.response.json().groups.find(x => x.key === \"GOVERNANCE\");",
+                  "pm.test(\"Meetings & governance settings\", () => pm.expect(g.settings.map(s => s.key)).to.include.members([\"agmNoticeDays\", \"generalQuorumPercent\", \"meetingReminderHours\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member cannot plan a meeting → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"AGM\",\n  \"title\": \"Mine\",\n  \"scheduledAt\": \"{{govSoon}}\",\n  \"place\": \"Hall\",\n  \"agenda\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/meetings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govSoon\", new Date(Date.now() + 5 * 60000).toISOString());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary plans an AGM (today, so it can be held in this run)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"AGM\",\n  \"title\": \"AGM {{govStamp}}\",\n  \"scheduledAt\": \"{{govSoon}}\",\n  \"place\": \"Clubhouse\",\n  \"agenda\": [{\"title\":\"Accounts 2025-26\",\"resolutionText\":\"Adopt the audited accounts for 2025-26\"},{\"title\":\"Repainting\",\"resolutionText\":\"Repaint the building for up to 12 lakh\"},{\"title\":\"Any other business\"}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/meetings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const m = pm.response.json();",
+                  "pm.test(\"draft with three items\", () => { pm.expect(m.status).to.eql(\"DRAFT\"); pm.expect(m.agenda.length).to.eql(3); pm.expect(m.noticeDays).to.eql(14); });",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govMeetingId\", m.id);",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govItem1\", m.agenda[0].id);",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govItem2\", m.agenda[1].id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govSoon\", new Date(Date.now() + 5 * 60000).toISOString());",
+                  "pm.collectionVariables.set(\"govStamp\", Date.now().toString().slice(-6));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member cannot see the draft → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notice without a reason on short notice → 400",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/send-notice",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary sends the notice with a short-notice reason",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shortNoticeReason\": \"Collection run: the meeting is held today\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/send-notice",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"announced\", () => { pm.expect(pm.response.json().status).to.eql(\"NOTICE_SENT\"); pm.expect(pm.response.json().shortNoticeReason).to.include(\"today\"); });",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govItem1\", pm.response.json().agenda[0].id);",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govItem2\", pm.response.json().agenda[1].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editing after the notice → 409",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"AGM\",\n  \"title\": \"Changed\",\n  \"scheduledAt\": \"{{govSoon}}\",\n  \"place\": \"Clubhouse\",\n  \"agenda\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member sees it in upcoming meetings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/meetings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"listed\", () => pm.expect(pm.response.json().map(m => m.id)).to.include(Number(pm.collectionVariables.get(\"govMeetingId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member says they'll come",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"YES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/rsvp",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"YES\", () => pm.expect(pm.response.json().yourRsvp).to.eql(\"YES\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary sees the replies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/rsvps",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"one yes\", () => pm.expect(pm.response.json().yes).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard doesn't see meetings → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary plans a committee meeting",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"COMMITTEE\",\n  \"title\": \"Committee {{govStamp}}\",\n  \"scheduledAt\": \"{{govCommitteeAt}}\",\n  \"onlineLink\": \"https://meet.example.com/committee\",\n  \"agenda\": [{\"title\": \"Security contract\"}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/meetings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govCommitteeId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govCommitteeAt\", new Date(Date.now() + 4320 * 60000).toISOString());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary announces it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govCommitteeId}}/send-notice",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member can't see a committee meeting → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govCommitteeId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary adjourns it by a week",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduledAt\": \"{{govAdjournedAt}}\",\n  \"reason\": \"Two members travelling\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govCommitteeId}}/adjourn",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "const m = pm.response.json();",
+                  "pm.test(\"new meeting, agenda kept\", () => { pm.expect(m.adjournedFromId).to.eql(Number(pm.collectionVariables.get(\"govCommitteeId\"))); pm.expect(m.agenda.length).to.eql(1); });",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govAdjournedId\", m.id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govAdjournedAt\", new Date(Date.now() + 14400 * 60000).toISOString());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary cancels the adjourned meeting",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Contract renewed by circulation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govAdjournedId}}/cancel",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"cancelled\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELLED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts and deletes an SGM",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"SGM\",\n  \"title\": \"Scrapped SGM\",\n  \"scheduledAt\": \"{{govSgmAt}}\",\n  \"place\": \"Hall\",\n  \"agenda\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/meetings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set(\"govSgmId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"govSgmAt\", new Date(Date.now() + 28800 * 60000).toISOString());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete the draft SGM",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govSgmId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Attendance sheet with quorum",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/attendance",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"member flats counted\", () => pm.expect(pm.response.json().quorum.members).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member cannot read the sheet → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/attendance",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark the member present",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [{{govResidentId}}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/attendance",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"quorum met\", () => { const q = pm.response.json().quorum; pm.expect(q.present).to.eql(1); pm.expect(q.met).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark the meeting held, chaired by the chairman",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chairpersonId\": {{govChairmanId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/hold",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const m = pm.response.json();",
+                  "pm.test(\"held, quorum frozen\", () => { pm.expect(m.status).to.eql(\"HELD\"); pm.expect(m.quorumRequired).to.eql(1); pm.expect(m.chairperson.id).to.eql(Number(pm.collectionVariables.get(\"govChairmanId\"))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Open voting on the accounts",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proposedBy\": {{govResidentId}},\n  \"secondedBy\": {{govChairmanId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/agenda-items/{{govItem1}}/open-voting",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"open\", () => pm.expect(pm.response.json().agenda[0].votingStatus).to.eql(\"OPEN\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member votes for (secret ballot)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"choice\": \"FOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/agenda-items/{{govItem1}}/vote",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const i = pm.response.json().agenda[0];",
+                  "pm.test(\"voted, no running totals\", () => { pm.expect(i.youVoted).to.eql(true); pm.expect(i.results).to.eql(null); pm.expect(i.turnout).to.be.at.least(1); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Voting again → 409 (final)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"choice\": \"AGAINST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/agenda-items/{{govItem1}}/vote",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Guard can't vote → 404",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"choice\": \"FOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/agenda-items/{{govItem1}}/vote",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{guardToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Close voting: counted and numbered",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/agenda-items/{{govItem1}}/close-voting",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const i = pm.response.json().agenda[0];",
+                  "pm.test(\"passed with a number\", () => { pm.expect(i.outcome).to.eql(\"PASSED\"); pm.expect(i.resolutionNumber).to.match(/^AGM\\//); pm.expect(i.results.votesFor).to.be.at.least(1); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Defer the repainting",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/agenda-items/{{govItem2}}/defer",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"deferred\", () => pm.expect(pm.response.json().agenda[1].outcome).to.eql(\"DEFERRED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolutions register (member)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/resolutions?q={{govStamp}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"the passed resolution\", () => { const r = pm.response.json(); pm.expect(r.length).to.eql(1); pm.expect(r[0].title).to.eql(\"Accounts 2025-26\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member cannot write minutes → 403",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary drafts the minutes",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"# Minutes\\nAccounts adopted; repainting deferred.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"draft\", () => pm.expect(pm.response.json().status).to.eql(\"DRAFT\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member can't read the draft → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary submits them",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"pending\", () => pm.expect(pm.response.json().status).to.eql(\"PENDING\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The drafter can't approve → 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman sends them back",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Add who proposed and seconded\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/send-back",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"draft with the reason\", () => pm.expect(pm.response.json().reviewReason).to.include(\"proposed\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary corrects the draft",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"# Minutes\\nAccounts adopted (proposed by Meera Member, seconded by Girish Chairman); repainting deferred.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary submits again",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/submit",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chairman approves → published",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/approve",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govChairmanToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"published\", () => pm.expect(pm.response.json().status).to.eql(\"PUBLISHED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Member reads the minutes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"the text\", () => pm.expect(pm.response.json().body).to.include(\"Accounts adopted\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The meeting is MINUTES_PUBLISHED",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{govResidentToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status\", () => pm.expect(pm.response.json().status).to.eql(\"MINUTES_PUBLISHED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editing published minutes → 409",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Rewrite\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary adds a correction",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"The auditor named in item 1 is Rao & Co.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/addenda",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"one correction\", () => pm.expect(pm.response.json().addenda.length).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary posts them on the notice board",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/announce",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"notice id kept\", () => pm.expect(pm.response.json().announcedNoticeId).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Announcing twice → 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/meetings/{{govMeetingId}}/minutes/announce",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary: quorum settings back to the defaults",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"generalQuorumCap\": null,\n  \"committeeQuorumPercent\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/settings",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "22. Cleanup (optional, destructive)",
       "description": "Removes everything the run created: visitor, flat, wing, the three test users, the society and the complex. Society, complex and user deletes are super-admin only and are refused (409) while history references the record.",
       "item": [
         {

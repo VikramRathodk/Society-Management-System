@@ -1,0 +1,229 @@
+# Meeting & governance (module 26)
+
+How the society is run on the record: general body meetings (AGM, SGM) and managing committee
+meetings, their notices and agendas, who attended and whether there was quorum, the resolutions passed
+with their votes, and minutes approved and published to members. Planned 2026-11-15 on backend branch
+`feature/governance`; build steps G1–G5 below. Reuses the chairman role, the approval pattern of
+[policies](policy.md) and the attachment storage.
+
+## Today
+
+Meetings are announced as notices; attendance is a paper register; minutes are a PDF somebody keeps;
+nobody can find which resolution approved what. The policy module left "a by-law change needs the
+general body" for this module.
+
+## Decisions (product owner, 2026-11-15)
+
+1. **Three kinds of meeting.** *AGM* and *SGM* (general body: every member flat is invited) and
+   *committee meeting* (the managing committee: committee members, chairman, secretary). Each has a
+   date and time, a place and/or an online link, and an ordered **agenda**.
+2. **Life of a meeting.** DRAFT (committee prepares it) → **NOTICE SENT** (published to the invitees,
+   with push; the notice period is checked) → **HELD** (attendance and outcomes recorded) →
+   **MINUTES PUBLISHED**. It can be **CANCELLED** or **ADJOURNED** (to a new date, keeping its agenda and
+   linking the two) before it is held.
+3. **Members and quorum.** For general meetings one vote per **member flat** (its owner side; tenants
+   attend but don't count), and quorum is counted in flats present. For committee meetings each
+   committee member counts. The quorum rule is a per-society setting (default for general meetings:
+   two thirds of member flats or 20, whichever is less — the usual model bye-law; for committee
+   meetings: more than half). The secretary marks attendance; RSVP before the meeting is optional and
+   only a headcount guide.
+4. **Resolutions decided by online e-voting.** Each agenda item can carry a proposed resolution with a
+   proposer and seconder. The secretary **opens voting** on it (before or during the meeting) and
+   **closes** it; members vote FOR / AGAINST / ABSTAIN in the app, **one vote per member flat** at
+   general meetings (one per committee member at committee meetings). **A vote is final once cast**
+   (the app asks to confirm), since changing it would mean keeping the choice somewhere. The ballot is
+   **secret**: the app records *that* a flat voted (to stop double voting and to
+   show turnout) but stores only the running totals, never which way a flat voted. On close the outcome
+   is counted (PASSED when FOR exceeds AGAINST; abstentions don't count) and can't be changed; the
+   secretary may instead mark an item DEFERRED without voting. Passed resolutions get a number
+   (`AGM/2026-27/3`) and go into a searchable **resolutions register**.
+5. **Minutes.** The secretary drafts minutes per agenda item after the meeting, with an optional signed
+   PDF; the **chairman approves** them (the meeting's chairperson, or any CHAIRMAN-and-above who wasn't
+   the drafter), and they are published: general meeting minutes to all members, committee meeting
+   minutes to the committee only. Published minutes are never edited; a correction is a dated
+   addendum.
+6. **Links to other modules.** A resolution can reference a policy (e.g. "adopts version 3 of the
+   Parking rules") and a published meeting can be announced on the notice board with one click; both
+   are references only — they don't approve or publish anything by themselves.
+
+## Who may do what (within one society)
+
+| Action | Who | Permission |
+|---|---|---|
+| See general meetings, their agendas and published minutes; RSVP | everyone with a flat role | `GOVERNANCE.MEETING.VIEW` |
+| See committee meetings and their minutes | COMMITTEE and above | `GOVERNANCE.COMMITTEE.VIEW` |
+| Create and edit meetings and agendas, send the notice, cancel, adjourn | SECRETARY and above | `GOVERNANCE.MEETING.CREATE` / `UPDATE` |
+| Vote on an open resolution (once per member flat; per member at committee meetings) | owner side of a flat; committee members for committee meetings | `GOVERNANCE.VOTE.CREATE` |
+| Open and close voting, defer an item, record attendance, draft minutes | SECRETARY and above | `GOVERNANCE.MINUTES.CREATE` |
+| Approve and publish minutes | CHAIRMAN and above, not the drafter | `GOVERNANCE.MINUTES.APPROVE` |
+
+## Settings (new group "Meetings & governance")
+
+- `agmNoticeDays` (14), `sgmNoticeDays` (7), `committeeNoticeDays` (2) — the shortest notice; sending
+  later needs an explicit "short notice" reason, which is kept on the meeting.
+- `generalQuorumPercent` (67) and `generalQuorumCap` (20) — quorum is the lesser of the percentage of
+  member flats and the cap (cap 0 = no cap).
+- `committeeQuorumPercent` (51).
+- `meetingReminderHours` (24) — the reminder push before a meeting (0 = none).
+
+## Data (V29, planned)
+
+- `meeting`: society, kind (AGM | SGM | COMMITTEE), title, scheduled at, place, online link, status,
+  notice sent at/by, short-notice reason, adjourned to (meeting id), cancelled reason, quorum required,
+  quorum present (frozen when held), chairperson, created/updated by and at.
+- `agenda_item`: meeting, position, title, description, proposed resolution text, proposer, seconder,
+  voting status (NOT_OPEN | OPEN | CLOSED), opened/closed by and at, tallies for/against/abstain,
+  outcome (PASSED | REJECTED | DEFERRED), resolution number, linked policy id.
+- `ballot`: item, voter key (the flat for general meetings, the user for committee meetings), voted by,
+  voted at — unique per item and voter key; **no choice column** (secret ballot). The ballot row and
+  the tally increment are written in one transaction with the item row locked, so a vote counts
+  exactly once; a second vote for the same flat is refused (409).
+- `meeting_attendance`: meeting, user, flat (null for committee meetings), present (bool), RSVP
+  (YES | NO | MAYBE), recorded by/at.
+- `meeting_minutes`: meeting, body per item (JSON or a child table), status (DRAFT | PENDING |
+  PUBLISHED), attachment key/name/type/size, drafted by, approved by/at, published at; `minutes_addendum`
+  (minutes, text, by, at).
+- Resolution numbers per society, kind and financial year (the finance year setting).
+- Permissions as in the table above.
+
+## Pushes
+
+`MEETING_NOTICE` (invitees), `MEETING_REMINDER` (invitees, `meetingReminderHours` before; needs the
+first scheduled job in the backend), `MEETING_CANCELLED` / `MEETING_ADJOURNED`, `VOTING_OPEN` (those
+who may vote on the item), `VOTING_CLOSED` (invitees, with the result), `MINUTES_SUBMITTED`
+(approvers), `MINUTES_PUBLISHED` (those who may see them).
+
+## Build steps
+
+| Step | What | Done when |
+|---|---|---|
+| G1 | V29, meetings and agendas, invitees by kind, notice with notice-period check, RSVP, cancel, adjourn, settings, pushes, scheduled reminder | Tests: notice period and short-notice reason; invitees per kind; committee meetings hidden from residents; adjourn keeps the agenda |
+| G2 | Attendance (per flat / per member), quorum from the settings; e-voting: open/close per item, secret ballot, one vote per flat (owner side) or committee member, tallies, outcome on close, defer; resolution numbering, resolutions register with search | Tests: quorum rules (percent, cap, committee); one vote per flat even with two owners; tenants can't vote; no choice stored; voting only while open; outcome fixed on close; numbering per year |
+| G3 | Minutes: draft, attachment, submit, approve (not the drafter), publish, addenda; visibility by kind; notice-board announcement; policy links | Tests: drafter can't approve; published minutes immutable; committee minutes hidden from residents |
+| G4 | Web: meetings list and calendar strip, meeting page (agenda, notice, RSVP, attendance sheet, voting with live turnout and results on close, minutes editor and approval), resolutions register, dashboard cards "Next meeting" and "Vote now" | Unit tests, build |
+| G5 | Postman folder, docs | Full Postman run |
+
+Each step ends with the suite passing and its own commit.
+
+## Answered questions (product owner, 2026-11-15)
+
+1. **Voting:** online e-voting, opened and closed by the secretary per resolution, **secret ballot**
+   (only totals; who voted is recorded, not how).
+2. **Members:** one per member flat, owner side, for quorum and votes at general meetings.
+3. **Committee meetings:** minutes for the committee only.
+4. **Minutes:** the chairman (or another approver, not the drafter) approves them in the app.
+5. **Quorum defaults:** two thirds of member flats or 20, whichever is less; committee more than half
+   (settings).
+6. **Elections:** later, not in this module.
+7. **Testing:** Postman folder only (as for policies).
+
+## Progress
+
+- **G1 done (2026-11-15).** V29 adds `meeting`, `agenda_item`, `meeting_rsvp` and four permissions:
+  `GOVERNANCE.MEETING.VIEW` (RESIDENT, so everyone above too), `GOVERNANCE.COMMITTEE.VIEW` (COMMITTEE and
+  above), `GOVERNANCE.MEETING.CREATE` / `UPDATE` (SECRETARY and above). Guards see no meetings. The
+  "Meetings & governance" settings group has the notice periods, quorum rules (used from G2) and
+  `meetingReminderHours`.
+  - `GET /api/societies/{id}/meetings?view=upcoming|past|drafts&kind=` — upcoming: announced, not before
+    today, soonest first; past: the rest (held, cancelled, adjourned, or a day gone by), latest first;
+    drafts: organisers only. `POST` creates a draft with its agenda.
+  - `GET|PUT|DELETE /api/meetings/{id}` — a draft is replaced whole (agenda included) and can be deleted;
+    once the notice is sent the meeting changes only by `POST …/cancel {reason}` or
+    `POST …/adjourn {scheduledAt, place?, onlineLink?, reason}`, which creates the new meeting (agenda
+    copied, announced at once without a notice period, `adjournedFromId` / `adjournedToId`).
+  - `POST /api/meetings/{id}/send-notice {shortNoticeReason?}` — needs a future time, at least one
+    agenda item, and a reason when the meeting is fewer days away than the kind's notice setting
+    (days counted in the report zone); the reason is kept on the meeting.
+  - `PUT /api/meetings/{id}/rsvp {response: YES|NO|MAYBE}` — invitees of an announced meeting before it
+    starts; `GET …/rsvps` lists replies for organisers; organisers also get `rsvpCounts` on every meeting.
+  - A meeting needs a place, an online link (http/https) or both; at most 50 agenda items.
+  - Visibility: drafts only to organisers; AGMs/SGMs to MEETING.VIEW holders; committee meetings to
+    COMMITTEE.VIEW through a society-wide role. Anything else answers 404.
+  - Pushes after commit to the invitees (same rules), never to whoever acted: `MEETING_NOTICE`,
+    `MEETING_CANCELLED`, `MEETING_ADJOURNED` (with the new meeting's id), `MEETING_REMINDER`.
+  - The backend's **first scheduled job**: `common/config/SchedulingConfig` turns on scheduling
+    (`app.scheduling.enabled`, default on; one instance assumed), and `MeetingReminderJob` runs every
+    `app.governance.reminder-interval` (default 10 minutes), reminding each announced meeting once when
+    it is within its society's `meetingReminderHours` (0 = never).
+  - Tests: `MeetingIntegrationTest` (11).
+
+- **G2 done (2026-11-15).** V30 adds attendance, e-voting and numbering: meeting `held_at/by`,
+  `chairperson_id`, `member_count`, `quorum_required`, `quorum_present`; agenda item proposer/seconder,
+  `voting_status`, tallies, `outcome`, `resolution_number`; tables `ballot` (who voted — never how),
+  `meeting_attendance`, `resolution_counter`; permissions `GOVERNANCE.VOTE.CREATE` (RESIDENT) and
+  `GOVERNANCE.MINUTES.CREATE` (SECRETARY and above).
+  - **Members:** a member flat is a flat with an active owner-side holder of VOTE.CREATE (owner, family
+    or no type; tenants don't make or count for a member flat). Committee members: active holders of
+    COMMITTEE.VIEW through a society-wide role.
+  - `GET|PUT /api/meetings/{id}/attendance {userIds}` (MINUTES.CREATE) — the sheet lists every invitee
+    with the flats they vote for, RSVP and presence, plus quorum `{members, required, present, met}`.
+    Recorded from the meeting's day (in the report zone) until minutes are published, also after it is
+    marked held (late arrivals). Quorum: general — member flats with someone owner-side present, required
+    = ceil(members × `generalQuorumPercent` %) capped at `generalQuorumCap` (0 = no cap); committee —
+    members present, required = ceil(members × `committeeQuorumPercent` %).
+  - `POST /api/meetings/{id}/hold {chairpersonId?}` — on or after its day; freezes member count and
+    quorum; status HELD. The chairperson must be an invitee.
+  - `POST /api/agenda-items/{id}/open-voting {proposedBy?, secondedBy?}` (an item with a resolution, the
+    meeting announced or held; proposer ≠ seconder, both invitees), `…/close-voting` (PASSED when for >
+    against, else REJECTED; a passed resolution is numbered `AGM|SGM|MC/<financial year>/<n>`, the year
+    from `financialYearStartMonth`, numbers per society, prefix and year), `…/defer` (DEFERRED, never
+    voted). Pushes `VOTING_OPEN` (those who may vote) and `VOTING_CLOSED` (invitees, with the totals).
+  - `POST /api/agenda-items/{id}/vote {choice: FOR|AGAINST|ABSTAIN, flatId?}` — one vote per member flat
+    (anyone on its owner side, first come) or per committee member; final once cast (409 again); an owner
+    of several flats votes once per flat and names `flatId` unless only one is left. The ballot row and
+    the tally move together with the meeting row locked.
+  - Each agenda item in a meeting response has `votingStatus`, `outcome`, `resolutionNumber`, proposer and
+    seconder, `turnout`, `results` (**only once closed** — no running totals), `youVoted`, `canVote`,
+    `yourVotes`; the meeting has `electorate`, `heldAt`, `chairperson`, `quorumRequired/Present`.
+  - `GET /api/societies/{id}/resolutions?q=&outcome=passed|rejected|deferred|all` — the register,
+    latest first, only meetings the viewer may see.
+  - Tests: `ProceedingsIntegrationTest` (8).
+
+- **G3 done (2026-11-15).** V31 adds `meeting_minutes` (one per meeting), `minutes_addendum`,
+  `agenda_item.policy_id` and `GOVERNANCE.MINUTES.APPROVE` (CHAIRMAN, so SECRETARY and ADMIN too).
+  `governance` may now use `notice` and `policy`.
+  - `GET|PUT /api/meetings/{id}/minutes {body}` — SECRETARY and above (MINUTES.CREATE) write the draft
+    of a **held** meeting (the first save starts the minutes); `PUT|DELETE|GET …/minutes/attachment`
+    (signed copy: PDF or image, 5 MB). Drafts and pending minutes are visible only to MINUTES.CREATE
+    and MINUTES.APPROVE holders; published minutes to whoever sees the meeting (committee meeting
+    minutes stay with the committee). Otherwise 404.
+  - `POST …/minutes/submit` (text or an attachment needed) → PENDING, push `MINUTES_SUBMITTED` to
+    approvers; `…/send-back {reason}` → DRAFT with the reason, push `MINUTES_SENT_BACK` to the drafter;
+    `…/approve` by a MINUTES.APPROVE holder **who isn't the drafter** (a secretary who drafted needs the
+    chairman or an admin) → PUBLISHED, the meeting becomes MINUTES_PUBLISHED (attendance and voting
+    close), push `MINUTES_PUBLISHED` to whoever sees the meeting.
+  - Published minutes are never edited: `POST …/minutes/addenda {text}` adds a dated correction.
+  - `POST …/minutes/announce` posts "Minutes published: <title>" on the notice board (general meetings,
+    once; the notice id is kept).
+  - Agenda items take `policyId` (one of the society's policies, else 400); responses show
+    `policy {id, title}`. A reference only: nothing is approved or published by it.
+  - Voting responses now include `yourFlats [{id, label "B-201", voted}]` so an owner of several flats
+    can choose which flat they're voting for.
+  - Tests: `MinutesIntegrationTest` (9).
+
+- **G4 done (2026-11-15, web `feature/governance` 5c99634).** `/meetings` (Meetings in the side nav for
+  holders of MEETING.VIEW or COMMITTEE.VIEW): upcoming / past / drafts, kind filter, date tiles, "Vote
+  now" and RSVP badges. `/meetings/new` and `/meetings/:id/edit`: kind, date and time, place and/or
+  link, notes, agenda items (reorder, remove) with optional resolutions; unsaved-changes guard.
+  `/meetings/:id`: agenda with resolutions, proposer/seconder, turnout, results once closed, Vote (a
+  dialog with the flat to vote for when the member has several; secret and final), open/close voting
+  and defer for the secretary; when and where, notice and short-notice reason, quorum, chairperson;
+  RSVP; organiser actions (send notice — asks for a reason when short —, edit, delete draft, cancel,
+  adjourn, mark held, attendance); minutes (read, edit, submit, approve or send back — never the
+  drafter —, corrections, post on the notice board, signed copy). `/meetings/:id/attendance`: tick who is
+  present, live quorum. `/meetings/:id/minutes`: editor with preview, prefilled from the agenda,
+  attendance and results; signed copy upload. `/resolutions`: the register with search and outcome
+  filter. Dashboard cards "Next meeting" and "Resolutions to vote on"; palette action "New meeting";
+  pushes open the meeting. Unit tests: API, minutes template and helpers, push routes (web suite 210).
+  Checked in the browser with a throwaway Playwright walkthrough (not committed).
+- **G5 done (2026-11-15).** Postman folder **21. Meetings & governance** (50 requests; Cleanup is now
+  22): creates its own chairman and member, plans an AGM a few minutes ahead so it can be held in the
+  run, short notice with a reason, RSVP, a committee meeting hidden from members, adjourned and
+  cancelled, a deleted draft, attendance with quorum, held, secret e-vote (final, no running totals),
+  defer, the register, minutes through send-back, approval by the chairman (the drafter refused),
+  correction and notice-board announcement; quorum settings restored at the end. Folders 1–6 + 21:
+  119/119; full collection 636/637 (the one failure is the existing Cleanup "Delete the test resident",
+  caused by folder 16 invitations).
+  - Fixed while running it (9914230): `MeetingAudience` reads members and invitees in a transaction —
+    the running app failed with a lazy-loading error that the `@Transactional` tests can't show.
+- **Module 26 done.** Not merged.
