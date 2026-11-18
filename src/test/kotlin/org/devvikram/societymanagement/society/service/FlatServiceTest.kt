@@ -18,7 +18,7 @@ class FlatServiceTest {
     fun setUp() {
         flatRepository = InMemoryFlatRepository()
         wingRepository = InMemoryWingRepository()
-        service = FlatService(flatRepository, wingRepository)
+        service = FlatService(flatRepository, wingRepository, emptyList())
         val society = Society(name = "Sunrise Apartments").also { it.id = 1L }
         wing = wingRepository.save(Wing(society = society, name = "A"))
     }

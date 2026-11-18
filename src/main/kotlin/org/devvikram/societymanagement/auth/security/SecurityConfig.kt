@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration
+import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -34,6 +35,10 @@ class SecurityConfig(
                 it.requestMatchers("/api/invitations/token/**").permitAll()
                 // Registering a society from the public site, and checking on a registration.
                 it.requestMatchers("/api/society-applications/public", "/api/society-applications/public/**").permitAll()
+                // Public, read-only facts for the landing page (the plans on offer).
+                it.requestMatchers(HttpMethod.GET, "/api/public/**").permitAll()
+                // Payment gateway webhooks: trusted only through their signature, checked by the handler.
+                it.requestMatchers("/api/webhooks/**").permitAll()
                 // The container's internal forward to /error (unmapped path, uncaught 500) carries no token;
                 // without this it is re-authorized and every such error reaches the client as a 401.
                 // The original request was already authorized before it got here.

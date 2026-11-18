@@ -10,6 +10,7 @@ import org.devvikram.societymanagement.society.model.SocietyStatus
 import org.devvikram.societymanagement.society.repository.ComplexRepository
 import org.devvikram.societymanagement.society.repository.SocietyRepository
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -27,11 +28,16 @@ data class SocietyProfileCommand(
     val notes: String? = null,
 )
 
+// Published (inside the transaction) when a society becomes live, by going live or by being created live:
+// other modules (subscriptions) start what a live society needs.
+data class SocietyWentLive(val societyId: Long)
+
 @Service
 class SocietyService(
     private val societyRepository: SocietyRepository,
     private val complexRepository: ComplexRepository,
     private val photoStorage: PhotoStorage,
+    private val events: ApplicationEventPublisher = ApplicationEventPublisher {},
 ) {
     // Callers that build a society for immediate use (seeding, tests) get a LIVE one by default; the API
     // and onboarding ask for SETUP.
@@ -46,9 +52,11 @@ class SocietyService(
         val complex = complexId?.let {
             complexRepository.findById(it) ?: throw NoSuchElementException("Complex $it not found")
         }
-        return societyRepository.save(
+        val society = societyRepository.save(
             Society(name = name, address = address, complex = complex, status = status, source = source)
         )
+        if (society.status == SocietyStatus.LIVE) events.publishEvent(SocietyWentLive(society.id!!))
+        return society
     }
 
     fun getById(id: Long): Society =
@@ -84,7 +92,9 @@ class SocietyService(
         society.status = SocietyStatus.LIVE
         society.wentLiveAt = now
         society.wentLiveBy = userId
-        return societyRepository.save(society)
+        val saved = societyRepository.save(society)
+        events.publishEvent(SocietyWentLive(saved.id!!))
+        return saved
     }
 
     // ---- Logo ----

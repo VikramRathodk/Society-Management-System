@@ -11,6 +11,7 @@ import java.math.BigDecimal
 class FlatService(
     private val flatRepository: FlatRepository,
     private val wingRepository: WingRepository,
+    private val limits: List<FlatLimit>,
 ) {
     @Transactional
     fun addFlat(wingId: Long, flatNumber: String, areaSqft: BigDecimal? = null): Flat {
@@ -19,7 +20,13 @@ class FlatService(
         require(flatRepository.findByWingId(wingId).none { it.flatNumber == flatNumber }) {
             "Flat $flatNumber already exists in this wing"
         }
+        checkRoom(wing.society.id!!, 1)
         return flatRepository.save(Flat(wing = wing, flatNumber = flatNumber, areaSqft = areaSqft))
+    }
+
+    // Whether the society may have `adding` more flats (its plan may cap them).
+    fun checkRoom(societyId: Long, adding: Int) {
+        if (adding > 0) limits.forEach { it.checkRoom(societyId, adding) }
     }
 
     fun getById(id: Long): Flat =

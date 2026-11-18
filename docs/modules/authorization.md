@@ -16,6 +16,11 @@ Dynamic roles and hierarchical permission codes. Status: ✅ built (M1, dynamic 
   `flatsWith`, and rank checks (`outranks`, `canGrant`, `canManage`).
 - `@RequiresPermission` is the coarse gate (held anywhere); controllers then check the specific society
   or flat through `AccessService.current()`.
+- **Society gate:** the caller's per-society checks (`can`, `canSocietyWide`, `canOnFlat`, `requireIn`)
+  also pass through a `SocietyGate` when one exists (the subscription module's: plan modules and
+  suspension, see [subscription](subscription.md)). It may throw `PaymentRequiredException` (402), or
+  answer a reason, which makes the check false and turns the request's later "missing permission" into
+  a 402 with that reason. Platform grants and `accessFor(…)` audiences skip it.
 
 ## Endpoints
 

@@ -1,12 +1,17 @@
 package org.devvikram.societymanagement.authorization
 
 import org.devvikram.societymanagement.authorization.service.PermissionService
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 
 @Service
-class AccessService(private val permissionService: PermissionService) {
+class AccessService(
+    private val permissionService: PermissionService,
+    // The subscription module's gate, when there is one.
+    private val gates: ObjectProvider<SocietyGate>,
+) {
 
     fun current(): Access = currentOrNull() ?: throw AccessDeniedException("Not authenticated")
 
@@ -14,10 +19,10 @@ class AccessService(private val permissionService: PermissionService) {
     fun currentOrNull(): Access? {
         val principal = SecurityContextHolder.getContext().authentication?.principal as? AuthenticatedUser
             ?: return null
-        return accessFor(principal.id, principal.grants)
+        return accessFor(principal.id, principal.grants, gates.getIfAvailable())
     }
 
-    fun accessFor(userId: Long, grants: List<RoleGrant>): Access {
+    fun accessFor(userId: Long, grants: List<RoleGrant>, gate: SocietyGate? = null): Access {
         val (platformGrants, societyGrants) = grants.partition { it.societyId == null }
         val bySociety = societyGrants.groupBy { it.societyId!! }
         val (flatGrants, societyWideGrants) = societyGrants.partition { it.flatId != null }
@@ -35,6 +40,7 @@ class AccessService(private val permissionService: PermissionService) {
             },
             societyWidePermissions = societyWideGrants.groupBy { it.societyId!! }.mapValues { (_, g) -> permissionsOf(g) },
             flatPermissions = flatGrants.groupBy { it.flatId!! }.mapValues { (_, g) -> permissionsOf(g) },
+            gate = gate,
         )
     }
 }

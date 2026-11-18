@@ -3,6 +3,7 @@ package org.devvikram.societymanagement.onboarding.service
 import org.devvikram.societymanagement.society.model.Flat
 import org.devvikram.societymanagement.society.repository.FlatRepository
 import org.devvikram.societymanagement.society.repository.WingRepository
+import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.SocietyService
 import org.devvikram.societymanagement.society.service.WingService
 import org.springframework.stereotype.Service
@@ -23,6 +24,7 @@ class StructureService(
     private val wingRepository: WingRepository,
     private val flatRepository: FlatRepository,
     private val wingService: WingService,
+    private val flatService: FlatService,
 ) {
     @Transactional(readOnly = true)
     fun preview(societyId: Long, patterns: List<WingPattern>): List<PlannedWing> {
@@ -40,6 +42,7 @@ class StructureService(
     @Transactional
     fun generate(societyId: Long, patterns: List<WingPattern>): List<PlannedWing> {
         val planned = preview(societyId, patterns)
+        flatService.checkRoom(societyId, planned.sumOf { it.newFlats })
         val wings = wingRepository.findBySocietyId(societyId)
         planned.forEach { plannedWing ->
             val wing = wings.firstOrNull { it.name.trim().equals(plannedWing.name, ignoreCase = true) }
