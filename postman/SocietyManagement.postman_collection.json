@@ -18132,6 +18132,68 @@
               }
             }
           ]
+        },
+        {
+          "name": "Super admin retires the Postman plan (so it never shows on the pricing page)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/platform/plans/{{subPlanId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"priceMonthly\": 100,\n  \"priceYearly\": 1000,\n  \"includedFlats\": 2,\n  \"maxFlats\": 2,\n  \"recommendedFromFlats\": 1,\n  \"trialDays\": 0,\n  \"modules\": [\n    \"MAINTENANCE\",\n    \"FINANCE\"\n  ],\n  \"active\": false,\n  \"sortOrder\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"not offered any more\", () => pm.expect(pm.response.json().active).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The pricing page no longer lists it",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/public/plans"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"no Postman plan on offer\", () => pm.expect(pm.response.json().filter((p) => p.code.startsWith(\"PM_\")).length).to.eql(0));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
