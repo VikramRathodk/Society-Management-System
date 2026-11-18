@@ -1,6 +1,7 @@
 package org.devvikram.societymanagement.subscription.service
 
 import org.devvikram.societymanagement.common.exception.ConflictException
+import org.devvikram.societymanagement.common.exception.PaymentRequiredException
 import org.devvikram.societymanagement.society.model.SocietyStatus
 import org.devvikram.societymanagement.society.repository.FlatRepository
 import org.devvikram.societymanagement.society.service.SocietyService
@@ -31,15 +32,33 @@ data class PlanInput(
     val code: String,
     val name: String,
     val description: String? = null,
-    val pricePerFlatMonthly: BigDecimal,
-    val pricePerFlatYearly: BigDecimal,
-    val minimumMonthly: BigDecimal = BigDecimal.ZERO,
+    val priceMonthly: BigDecimal,
+    val priceYearly: BigDecimal,
+    val includedFlats: Int? = null,
+    val extraFlatMonthly: BigDecimal? = null,
+    val extraFlatYearly: BigDecimal? = null,
     val maxFlats: Int? = null,
     val trialDays: Int = 30,
     val modules: Set<PlanModule> = emptySet(),
     val active: Boolean = true,
     val sortOrder: Int = 0,
+    val featured: Boolean = false,
+    val recommendedFromFlats: Int = 1,
 )
+
+// What a plan costs a society with this many flats, per month and per year (before GST).
+data class PlanQuote(
+    val plan: Plan,
+    val flats: Int,
+    val extraFlats: Int,
+    // False when the society has more flats than the plan allows.
+    val fits: Boolean,
+    val monthly: BigDecimal,
+    val yearly: BigDecimal,
+)
+
+// Every active plan's cost for a flat count, and the one recommended for it.
+data class PlanRecommendation(val flats: Int, val quotes: List<PlanQuote>, val recommended: Plan?)
 
 // A subscription with its plans, flat count, the charge for a period at today's numbers, and history.
 data class SubscriptionView(
@@ -80,22 +99,36 @@ class SubscriptionService(
         val code = cleanCode(input.code)
         if (planRepository.findByCode(code) != null) throw ConflictException("There is already a plan $code")
         validate(input)
+        if (input.featured) unfeatureOthers(null)
         return planRepository.save(
             Plan(
                 code = code,
                 name = input.name.trim(),
                 description = input.description?.trim()?.ifEmpty { null },
-                pricePerFlatMonthly = money(input.pricePerFlatMonthly),
-                pricePerFlatYearly = money(input.pricePerFlatYearly),
-                minimumMonthly = money(input.minimumMonthly),
+                priceMonthly = money(input.priceMonthly),
+                priceYearly = money(input.priceYearly),
+                includedFlats = input.includedFlats,
+                extraFlatMonthly = input.extraFlatMonthly?.let(::money),
+                extraFlatYearly = input.extraFlatYearly?.let(::money),
                 maxFlats = input.maxFlats,
                 trialDays = input.trialDays,
                 modules = input.modules.joinToString(",") { it.name },
             ).apply {
                 active = input.active
                 sortOrder = input.sortOrder
+                featured = input.featured
+                recommendedFromFlats = input.recommendedFromFlats
             }
         )
+    }
+
+    // Featuring a plan takes the badge off the one that had it.
+    private fun unfeatureOthers(keepId: Long?) {
+        planRepository.findAll().filter { it.featured && it.id != keepId }.forEach {
+            it.featured = false
+            it.updatedAt = Instant.now()
+            planRepository.save(it)
+        }
     }
 
     // Prices apply to invoices issued from now on; invoices already issued keep theirs.
@@ -105,27 +138,79 @@ class SubscriptionService(
         val code = cleanCode(input.code)
         planRepository.findByCode(code)?.takeIf { it.id != id }?.let { throw ConflictException("There is already a plan $code") }
         validate(input)
+        if (input.featured) unfeatureOthers(id)
         plan.code = code
         plan.name = input.name.trim()
         plan.description = input.description?.trim()?.ifEmpty { null }
-        plan.pricePerFlatMonthly = money(input.pricePerFlatMonthly)
-        plan.pricePerFlatYearly = money(input.pricePerFlatYearly)
-        plan.minimumMonthly = money(input.minimumMonthly)
+        plan.priceMonthly = money(input.priceMonthly)
+        plan.priceYearly = money(input.priceYearly)
+        plan.includedFlats = input.includedFlats
+        plan.extraFlatMonthly = input.extraFlatMonthly?.let(::money)
+        plan.extraFlatYearly = input.extraFlatYearly?.let(::money)
         plan.maxFlats = input.maxFlats
         plan.trialDays = input.trialDays
         plan.modules = input.modules.joinToString(",") { it.name }
         plan.active = input.active
         plan.sortOrder = input.sortOrder
+        plan.featured = input.featured
+        plan.recommendedFromFlats = input.recommendedFromFlats
         plan.updatedAt = Instant.now()
         return planRepository.save(plan)
     }
 
-    // The charge for one period of this plan and cycle for this many flats: per flat, but never below the
-    // minimum (12 months' minimum for a year).
-    fun charge(plan: Plan, cycle: BillingCycle, flats: Int): BigDecimal = when (cycle) {
-        BillingCycle.MONTHLY -> plan.pricePerFlatMonthly.multiply(BigDecimal(flats)).max(plan.minimumMonthly)
-        BillingCycle.YEARLY -> plan.pricePerFlatYearly.multiply(BigDecimal(flats)).max(plan.minimumMonthly.multiply(BigDecimal(12)))
-    }.setScale(2, RoundingMode.HALF_UP)
+    // The charge for one period of this plan and cycle for this many flats: the plan's price, plus each flat
+    // beyond the included ones at the extra-flat rate.
+    fun charge(plan: Plan, cycle: BillingCycle, flats: Int): BigDecimal {
+        val extra = plan.extraFlatRate(cycle)?.multiply(BigDecimal(plan.extraFlats(flats))) ?: BigDecimal.ZERO
+        return plan.price(cycle).add(extra).setScale(2, RoundingMode.HALF_UP)
+    }
+
+    // ---- Recommendation ----
+
+    // Every active plan's cost for this many flats, and the recommended one: among plans that fit, the one
+    // with the highest "recommended from" not above the count.
+    fun recommend(flats: Int): PlanRecommendation {
+        require(flats in 1..100_000) { "The number of flats is from 1 to 100,000" }
+        val quotes = planRepository.findAll().filter { it.active }.sortedBy { it.sortOrder }.map { plan ->
+            PlanQuote(
+                plan = plan,
+                flats = flats,
+                extraFlats = plan.extraFlats(flats),
+                fits = plan.fits(flats),
+                monthly = charge(plan, BillingCycle.MONTHLY, flats),
+                yearly = charge(plan, BillingCycle.YEARLY, flats),
+            )
+        }
+        // Ties: the featured plan, then the one listed first.
+        val recommended = quotes.filter { it.fits && it.plan.recommendedFromFlats <= flats }
+            .sortedWith(
+                compareByDescending<PlanQuote> { it.plan.recommendedFromFlats }
+                    .thenByDescending { it.plan.featured }
+                    .thenBy { it.plan.sortOrder }
+                    .thenBy { it.plan.id }
+            )
+            .firstOrNull()?.plan
+        return PlanRecommendation(flats, quotes, recommended)
+    }
+
+    // The recommendation for the society's flats today (at least one flat, so an empty society still gets one).
+    fun recommendFor(societyId: Long): PlanRecommendation = recommend(flatCount(societyId).coerceAtLeast(1))
+
+    // ---- Flat limit ----
+
+    // Adding flats past the plan's limit is refused (societies without a subscription are never limited).
+    fun checkRoomForFlats(societyId: Long, adding: Int) {
+        val subscription = subscriptionRepository.findBySociety(societyId) ?: return
+        if (subscription.status == SubscriptionStatus.CANCELLED) return
+        val plan = plan(subscription.planId)
+        val max = plan.maxFlats ?: return
+        val after = flatCount(societyId) + adding
+        if (after > max) {
+            throw PaymentRequiredException(
+                "The ${plan.name} plan is for up to $max flats; this would make $after. Upgrade the plan from the Subscription page to add more."
+            )
+        }
+    }
 
     // ---- Starting ----
 
@@ -326,11 +411,18 @@ class SubscriptionService(
 
     private fun validate(input: PlanInput) {
         require(input.name.isNotBlank() && input.name.trim().length <= 100) { "A plan needs a name of at most 100 characters" }
-        listOf(input.pricePerFlatMonthly, input.pricePerFlatYearly, input.minimumMonthly).forEach {
+        listOfNotNull(input.priceMonthly, input.priceYearly, input.extraFlatMonthly, input.extraFlatYearly).forEach {
             require(it >= BigDecimal.ZERO && it < BigDecimal(100_000)) { "Prices are from 0 to 99,999.99 rupees" }
         }
         require(input.trialDays in 0..365) { "A trial lasts 0 to 365 days" }
         require(input.maxFlats == null || input.maxFlats > 0) { "Max flats must be positive (or empty for no limit)" }
+        require(input.includedFlats == null || input.includedFlats > 0) { "Included flats must be positive (or empty for any number)" }
+        require(input.recommendedFromFlats > 0) { "\"Recommended from\" is at least 1 flat" }
+        // Flats beyond the included ones must either cost something or not be allowed.
+        val extraAllowed = input.includedFlats != null && (input.maxFlats == null || input.maxFlats > input.includedFlats)
+        require(!extraAllowed || (input.extraFlatMonthly != null && input.extraFlatYearly != null)) {
+            "Set the price per extra flat (monthly and yearly), or limit the plan to its included flats"
+        }
         require((input.description?.length ?: 0) <= 1000) { "The description can be at most 1,000 characters" }
     }
 

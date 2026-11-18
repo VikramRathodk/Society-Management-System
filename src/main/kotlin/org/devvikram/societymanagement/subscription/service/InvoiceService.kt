@@ -83,11 +83,14 @@ class InvoiceService(
     fun issueDue(societyId: Long, userId: Long?, today: LocalDate): PlatformInvoice? {
         val subscription = subscriptionRepository.lockBySociety(societyId) ?: throw NoSuchElementException("Society $societyId has no subscription")
         if (subscription.status == SubscriptionStatus.CANCELLED) throw ConflictException("The subscription is cancelled")
-        if (today.isBefore(subscription.nextInvoiceOn)) return null
-        return issue(subscription, userId, today)
+        // Periods that cost nothing (a free plan) issue no invoice; they only move the subscription on.
+        while (!today.isBefore(subscription.nextInvoiceOn)) {
+            issue(subscription, userId, today)?.let { return it }
+        }
+        return null
     }
 
-    private fun issue(subscription: Subscription, userId: Long?, today: LocalDate): PlatformInvoice {
+    private fun issue(subscription: Subscription, userId: Long?, today: LocalDate): PlatformInvoice? {
         subscription.pendingPlanId?.let { subscription.planId = it }
         subscription.pendingCycle?.let { subscription.cycle = it }
         if (subscription.pendingPlanId != null || subscription.pendingCycle != null) {
@@ -102,6 +105,10 @@ class InvoiceService(
         val start = subscription.nextInvoiceOn
         val end = subscriptionService.periodEnd(start, subscription.cycle)
         val amount = subscriptionService.charge(plan, subscription.cycle, flats)
+        if (amount.signum() == 0) {
+            startPeriod(subscription, start, end, userId)
+            return null
+        }
         val discountPercent = if (subscription.discountPeriodsLeft > 0) subscription.discountPercent else 0
         val discount = money(amount.multiply(BigDecimal(discountPercent)).divide(HUNDRED))
         val taxable = amount.subtract(discount)
@@ -117,8 +124,10 @@ class InvoiceService(
                 planName = plan.name,
                 cycle = subscription.cycle,
                 flats = flats,
-                ratePerFlat = if (subscription.cycle == BillingCycle.MONTHLY) plan.pricePerFlatMonthly else plan.pricePerFlatYearly,
-                minimumCharge = if (subscription.cycle == BillingCycle.MONTHLY) plan.minimumMonthly else money(plan.minimumMonthly.multiply(BigDecimal(12))),
+                basePrice = plan.price(subscription.cycle),
+                includedFlats = plan.includedFlats,
+                extraFlats = plan.extraFlats(flats),
+                extraFlatRate = plan.extraFlatRate(subscription.cycle),
                 amount = amount,
                 discountPercent = discountPercent,
                 discountAmount = discount,
@@ -140,6 +149,13 @@ class InvoiceService(
             subscription.discountPeriodsLeft -= 1
             if (subscription.discountPeriodsLeft == 0) subscription.discountPercent = 0
         }
+        startPeriod(subscription, start, end, userId)
+        events.publishEvent(InvoiceIssued(invoice.id!!, invoice.societyId, invoice.number, invoice.total, invoice.dueOn, subscription.billingContactId))
+        return invoice
+    }
+
+    // The subscription moves into the period just invoiced (or that cost nothing); a trial ends.
+    private fun startPeriod(subscription: Subscription, start: LocalDate, end: LocalDate, userId: Long?) {
         if (subscription.status == SubscriptionStatus.TRIAL) {
             subscription.status = SubscriptionStatus.ACTIVE
             record(subscription, SubscriptionEventKind.STATUS_CHANGED, SubscriptionStatus.TRIAL.name, SubscriptionStatus.ACTIVE.name, "Trial ended", userId)
@@ -148,8 +164,6 @@ class InvoiceService(
         subscription.currentPeriodEnd = end
         subscription.nextInvoiceOn = end.plusDays(1)
         subscriptionRepository.save(subscription)
-        events.publishEvent(InvoiceIssued(invoice.id!!, invoice.societyId, invoice.number, invoice.total, invoice.dueOn, subscription.billingContactId))
-        return invoice
     }
 
     // GST on the taxable value: CGST + SGST when the society is in the platform's state, IGST otherwise;

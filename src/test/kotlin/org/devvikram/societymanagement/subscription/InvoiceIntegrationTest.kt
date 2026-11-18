@@ -121,11 +121,11 @@ class InvoiceIntegrationTest {
             .andExpect(jsonPath("$.summary.periodStart").value(today.toString()))
             .andExpect(jsonPath("$.summary.periodEnd").value(today.plusMonths(1).minusDays(1).toString()))
             .andExpect(jsonPath("$.flats").value(3))
-            .andExpect(jsonPath("$.amount").value(1000.0)) // 3 × ₹20 is below the ₹1,000 minimum
-            .andExpect(jsonPath("$.cgst").value(90.0))
-            .andExpect(jsonPath("$.sgst").value(90.0))
+            .andExpect(jsonPath("$.amount").value(699.0)) // the plan's price covers 50 flats; the society has 3
+            .andExpect(jsonPath("$.cgst").value(62.91))
+            .andExpect(jsonPath("$.sgst").value(62.91))
             .andExpect(jsonPath("$.igst").value(0.0))
-            .andExpect(jsonPath("$.total").value(1180.0))
+            .andExpect(jsonPath("$.total").value(824.82))
             .andExpect(jsonPath("$.summary.dueOn").value(today.plusDays(15).toString()))
             .andExpect(jsonPath("$.seller.gstin").value("27ABCDE1234F1Z5"))
         val s = subscriptionRepository.findBySociety(societyId)!!
@@ -141,8 +141,8 @@ class InvoiceIntegrationTest {
         val id = issue(other)
         call(superAdmin, HttpMethod.GET, "/api/platform-invoices/$id")
             .andExpect(jsonPath("$.cgst").value(0.0))
-            .andExpect(jsonPath("$.igst").value(180.0))
-            .andExpect(jsonPath("$.total").value(1180.0))
+            .andExpect(jsonPath("$.igst").value(125.82))
+            .andExpect(jsonPath("$.total").value(824.82))
     }
 
     @Test
@@ -150,9 +150,9 @@ class InvoiceIntegrationTest {
         call(superAdmin, HttpMethod.PUT, "/api/societies/$societyId/subscription/discount", """{"percent":20,"periods":1}""")
         val first = issue()
         call(superAdmin, HttpMethod.GET, "/api/platform-invoices/$first")
-            .andExpect(jsonPath("$.discountAmount").value(200.0))
-            .andExpect(jsonPath("$.taxableValue").value(800.0))
-            .andExpect(jsonPath("$.total").value(944.0))
+            .andExpect(jsonPath("$.discountAmount").value(139.8))
+            .andExpect(jsonPath("$.taxableValue").value(559.2))
+            .andExpect(jsonPath("$.total").value(659.86))
 
         val basic = planRepository.findByCode("BASIC")!!
         call(superAdmin, HttpMethod.PATCH, "/api/societies/$societyId/subscription/plan", """{"planId":${basic.id}}""")
@@ -163,8 +163,8 @@ class InvoiceIntegrationTest {
         call(superAdmin, HttpMethod.GET, "/api/platform-invoices/$second")
             .andExpect(jsonPath("$.planCode").value("BASIC"))
             .andExpect(jsonPath("$.discountAmount").value(0.0))
-            .andExpect(jsonPath("$.amount").value(500.0))
-            .andExpect(jsonPath("$.total").value(590.0))
+            .andExpect(jsonPath("$.amount").value(499.0))
+            .andExpect(jsonPath("$.total").value(588.82))
         call(secretary, HttpMethod.GET, "/api/societies/$societyId/subscription")
             .andExpect(jsonPath("$.plan.code").value("BASIC"))
             .andExpect(jsonPath("$.pendingPlan").doesNotExist())
@@ -176,13 +176,13 @@ class InvoiceIntegrationTest {
         call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":500,"mode":"UPI","reference":"UTR123"}""")
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.summary.status").value("PARTLY_PAID"))
-            .andExpect(jsonPath("$.summary.balance").value(680.0))
+            .andExpect(jsonPath("$.summary.balance").value(324.82))
             .andExpect(jsonPath("$.payments[0].receiptNumber").value(matchesPattern("SAH-R/\\d{4}-\\d{2}/\\d{4}")))
         call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":700,"mode":"UPI"}""").andExpect(status().isBadRequest)
         call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/credit-notes", """{"amount":180,"reason":"Tax charged twice"}""")
             .andExpect(jsonPath("$.creditNotes[0].number").value(matchesPattern("SAH-CN/\\d{4}-\\d{2}/\\d{4}")))
-            .andExpect(jsonPath("$.summary.balance").value(500.0))
-        call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":500,"mode":"BANK_TRANSFER"}""")
+            .andExpect(jsonPath("$.summary.balance").value(144.82))
+        call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":144.82,"mode":"BANK_TRANSFER"}""")
             .andExpect(jsonPath("$.summary.status").value("PAID"))
             .andExpect(jsonPath("$.summary.balance").value(0.0))
         call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":1,"mode":"CASH"}""").andExpect(status().isConflict)
@@ -199,7 +199,7 @@ class InvoiceIntegrationTest {
         subscriptionRepository.save(s)
         call(superAdmin, HttpMethod.GET, "/api/platform/invoices?overdue=true")
             .andExpect(jsonPath("$[?(@.id == $id)]").isNotEmpty)
-        call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":1180,"mode":"CHEQUE","reference":"000123"}""")
+        call(superAdmin, HttpMethod.POST, "/api/platform-invoices/$id/payments", """{"amount":824.82,"mode":"CHEQUE","reference":"000123"}""")
         assertEquals(SubscriptionStatus.ACTIVE, subscriptionRepository.findBySociety(societyId)!!.status)
     }
 

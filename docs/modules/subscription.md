@@ -258,3 +258,63 @@ for the sending domain.
   cancelling makes the society read-only (402 on writes). Full run 2026-11-18: 728/729 assertions, the one
   failure being the old Cleanup "Delete the test resident" check.
 - **Module done** apart from trying Razorpay with real test keys and SMTP with a real account.
+
+## Pricing v2: a price per society, a featured plan and a recommendation (planned 2026-11-18)
+
+The product owner found per-flat pricing hard to sell. Market check (MyGate, ADDA, NoBrokerHood, Gatekeeper
+Zero, Society Saathi, Msoft, MaintainEase): the market charges ₹9–25 per flat per month for accounting apps
+and ₹35–50 for security suites, and several offer a free tier. Decisions (product owner, 2026-11-18):
+
+1. **A fixed price per society per month** that covers a number of flats, plus a charge per extra flat beyond
+   them (so large societies still pay a fair rate); yearly = 10 × monthly (two months free). Prices are
+   before GST, and every page says "+ 18% GST".
+2. **Plans** (seeded; all editable by the platform):
+
+   | Plan | Monthly | Yearly | Flats included | Each extra flat / month | Hard limit | Modules | Trial |
+   |---|---|---|---|---|---|---|---|
+   | FREE | ₹0 | ₹0 | 15 | none | 15 flats | core only | none |
+   | BASIC | ₹499 | ₹4,990 | 30 | ₹10 (₹100/yr) | none | + maintenance | 30 days |
+   | STANDARD ★ | ₹699 | ₹6,990 | 50 | ₹12 (₹120/yr) | none | + finance, policies | 30 days |
+   | PREMIUM | ₹999 | ₹9,990 | 75 | ₹14 (₹140/yr) | none | everything (governance, future modules) | 30 days |
+
+3. **One featured plan** ("Most popular"), a flag the platform sets in the plan editor; at most one at a time.
+   STANDARD to start.
+4. **A recommendation for a flat count**: each plan says from how many flats it is the recommended one
+   (`recommended_from_flats`: FREE 1, BASIC 16, STANDARD 31, PREMIUM 151); the recommendation is the active
+   plan with the highest such number not above the flat count, among plans whose hard limit fits. Shown on
+   the landing page ("How many flats?") with each plan's total, and inside the app on the Subscription page.
+5. **The hard limit is enforced when flats are added** (single flat and the setup wizard's bulk structure),
+   not only on a plan change: "The Free plan is for up to 15 flats. Upgrade to add more."
+6. **A ₹0 period issues no invoice**: the subscription moves on to the next period (a trial still ends).
+
+### Build steps
+
+| Step | What | Done when |
+|---|---|---|
+| P1 | Backend: V37 (plan price per society, included flats, extra-flat rates, featured, recommended-from; invoice keeps base price, included and extra flats; FREE plan; new prices), charge = price + extra flats × rate, ₹0 periods skip the invoice, flat limit on adding flats (a port in `society` implemented by `subscription`), `GET /api/public/plans/quote?flats=` and the society's recommendation | Tests: charge with and without extra flats, yearly; one featured plan; recommendation by flat count; Free blocks the 16th flat (single and bulk); free period issues no invoice; existing tests updated |
+| P2 | Web: plan editor fields; landing pricing (featured badge, flats box, totals, recommended highlight, "+ GST"); Subscription page recommendation and price breakdown; invoice shows base + extra flats | Unit tests, build |
+| P3 | Postman folder 22 updated, docs | Full Postman run |
+
+### Progress
+
+- **P1 done (2026-11-18).** V37: `plan.price_monthly/price_yearly` (renamed from the per-flat prices),
+  `included_flats`, `extra_flat_monthly/yearly`, `featured` (unique partial index: at most one),
+  `recommended_from_flats`; `minimum_monthly` dropped; the four plans re-seeded as in the table above (FREE
+  added). `platform_invoice` freezes `base_price`, `included_flats`, `extra_flats` and `extra_flat_rate`
+  (renamed from `minimum_charge` / `rate_per_flat`; old dev invoices keep their old numbers there).
+  - Charge = price + extra flats × extra-flat rate. Plan validation: extra flats need a price unless
+    `maxFlats` stops the plan at its included flats. Featuring a plan takes the badge off the other one.
+  - A ₹0 period (Free) issues no invoice: `issueDue` moves the subscription into the period (ending a trial)
+    and carries on to the next due one, so the billing run's catch-up still works.
+  - `GET /api/public/plans/quote?flats=N` (public, 1–100,000) and `GET /api/societies/{id}/subscription/recommendation`
+    (SECRETARY and above, or the platform): `{flats, recommendedPlanId, quotes: [{plan, flats, extraFlats, fits,
+    monthly, yearly, recommended}]}`. Recommended = the active plan that fits with the highest
+    `recommendedFromFlats` ≤ N; ties go to the featured plan, then sort order.
+  - Flat limit: the `society` module's `FlatLimit` port (checked by `FlatService.addFlat` and the setup
+    wizard's bulk `StructureService.generate`) is implemented by `subscription.PlanFlatLimit`: past the plan's
+    `maxFlats` answers **402** "The Free plan is for up to 15 flats; this would make 16. Upgrade …".
+  - `SubscriptionResponse.extraFlats`; `InvoiceResponse` has `basePrice/includedFlats/extraFlats/extraFlatRate`
+    instead of `ratePerFlat/minimumCharge`.
+  - Tests: `SubscriptionIntegrationTest` 15 (charge, quote and recommendation, the society's recommendation,
+    one featured, extra-flat validation, Free limit single and bulk, free periods without invoices); invoice
+    amounts updated. Full suite 499 green.

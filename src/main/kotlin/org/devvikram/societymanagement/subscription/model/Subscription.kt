@@ -27,15 +27,24 @@ class Plan(
 
     var description: String?,
 
-    @Column(name = "price_per_flat_monthly", nullable = false)
-    var pricePerFlatMonthly: BigDecimal,
+    // The price per society for a period, covering `includedFlats` flats (all of them when null).
+    @Column(name = "price_monthly", nullable = false)
+    var priceMonthly: BigDecimal,
 
-    @Column(name = "price_per_flat_yearly", nullable = false)
-    var pricePerFlatYearly: BigDecimal,
+    @Column(name = "price_yearly", nullable = false)
+    var priceYearly: BigDecimal,
 
-    @Column(name = "minimum_monthly", nullable = false)
-    var minimumMonthly: BigDecimal,
+    @Column(name = "included_flats")
+    var includedFlats: Int?,
 
+    // Per flat beyond the included ones, per period.
+    @Column(name = "extra_flat_monthly")
+    var extraFlatMonthly: BigDecimal?,
+
+    @Column(name = "extra_flat_yearly")
+    var extraFlatYearly: BigDecimal?,
+
+    // The most flats a society on the plan may have (null: no limit).
     @Column(name = "max_flats")
     var maxFlats: Int?,
 
@@ -59,8 +68,25 @@ class Plan(
     @Column(name = "sort_order", nullable = false)
     var sortOrder: Int = 0
 
+    // Shown as "Most popular"; at most one plan.
+    @Column(nullable = false)
+    var featured: Boolean = false
+
+    // The recommended plan for a society from this many flats (the highest one not above its count).
+    @Column(name = "recommended_from_flats", nullable = false)
+    var recommendedFromFlats: Int = 1
+
     @Column(name = "updated_at")
     var updatedAt: Instant? = null
+
+    fun price(cycle: BillingCycle): BigDecimal = if (cycle == BillingCycle.MONTHLY) priceMonthly else priceYearly
+
+    fun extraFlatRate(cycle: BillingCycle): BigDecimal? = if (cycle == BillingCycle.MONTHLY) extraFlatMonthly else extraFlatYearly
+
+    // Flats beyond the included ones.
+    fun extraFlats(flats: Int): Int = includedFlats?.let { (flats - it).coerceAtLeast(0) } ?: 0
+
+    fun fits(flats: Int): Boolean = maxFlats == null || flats <= maxFlats!!
 
     val moduleSet: Set<PlanModule>
         get() = modules.split(',').mapNotNull { m -> PlanModule.entries.firstOrNull { it.name == m.trim() } }.toSet()

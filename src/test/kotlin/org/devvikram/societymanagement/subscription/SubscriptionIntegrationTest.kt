@@ -1,6 +1,12 @@
 package org.devvikram.societymanagement.subscription
 
 import org.devvikram.societymanagement.auth.security.JwtService
+import org.devvikram.societymanagement.common.exception.PaymentRequiredException
+import org.devvikram.societymanagement.onboarding.service.StructureService
+import org.devvikram.societymanagement.onboarding.service.WingPattern
+import org.devvikram.societymanagement.subscription.repository.InvoiceRepository
+import org.devvikram.societymanagement.subscription.service.InvoiceService
+import org.junit.jupiter.api.assertThrows
 import org.devvikram.societymanagement.society.model.SocietyStatus
 import org.devvikram.societymanagement.society.service.FlatService
 import org.devvikram.societymanagement.society.service.SocietyProfileCommand
@@ -49,6 +55,9 @@ class SubscriptionIntegrationTest {
     @Autowired lateinit var subscriptionService: SubscriptionService
     @Autowired lateinit var subscriptionRepository: SubscriptionRepository
     @Autowired lateinit var planRepository: PlanRepository
+    @Autowired lateinit var invoiceService: InvoiceService
+    @Autowired lateinit var invoiceRepository: InvoiceRepository
+    @Autowired lateinit var structureService: StructureService
 
     private var societyId = 0L
     private lateinit var superAdmin: User
@@ -69,6 +78,11 @@ class SubscriptionIntegrationTest {
 
     @BeforeEach
     fun setUp() {
+        // Only the seeded plans are on offer (a local database may keep plans a Postman run made).
+        planRepository.findAll().filter { it.code !in setOf("FREE", "BASIC", "STANDARD", "PREMIUM") && it.active }.forEach {
+            it.active = false
+            planRepository.save(it)
+        }
         societyId = societyService.createSociety("Billing Test Society").id!! // created live: trial starts
         val wing = wingService.addWing(societyId, "A").id!!
         val flat = flatService.addFlat(wing, "101").id!!
@@ -90,6 +104,7 @@ class SubscriptionIntegrationTest {
 
     private fun standard() = planRepository.findByCode("STANDARD")!!
     private fun basic() = planRepository.findByCode("BASIC")!!
+    private fun free() = planRepository.findByCode("FREE")!!
 
     @Test
     fun `the plans on offer are public, without sign-in, and only active ones`() {
@@ -119,7 +134,8 @@ class SubscriptionIntegrationTest {
             .andExpect(jsonPath("$.status").value("TRIAL"))
             .andExpect(jsonPath("$.plan.code").value("STANDARD"))
             .andExpect(jsonPath("$.flats").value(3))
-            .andExpect(jsonPath("$.chargePerPeriod").value(1000.0)) // 3 × ₹20 is below the ₹1,000 minimum
+            .andExpect(jsonPath("$.chargePerPeriod").value(699.0)) // the plan's price covers 50 flats
+            .andExpect(jsonPath("$.extraFlats").value(0))
             .andExpect(jsonPath("$.events[0].kind").value("STARTED"))
     }
 
@@ -150,12 +166,89 @@ class SubscriptionIntegrationTest {
     // ---- Charges ----
 
     @Test
-    fun `a period costs per flat, never below the minimum`() {
-        val plan = standard()
-        assertEquals(BigDecimal("1000.00"), subscriptionService.charge(plan, BillingCycle.MONTHLY, 3))
-        assertEquals(BigDecimal("1200.00"), subscriptionService.charge(plan, BillingCycle.MONTHLY, 60))
-        assertEquals(BigDecimal("12000.00"), subscriptionService.charge(plan, BillingCycle.YEARLY, 3))
-        assertEquals(BigDecimal("16000.00"), subscriptionService.charge(plan, BillingCycle.YEARLY, 80))
+    fun `a period costs the plan's price, plus each flat beyond the included ones`() {
+        val plan = standard() // ₹699 / ₹6,990 for 50 flats, ₹12 / ₹120 per extra flat
+        assertEquals(BigDecimal("699.00"), subscriptionService.charge(plan, BillingCycle.MONTHLY, 3))
+        assertEquals(BigDecimal("699.00"), subscriptionService.charge(plan, BillingCycle.MONTHLY, 50))
+        assertEquals(BigDecimal("819.00"), subscriptionService.charge(plan, BillingCycle.MONTHLY, 60))
+        assertEquals(BigDecimal("6990.00"), subscriptionService.charge(plan, BillingCycle.YEARLY, 3))
+        assertEquals(BigDecimal("10590.00"), subscriptionService.charge(plan, BillingCycle.YEARLY, 80))
+        assertEquals(BigDecimal("0.00"), subscriptionService.charge(free(), BillingCycle.MONTHLY, 15))
+    }
+
+    // ---- Featured and recommended ----
+
+    @Test
+    fun `the quote for a flat count is public, with every plan's total and the recommended one`() {
+        fun quote(flats: Int) = mockMvc.perform(request(HttpMethod.GET, "/api/public/plans/quote?flats=$flats")).andExpect(status().isOk)
+        quote(10)
+            .andExpect(jsonPath("$.recommendedPlanId").value(free().id!!))
+            .andExpect(jsonPath("$.quotes[?(@.plan.code == 'STANDARD')].plan.featured").value(true))
+        quote(20).andExpect(jsonPath("$.recommendedPlanId").value(basic().id!!))
+        quote(58)
+            .andExpect(jsonPath("$.recommendedPlanId").value(standard().id!!))
+            .andExpect(jsonPath("$.quotes[?(@.plan.code == 'STANDARD')].monthly").value(795.0)) // 699 + 8 × 12
+            .andExpect(jsonPath("$.quotes[?(@.plan.code == 'STANDARD')].extraFlats").value(8))
+            .andExpect(jsonPath("$.quotes[?(@.plan.code == 'STANDARD')].recommended").value(true))
+            .andExpect(jsonPath("$.quotes[?(@.plan.code == 'FREE')].fits").value(false))
+        quote(200).andExpect(jsonPath("$.recommendedPlanId").value(planRepository.findByCode("PREMIUM")!!.id!!))
+        mockMvc.perform(request(HttpMethod.GET, "/api/public/plans/quote?flats=0")).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `the society sees the recommendation for its own flats`() {
+        call(secretary, HttpMethod.GET, "/api/societies/$societyId/subscription/recommendation")
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.flats").value(3))
+            .andExpect(jsonPath("$.recommendedPlanId").value(free().id!!))
+        call(resident, HttpMethod.GET, "/api/societies/$societyId/subscription/recommendation").andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `only one plan is featured at a time`() {
+        call(
+            superAdmin, HttpMethod.PUT, "/api/platform/plans/${basic().id}",
+            """{"code":"BASIC","name":"Basic","priceMonthly":499,"priceYearly":4990,"includedFlats":30,"extraFlatMonthly":10,"extraFlatYearly":100,"modules":["MAINTENANCE"],"sortOrder":1,"featured":true,"recommendedFromFlats":16}""",
+        ).andExpect(status().isOk).andExpect(jsonPath("$.featured").value(true))
+        assertEquals(listOf("BASIC"), planRepository.findAll().filter { it.featured }.map { it.code })
+    }
+
+    @Test
+    fun `extra flats must cost something unless the plan stops at its included flats`() {
+        call(superAdmin, HttpMethod.POST, "/api/platform/plans", """{"code":"LEAKY","name":"Leaky","priceMonthly":100,"priceYearly":1000,"includedFlats":10}""")
+            .andExpect(status().isBadRequest)
+        call(superAdmin, HttpMethod.POST, "/api/platform/plans", """{"code":"CAPPED","name":"Capped","priceMonthly":100,"priceYearly":1000,"includedFlats":10,"maxFlats":10}""")
+            .andExpect(status().isCreated)
+    }
+
+    // ---- Flat limit ----
+
+    @Test
+    fun `the free plan stops at its flat limit, one at a time or in bulk`() {
+        call(superAdmin, HttpMethod.PATCH, "/api/societies/$societyId/subscription/plan", """{"planId":${free().id}}""").andExpect(status().isOk)
+        val wing = wingService.addWing(societyId, "B").id!!
+        (1..12).forEach { flatService.addFlat(wing, "B$it") } // 3 + 12 = 15, the limit
+        call(secretary, HttpMethod.POST, "/api/wings/$wing/flats", """{"flatNumber":"B13"}""")
+            .andExpect(status().isPaymentRequired)
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("up to 15 flats")))
+        assertThrows<PaymentRequiredException> {
+            structureService.generate(societyId, listOf(WingPattern(wing = "C", floorsFrom = 1, floorsTo = 1, flatsPerFloor = 2)))
+        }
+        assertEquals(15, subscriptionService.flatCount(societyId))
+        // A bigger plan lifts the limit.
+        call(superAdmin, HttpMethod.PATCH, "/api/societies/$societyId/subscription/plan", """{"planId":${basic().id}}""").andExpect(status().isOk)
+        flatService.addFlat(wing, "B13")
+    }
+
+    @Test
+    fun `a period on the free plan issues no invoice and the subscription moves on`() {
+        call(superAdmin, HttpMethod.PATCH, "/api/societies/$societyId/subscription/plan", """{"planId":${free().id}}""").andExpect(status().isOk)
+        val next = subscriptionRepository.findBySociety(societyId)!!.nextInvoiceOn
+        assertNull(invoiceService.issueDue(societyId, superAdmin.id, next.plusMonths(1)))
+        val s = subscriptionRepository.findBySociety(societyId)!!
+        assertEquals(SubscriptionStatus.ACTIVE, s.status)
+        assertEquals(next.plusMonths(2), s.nextInvoiceOn) // two free periods passed
+        assertEquals(0, invoiceRepository.findBySociety(societyId).size)
     }
 
     // ---- Changes ----
@@ -183,7 +276,7 @@ class SubscriptionIntegrationTest {
     fun `a plan with fewer flats than the society has is refused`() {
         val small = call(
             superAdmin, HttpMethod.POST, "/api/platform/plans",
-            """{"code":"tiny","name":"Tiny","pricePerFlatMonthly":5,"pricePerFlatYearly":50,"maxFlats":2}""",
+            """{"code":"tiny","name":"Tiny","priceMonthly":5,"priceYearly":50,"maxFlats":2}""",
         ).andExpect(status().isCreated).andExpect(jsonPath("$.code").value("TINY"))
             .andReturn().response.contentAsString
         val id = com.jayway.jsonpath.JsonPath.read<Number>(small, "$.id").toLong()
@@ -217,13 +310,14 @@ class SubscriptionIntegrationTest {
 
     @Test
     fun `plans are managed by the platform, societies see the active ones`() {
-        call(secretary, HttpMethod.POST, "/api/platform/plans", """{"code":"X","name":"X","pricePerFlatMonthly":1,"pricePerFlatYearly":10}""")
+        call(secretary, HttpMethod.POST, "/api/platform/plans", """{"code":"X","name":"X","priceMonthly":1,"priceYearly":10}""")
             .andExpect(status().isForbidden)
-        call(superAdmin, HttpMethod.POST, "/api/platform/plans", """{"code":"STANDARD","name":"Again","pricePerFlatMonthly":1,"pricePerFlatYearly":10}""")
+        call(superAdmin, HttpMethod.POST, "/api/platform/plans", """{"code":"STANDARD","name":"Again","priceMonthly":1,"priceYearly":10}""")
             .andExpect(status().isConflict)
-        call(superAdmin, HttpMethod.PUT, "/api/platform/plans/${basic().id}", """{"code":"BASIC","name":"Basic","pricePerFlatMonthly":12,"pricePerFlatYearly":120,"minimumMonthly":500,"modules":["MAINTENANCE"],"active":false,"sortOrder":1}""")
+        call(superAdmin, HttpMethod.PUT, "/api/platform/plans/${basic().id}", """{"code":"BASIC","name":"Basic","priceMonthly":549,"priceYearly":5490,"includedFlats":30,"extraFlatMonthly":10,"extraFlatYearly":100,"modules":["MAINTENANCE"],"active":false,"sortOrder":1}""")
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.pricePerFlatMonthly").value(12.0))
+            .andExpect(jsonPath("$.priceMonthly").value(549.0))
+            .andExpect(jsonPath("$.includedFlats").value(30))
         call(secretary, HttpMethod.GET, "/api/plans")
             .andExpect(status().isOk)
             .andExpect(jsonPath("$[?(@.code == 'BASIC')]").isEmpty)

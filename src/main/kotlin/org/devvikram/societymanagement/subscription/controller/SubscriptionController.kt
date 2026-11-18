@@ -9,6 +9,7 @@ import org.devvikram.societymanagement.subscription.dto.BillingContactRequest
 import org.devvikram.societymanagement.subscription.dto.CancelSubscriptionRequest
 import org.devvikram.societymanagement.subscription.dto.ChangePlanRequest
 import org.devvikram.societymanagement.subscription.dto.DiscountRequest
+import org.devvikram.societymanagement.subscription.dto.PlanRecommendationResponse
 import org.devvikram.societymanagement.subscription.dto.PlanRequest
 import org.devvikram.societymanagement.subscription.dto.PlanResponse
 import org.devvikram.societymanagement.subscription.dto.StartAllResponse
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
@@ -51,6 +53,11 @@ class SubscriptionController(
     // Public (the landing page's pricing): the plans on offer, no sign-in needed.
     @GetMapping("/api/public/plans")
     fun publicPlans(): List<PlanResponse> = subscriptionService.plans().filter { it.active }.map(PlanResponse::from)
+
+    // Public (the landing page's "How many flats?"): every plan's cost for that many flats and the recommended one.
+    @GetMapping("/api/public/plans/quote")
+    fun quote(@RequestParam flats: Int): PlanRecommendationResponse =
+        PlanRecommendationResponse.from(subscriptionService.recommend(flats))
 
     @PostMapping("/api/platform/plans")
     @ResponseStatus(HttpStatus.CREATED)
@@ -117,6 +124,14 @@ class SubscriptionController(
     fun get(@PathVariable societyId: Long): SubscriptionResponse {
         society(Permissions.SOCIETY_SUBSCRIPTION_VIEW, societyId)
         return view(societyId)
+    }
+
+    // Every plan's cost at the society's flat count today, and the plan recommended for it.
+    @GetMapping("/api/societies/{societyId}/subscription/recommendation")
+    fun recommendation(@PathVariable societyId: Long): PlanRecommendationResponse {
+        society(Permissions.SOCIETY_SUBSCRIPTION_VIEW, societyId)
+        societyService.getById(societyId)
+        return PlanRecommendationResponse.from(subscriptionService.recommendFor(societyId))
     }
 
     @PutMapping("/api/societies/{societyId}/subscription/billing-contact")

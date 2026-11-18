@@ -27,8 +27,11 @@ class PlatformInvoice(
     @Column(name = "plan_name", nullable = false) var planName: String,
     @Enumerated(EnumType.STRING) @Column(nullable = false) var cycle: BillingCycle,
     @Column(nullable = false) var flats: Int,
-    @Column(name = "rate_per_flat", nullable = false) var ratePerFlat: BigDecimal,
-    @Column(name = "minimum_charge", nullable = false) var minimumCharge: BigDecimal,
+    // The plan's price for the period, the flats it covers (null: all), and flats beyond them at a rate.
+    @Column(name = "base_price", nullable = false) var basePrice: BigDecimal,
+    @Column(name = "included_flats") var includedFlats: Int?,
+    @Column(name = "extra_flats", nullable = false) var extraFlats: Int,
+    @Column(name = "extra_flat_rate") var extraFlatRate: BigDecimal?,
     @Column(nullable = false) var amount: BigDecimal,
     @Column(name = "discount_percent", nullable = false) var discountPercent: Int,
     @Column(name = "discount_amount", nullable = false) var discountAmount: BigDecimal,

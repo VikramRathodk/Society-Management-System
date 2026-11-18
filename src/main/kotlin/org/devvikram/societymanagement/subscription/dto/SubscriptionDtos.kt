@@ -8,6 +8,7 @@ import org.devvikram.societymanagement.subscription.model.PlanModule
 import org.devvikram.societymanagement.subscription.model.SubscriptionEventKind
 import org.devvikram.societymanagement.subscription.model.SubscriptionStatus
 import org.devvikram.societymanagement.subscription.service.PlanInput
+import org.devvikram.societymanagement.subscription.service.PlanRecommendation
 import org.devvikram.societymanagement.subscription.service.SubscriptionView
 import java.math.BigDecimal
 import java.time.Instant
@@ -17,17 +18,27 @@ data class PlanRequest(
     @field:NotBlank val code: String?,
     @field:NotBlank val name: String?,
     val description: String? = null,
-    @field:NotNull val pricePerFlatMonthly: BigDecimal?,
-    @field:NotNull val pricePerFlatYearly: BigDecimal?,
-    val minimumMonthly: BigDecimal = BigDecimal.ZERO,
+    // The price per society for a period, covering `includedFlats` flats (any number when null).
+    @field:NotNull val priceMonthly: BigDecimal?,
+    @field:NotNull val priceYearly: BigDecimal?,
+    val includedFlats: Int? = null,
+    // Per flat beyond the included ones.
+    val extraFlatMonthly: BigDecimal? = null,
+    val extraFlatYearly: BigDecimal? = null,
     val maxFlats: Int? = null,
     val trialDays: Int = 30,
     val modules: Set<PlanModule> = emptySet(),
     val active: Boolean = true,
     val sortOrder: Int = 0,
+    val featured: Boolean = false,
+    val recommendedFromFlats: Int = 1,
 ) {
     fun toInput() = PlanInput(
-        code!!, name!!, description, pricePerFlatMonthly!!, pricePerFlatYearly!!, minimumMonthly, maxFlats, trialDays, modules, active, sortOrder,
+        code = code!!, name = name!!, description = description,
+        priceMonthly = priceMonthly!!, priceYearly = priceYearly!!,
+        includedFlats = includedFlats, extraFlatMonthly = extraFlatMonthly, extraFlatYearly = extraFlatYearly,
+        maxFlats = maxFlats, trialDays = trialDays, modules = modules, active = active, sortOrder = sortOrder,
+        featured = featured, recommendedFromFlats = recommendedFromFlats,
     )
 }
 
@@ -36,19 +47,53 @@ data class PlanResponse(
     val code: String,
     val name: String,
     val description: String?,
-    val pricePerFlatMonthly: BigDecimal,
-    val pricePerFlatYearly: BigDecimal,
-    val minimumMonthly: BigDecimal,
+    val priceMonthly: BigDecimal,
+    val priceYearly: BigDecimal,
+    val includedFlats: Int?,
+    val extraFlatMonthly: BigDecimal?,
+    val extraFlatYearly: BigDecimal?,
     val maxFlats: Int?,
     val trialDays: Int,
     val modules: Set<PlanModule>,
     val active: Boolean,
     val sortOrder: Int,
+    val featured: Boolean,
+    val recommendedFromFlats: Int,
 ) {
     companion object {
         fun from(p: Plan) = PlanResponse(
-            p.id!!, p.code, p.name, p.description, p.pricePerFlatMonthly, p.pricePerFlatYearly, p.minimumMonthly,
-            p.maxFlats, p.trialDays, p.moduleSet, p.active, p.sortOrder,
+            id = p.id!!, code = p.code, name = p.name, description = p.description,
+            priceMonthly = p.priceMonthly, priceYearly = p.priceYearly,
+            includedFlats = p.includedFlats, extraFlatMonthly = p.extraFlatMonthly, extraFlatYearly = p.extraFlatYearly,
+            maxFlats = p.maxFlats, trialDays = p.trialDays, modules = p.moduleSet, active = p.active, sortOrder = p.sortOrder,
+            featured = p.featured, recommendedFromFlats = p.recommendedFromFlats,
+        )
+    }
+}
+
+// A plan's cost for a flat count (before GST); `fits` is false when the plan allows fewer flats.
+data class PlanQuoteResponse(
+    val plan: PlanResponse,
+    val flats: Int,
+    val extraFlats: Int,
+    val fits: Boolean,
+    val monthly: BigDecimal,
+    val yearly: BigDecimal,
+    val recommended: Boolean,
+)
+
+data class PlanRecommendationResponse(
+    val flats: Int,
+    val recommendedPlanId: Long?,
+    val quotes: List<PlanQuoteResponse>,
+) {
+    companion object {
+        fun from(r: PlanRecommendation) = PlanRecommendationResponse(
+            flats = r.flats,
+            recommendedPlanId = r.recommended?.id,
+            quotes = r.quotes.map {
+                PlanQuoteResponse(PlanResponse.from(it.plan), it.flats, it.extraFlats, it.fits, it.monthly, it.yearly, it.plan.id == r.recommended?.id)
+            },
         )
     }
 }
@@ -91,6 +136,8 @@ data class SubscriptionResponse(
     val discountPercent: Int,
     val discountPeriodsLeft: Int,
     val flats: Int,
+    // Flats beyond the ones the next period's plan includes (charged at its extra-flat rate).
+    val extraFlats: Int,
     // One period at today's flat count, with the next period's plan and cycle (before discount and tax).
     val chargePerPeriod: BigDecimal,
     val cancelledAt: Instant?,
@@ -113,6 +160,7 @@ data class SubscriptionResponse(
             discountPercent = v.subscription.discountPercent,
             discountPeriodsLeft = v.subscription.discountPeriodsLeft,
             flats = v.flats,
+            extraFlats = (v.pendingPlan ?: v.plan).extraFlats(v.flats),
             chargePerPeriod = v.chargePerPeriod,
             cancelledAt = v.subscription.cancelledAt,
             events = v.events.map { SubscriptionEventResponse(it.kind, it.fromValue, it.toValue, it.note, it.createdBy, it.createdAt) },
