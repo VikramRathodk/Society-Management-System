@@ -318,3 +318,18 @@ and ₹35–50 for security suites, and several offer a free tier. Decisions (pr
   - Tests: `SubscriptionIntegrationTest` 15 (charge, quote and recommendation, the society's recommendation,
     one featured, extra-flat validation, Free limit single and bulk, free periods without invoices); invoice
     amounts updated. Full suite 499 green.
+- **P2 done (2026-11-18), web** (branch `feature/subscription`, `adeedd7`): the landing page's pricing comes
+  from `GET /api/public/plans` (hidden when there are none): Monthly / Yearly ("2 months free") toggle, "How
+  many flats in your society?" (debounced `quote`), each card with its total for that many flats and the
+  extra-flat breakdown, "★ Most popular" on the featured plan, "Recommended for you" on the recommended one,
+  plans too small dimmed, "+ 18% GST" everywhere. Plan editor: price per society monthly/yearly, flats
+  included, extra-flat rates, max flats, recommended from, featured. Invoice page shows "N flats (M included):
+  ₹699 + 8 extra flats × ₹12". Subscription page: flat limit ("15 of 15 allowed — upgrade to add more"), the
+  charge breakdown, and "Plans for your N flats" with every plan's monthly total, badges (most popular,
+  recommended, your plan) and, when the recommendation is a step up, "Ask for <plan>". 224 unit tests, build.
+- **P3 done (2026-11-18), Postman** folder 22 now 61 requests: plan bodies in the new fields (the Postman plan
+  is ₹100 for 2 flats and stops there), the public quote for 58 flats (one recommended plan that fits, at most
+  one featured, totals = price + extra flats × rate) and for 0 flats (400), the society's recommendation, and a
+  third flat on the 2-flat plan (402). Full run 2026-11-18: 739/740 assertions, the one failure still the old
+  Cleanup "Delete the test resident" check.
+- **Pricing v2 done.** Before launch: confirm the numbers in the plan table (all editable on the Billing page).

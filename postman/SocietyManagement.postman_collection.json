@@ -15991,6 +15991,55 @@
           ]
         },
         {
+          "name": "Pricing for 58 flats, without sign-in (the landing page)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/public/plans/quote?flats=58",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"a quote for every plan on offer\", () => { pm.expect(r.flats).to.eql(58); pm.expect(r.quotes.length).to.be.above(0); });",
+                  "pm.test(\"one recommended plan, and it fits\", () => { const rec = r.quotes.filter((q) => q.recommended); pm.expect(rec.length).to.eql(1); pm.expect(rec[0].fits).to.eql(true); pm.expect(rec[0].plan.id).to.eql(r.recommendedPlanId); });",
+                  "pm.test(\"at most one featured plan\", () => pm.expect(r.quotes.filter((q) => q.plan.featured).length).to.be.at.most(1));",
+                  "pm.test(\"each total is the price plus extra flats\", () => r.quotes.filter((q) => q.fits).forEach((q) => pm.expect(q.monthly).to.be.closeTo(q.plan.priceMonthly + q.extraFlats * (q.plan.extraFlatMonthly || 0), 0.001)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pricing for 0 flats (expect 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/public/plans/quote?flats=0",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Super admin creates a plan without a trial",
           "request": {
             "method": "POST",
@@ -16008,7 +16057,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"description\": \"Made by the Postman run\",\n  \"pricePerFlatMonthly\": 15,\n  \"pricePerFlatYearly\": 150,\n  \"minimumMonthly\": 100,\n  \"trialDays\": 0,\n  \"modules\": [\"MAINTENANCE\", \"FINANCE\"],\n  \"active\": true,\n  \"sortOrder\": 99\n}",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"description\": \"Made by the Postman run\",\n  \"priceMonthly\": 120,\n  \"priceYearly\": 1200,\n  \"includedFlats\": 2,\n  \"maxFlats\": 2,\n  \"recommendedFromFlats\": 1,\n  \"trialDays\": 0,\n  \"modules\": [\n    \"MAINTENANCE\",\n    \"FINANCE\"\n  ],\n  \"active\": true,\n  \"sortOrder\": 99\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16059,7 +16108,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Duplicate\",\n  \"pricePerFlatMonthly\": 1,\n  \"pricePerFlatYearly\": 10\n}",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Duplicate\",\n  \"priceMonthly\": 1,\n  \"priceYearly\": 10\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16097,7 +16146,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"pricePerFlatMonthly\": 12.5,\n  \"pricePerFlatYearly\": 125,\n  \"minimumMonthly\": 100,\n  \"trialDays\": 0,\n  \"modules\": [\"MAINTENANCE\", \"FINANCE\"],\n  \"active\": true,\n  \"sortOrder\": 99\n}",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Postman {{subStamp}}\",\n  \"priceMonthly\": 100,\n  \"priceYearly\": 1000,\n  \"includedFlats\": 2,\n  \"maxFlats\": 2,\n  \"recommendedFromFlats\": 1,\n  \"trialDays\": 0,\n  \"modules\": [\n    \"MAINTENANCE\",\n    \"FINANCE\"\n  ],\n  \"active\": true,\n  \"sortOrder\": 99\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16112,7 +16161,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"price changed\", () => pm.expect(pm.response.json().pricePerFlatMonthly).to.eql(12.5));"
+                  "const p = pm.response.json();",
+                  "pm.test(\"price changed\", () => pm.expect(p.priceMonthly).to.eql(100));",
+                  "pm.test(\"stops at its 2 included flats\", () => { pm.expect(p.includedFlats).to.eql(2); pm.expect(p.maxFlats).to.eql(2); });"
                 ]
               }
             }
@@ -16136,7 +16187,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Too dear\",\n  \"pricePerFlatMonthly\": 100000,\n  \"pricePerFlatYearly\": 125\n}",
+              "raw": "{\n  \"code\": \"PM_{{subStamp}}\",\n  \"name\": \"Too dear\",\n  \"priceMonthly\": 100000,\n  \"priceYearly\": 125\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16174,7 +16225,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"NOPE\",\n  \"name\": \"Nope\",\n  \"pricePerFlatMonthly\": 1,\n  \"pricePerFlatYearly\": 1\n}",
+              "raw": "{\n  \"code\": \"NOPE\",\n  \"name\": \"Nope\",\n  \"priceMonthly\": 1,\n  \"priceYearly\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -16299,7 +16350,39 @@
                   "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
                   "const s = pm.response.json();",
                   "pm.test(\"flats counted\", () => pm.expect(s.flats).to.be.above(0));",
-                  "pm.test(\"at least the minimum a month\", () => pm.expect(s.chargePerPeriod).to.be.at.least(s.plan.minimumMonthly));"
+                  "pm.test(\"the plan's price plus its extra flats\", () => { const p = s.pendingPlan || s.plan; const rate = s.cycle === \"YEARLY\" ? p.extraFlatYearly : p.extraFlatMonthly; const price = s.cycle === \"YEARLY\" ? p.priceYearly : p.priceMonthly; pm.expect(s.chargePerPeriod).to.be.closeTo(price + s.extraFlats * (rate || 0), 0.001); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secretary sees the plans for the society's flats (recommendation)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/societies/{{societyId}}/subscription/recommendation",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secretaryToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"for the society's flats\", () => pm.expect(r.flats).to.be.above(0));",
+                  "pm.test(\"every plan quoted, the recommended one marked\", () => { pm.expect(r.quotes.length).to.be.above(0); pm.expect(r.quotes.filter((q) => q.recommended).length).to.be.at.most(1); });"
                 ]
               }
             }
@@ -17004,7 +17087,46 @@
                   "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
                   "const s = pm.response.json();",
                   "pm.test(\"active, first invoice today\", () => { pm.expect(s.status).to.eql(\"ACTIVE\"); pm.expect(s.nextInvoiceOn).to.eql(s.currentPeriodStart); });",
-                  "pm.test(\"2 flats × ₹12.50 is below the ₹100 minimum\", () => pm.expect(s.chargePerPeriod).to.eql(100));"
+                  "pm.test(\"the plan's ₹100 covers its 2 flats\", () => { pm.expect(s.chargePerPeriod).to.eql(100); pm.expect(s.extraFlats).to.eql(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Flat 103 past the plan's 2-flat limit (expect 402)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/wings/{{billWingId}}/flats",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{superAdminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flatNumber\": \"103\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", () => pm.response.to.have.status(402));",
+                  "pm.test(\"says to upgrade\", () => pm.expect(pm.response.json().message).to.include(\"up to 2 flats\"));"
                 ]
               }
             }
@@ -17036,7 +17158,7 @@
                   "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
                   "const i = pm.response.json();",
                   "pm.test(\"numbered per financial year\", () => pm.expect(i.summary.number).to.match(/\\/\\d{4}-\\d{2}\\/\\d{4}$/));",
-                  "pm.test(\"the minimum charge\", () => { pm.expect(i.amount).to.eql(100); pm.expect(i.taxableValue).to.eql(100); });",
+                  "pm.test(\"the plan's price, no extra flats\", () => { pm.expect(i.amount).to.eql(100); pm.expect(i.basePrice).to.eql(100); pm.expect(i.extraFlats).to.eql(0); pm.expect(i.taxableValue).to.eql(100); });",
                   "pm.test(\"GST as configured\", () => {",
                   "  if (!i.seller.gstin) { pm.expect(i.cgst + i.sgst + i.igst).to.eql(0); pm.expect(i.total).to.eql(100); }",
                   "  else if (i.seller.state === \"Maharashtra\") { pm.expect(i.cgst).to.eql(i.sgst); pm.expect(i.igst).to.eql(0); }",
